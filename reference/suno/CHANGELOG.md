@@ -4,6 +4,119 @@ This file tracks all updates to the Suno reference documentation, including new 
 
 ---
 
+## 2026-11-19 - Music Video
+
+`/bitwize-music:music-video` takes a track's keeper to a music video through Suno's Sequences: shots on the song's sections, a keyframe each, an animatic, then clips for the shots the user picks.
+
+### Features
+- New skill and three tools (`get_music_video_plan`, `plan_music_video_shots`, `save_music_video`). [mcp-api-mapping.md](mcp-api-mapping.md) § Visuals has the steps and the answers.
+
+### Measured
+- `sequence-create`, `sequence-update` (putting existing images into shots), `sequence-export`, `visuals-wait` and `visuals-download` spent no credit of any kind.
+- An export with stills in two shots of six was a 1920x1080 MP4 as long as the song: the stills held for their shots, the empty shots black.
+- `audio-analysis` answered `processing` first and was complete a minute later, with sections, beats, the key and a tempo twice the one asked for.
+- Dry runs of `sequence-generate`: keyframes on `image-1` are 1 credit a shot; clips are charged by the whole second, rounded up (9.44 seconds as 10, 6.8 as 7), and the answer's `notes` say what a trim would save.
+
+- Six real keyframes on `image-1`: 6 credits, charged when the call was made, all ready in under a minute at 1360x768, the first take in its shot. Swapping in the other take with `sequence-update` is free.
+- A set holds: three shots citing one reference image showed the same objects and place. It outweighs the prompt where the two disagree.
+- One real clip in a shot of exactly 5 seconds on `video-1`: priced and charged as 5 seconds (75 credits), task `image_to_video`, opening on the shot's keyframe, two takes of 5.167 seconds ready in under a minute.
+- An export is 1920x1080 whether its shots hold stills or a 480p clip.
+
+### Not Measured
+- Characters, a `failed` shot and its recovery, the `rate_limited`, `refused` and `unknown` answers, `video-2`, and a shot shorter than five seconds.
+
+---
+
+## 2026-11-19 - Promo Clips
+
+`/bitwize-music:promo-director` gains an optional, paid route: a clip Suno's `video-create` generates for a passage of a track's keeper.
+
+### Features
+- Two tools (`get_promo_clip_plan`, `save_promo_clip`) and a step in the skill. [mcp-api-mapping.md](mcp-api-mapping.md) § Visuals has the steps.
+
+### Measured
+- `video-create` with `dry_run: true` spends nothing and answers with the price, the model, the resolution and the number of takes: 75 credits for five seconds on `video-1` (480p), two takes.
+- A first frame makes the task `image_to_video`, at the same price.
+- With no model named, the call is priced on `video-2` at 720p: 450 credits for fifteen seconds. The plugin's request always names its model.
+- One real clip, five seconds on `video-1`: the 75 credits quoted were charged when the call was made, and both takes were ready in under a minute.
+- Each take was an MP4 of 5.167 seconds, H.264 at 24 frames a second, 480x840, with 48 kHz AAC, a little under 1 MB.
+- The clip's sound was the song from the second asked for, to within 5 milliseconds, so the same passage of a master lines up under the picture.
+- `visuals-wait` and `visuals-download` spent nothing, and no download credit was used.
+
+### Not Measured
+- `video-2` and 720p, a longer clip, a first frame, a failed take and a refused prompt.
+
+---
+
+## 2026-11-19 - Lyric Video
+
+`/bitwize-music:lyric-video` has Suno render a lyric video for a track: the album's cover under the keeper, with the words burned in as they are sung. Measured on a Premier account with three takes of a test song, 52, 55 and 97 seconds long.
+
+### Features
+- New skill and three tools (`get_lyric_video_plan`, `prepare_lyric_video_still`, `save_lyric_video`). [mcp-api-mapping.md](mcp-api-mapping.md) § Visuals has the steps and the answers.
+
+### Measured
+- `video-assemble` with a still and `lyrics: true`, then `visuals-wait` and `visuals-download`: no credit of any kind was spent, and the video was ready in under a minute.
+- The MP4 was H.264 at 30 frames a second with 48 kHz AAC: 1080x1080 for 1:1, 1920x1080 for 16:9, about 11 MB.
+- All seven sung lines were shown, in order, lit word by word, on both takes watched. One of them is the take whose `audio-lyrics-alignment` transcript had left out two sung lines.
+- The 97-second song took two stills and came out 97.17 seconds long.
+- A locked song: `audio-download` without `confirm` answered `requires_credit`, the video was rendered all the same, and `visuals-download` answered `403 clip_not_unlocked`. Two `audio-download` calls at once: the second answered `rate_limited` with `retry_after_seconds: 1`.
+- A square picture in a 16:9 video sat between black bars. A still held longer than the song left silence at the end.
+- The download link was a signed address on `suno-data-uploads.s3.amazonaws.com`, the bucket audio downloads come from too. An image's link is on `cdn1.suno.ai`.
+- Each `video-assemble` call leaves a Sequence in the user's Suno library, with an `editor_url`.
+
+### Not Measured
+- Uploading the picture. `visuals-upload-create` answered `403 upload_consent_required` until the account accepts Suno's upload notice, which is the user's to accept.
+- Watching the 97-second video: its song is locked, and unlocking it costs a download credit.
+
+---
+
+## 2026-11-19 - Album Art Through Suno
+
+`artwork.generator: suno` has Suno's image tool make an album's cover. Measured on a Premier account with the Fast model.
+
+### Features
+- `/bitwize-music:album-art-director` sends the art prompt to `image-create`, prices it first with `dry_run`, and saves the two takes as candidates with `save_album_art_candidates`. [mcp-api-mapping.md](mcp-api-mapping.md) § Visuals has the steps and the answers.
+
+### Measured
+- `image-create` with `image-1`: two 1024x1024 JPEGs for 1 Visuals credit, taken when the call is made, and ready within seconds. The same request with `dry_run: true` answered `credits: 1`, `takes: 2` and the balance, and spent nothing.
+- `visuals-wait`, `visuals-show`, `visuals-download` and `visuals-library` spent nothing, and downloading an image spent no download credit.
+- The download link was a plain https address on `cdn1.suno.ai`. The file behind it is made by the `visuals-download` call: the other take's address, built by hand before that call, answered `403`. In Claude Code, `visuals-show` returned the pictures to the model as images.
+
+### Not Measured
+- `image-2` and `image-4`: their prices come from `visuals-models`, and their image size is unknown.
+- Lettering on a cover, and every video tool.
+
+---
+
+## 2026-11-18 - Visuals Tools and Settings Read-Back
+
+Suno's MCP server grew from 41 tools to 59 with Visuals, its image and video feature (launched 2026-11-17), and song data began to carry the settings a take was made with. Read from a fresh connection on a Premier account; a session that had been open since before the launch still listed 41.
+
+### Features
+- [mcp-api-mapping.md](mcp-api-mapping.md) § Visuals: the 18 new tools, which of them spend Visuals credits, and the prices `visuals-models` lists. The plugin does not call them yet.
+- The take check holds the model, Variety, Max Mode, exclusions and sliders Suno reports for a take against the track file (§ Take Check).
+
+### Measured
+- Song data from `library-list`: two takes of a track that asks for v6, Variety Off, Max Mode on, two exclusions and three sliders carry `metadata.model`, `negative_style`, `max_mode` and `controls` with exactly those values. Takes made as edits carry `model` alone. Song data read before this change had none of the four.
+- `account-usage` reports a third balance, `suno_account.visuals_credits_remaining`.
+- `visuals-models` is free. It lists `image-1` / `image-2` / `image-4` at 1 / 25 / 50 Visuals credits a generation, and `video-1` (480p) / `video-2` (720p) at 15 / 30 a second, for clips of 5 to 15 seconds.
+
+### Changes
+- Skills pre-approve the Suno tools they call by name. `mcp__suno__*` would also have pre-approved the Visuals tools that spend credits.
+- The spending rule in CLAUDE.md covers Visuals credits.
+- A session lists Suno's tools as they were when it started; § Preflight says to restart it before deciding that a tool is missing.
+- No older tool gained, lost or changed an argument. `audio-lyrics-alignment` now starts a run for an older song that was never aligned, at most once a day, where it used to answer `unavailable`.
+
+### Not Measured
+- No tool that spends Visuals credits has been called. That `sequence-create`, `sequence-update`, `sequence-export` and `video-assemble` are free is taken from their descriptions.
+
+### Sources
+- https://suno.com/mcp · https://help.suno.com/en/articles/14551361 (official — "Create images and build videos from start to finish with Visuals")
+- https://suno.com/blog/introducing-visuals · https://help.suno.com/en/articles/14661121 (official — Visuals)
+
+---
+
 ## 2026-11-10 - Official MCP Server
 
 Suno's own MCP server (`https://api.suno.com/mcp`, beta since October 2026) is the first sanctioned programmatic route to generation, and the plugin now uses it when it is connected. Tested on a Premier account. The server's tools changed twice while this was being written (nine tools added; `clip_count` removed and `max_mode` added), so the live tool definitions outrank anything recorded here.

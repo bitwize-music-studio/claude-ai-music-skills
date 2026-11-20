@@ -110,9 +110,30 @@ After installing, **restart Claude Code** to reload the plugin.
 ### Album Art
 | Tool | Description |
 |------|-------------|
-| `get_album_art_plan(album_slug)` | Who makes the cover (`artwork.generator`), the image prompt from the album README, whether Codex is ready, and the cost. Free |
+| `get_album_art_plan(album_slug)` | Who makes the cover (`artwork.generator`), the image prompt from the album README, whether Codex is ready or the request for Suno's `image-create`, and the cost. Free |
 | `generate_album_art(album_slug, candidates?, open_viewer?)` | Have the Codex CLI make 1-4 cover candidates (one ChatGPT image each); never picks one |
+| `save_album_art_candidates(album_slug, links, open_viewer?)` | Save the images Suno made (the links from its `visuals-download`) as cover candidates and open them; never picks one. Free |
 | `import_album_art(album_slug, source_path, replace?)` | File the chosen image as `album.png` (3000x3000) and `album-art.png` |
+
+### Lyric Video
+| Tool | Description |
+|------|-------------|
+| `get_lyric_video_plan(album_slug, track_slug, shape?, asset_id?, duration_s?)` | The keeper, the cover, the master and where the video goes; with the image's id and the song's length, the request for Suno's `video-assemble`. Free |
+| `prepare_lyric_video_still(album_slug, shape?)` | Write the picture Suno holds under the words, from the album's cover |
+| `save_lyric_video(album_slug, track_slug, link, shape?, master_audio?, replace?)` | Save the video Suno made (the link from its `visuals-download`) under `lyric_videos/`, with the mastered audio under it. Free |
+
+### Music Video
+| Tool | Description |
+|------|-------------|
+| `get_music_video_plan(album_slug, track_slug, shape?, shots?, style?, lyrics?, characters?, sets?)` | The keeper, the master and where the files go; with the shots, the request for Suno's `sequence-create`. Free |
+| `plan_music_video_shots(duration_s, sections, max_shot_s?, bpm?, time_signature?, first_downbeat_s?, whole_seconds?, credits_per_second?)` | Shots on the song's sections, each short enough for one clip, and the seconds clips would be charged for |
+| `save_music_video(album_slug, track_slug, link, shape?, kind?, master_audio?, replace?)` | Save an export (the link from Suno's `visuals-download`) under `music_videos/`: the animatic, or the finished video with the mastered audio under it. Free |
+
+### Promo Clip
+| Tool | Description |
+|------|-------------|
+| `get_promo_clip_plan(album_slug, track_slug, prompt?, start_s?, duration_s?, aspect?, model?, first_frame_asset_id?, song_duration_s?, singing?)` | The keeper, the master and where the clip goes; with the prompt and the passage, the request for Suno's `video-create`, which always names its model. Free |
+| `save_promo_clip(album_slug, track_slug, link, start_s, song_duration_s?, master_audio?, replace?)` | Save the take the user chose (the link from Suno's `visuals-download`) as `promo_videos/<track>_suno.mp4`, with the master's passage under it. Free |
 
 ### Session & Config
 | Tool | Description |

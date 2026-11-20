@@ -7,7 +7,9 @@ effort: low
 allowed-tools:
   - Read
   - bitwize-music-mcp
-  - mcp__suno__*
+  - mcp__suno__account-usage
+  - mcp__suno__voices-list
+  - mcp__suno__voices-start
 ---
 
 ## Your Task

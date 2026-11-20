@@ -1289,6 +1289,38 @@ def _coherence_finalize_stage(
     return stage
 
 
+def _anchor_position(
+    ctx: MasterAlbumCtx, results: list[dict[str, Any]],
+) -> int | None:
+    """1-based position of the anchor track in ``results``, or None.
+
+    ``anchor_result["selected_index"]`` numbers the tracks of
+    ``ctx.analysis_results``, which holds every source WAV. The coherence
+    stages index ``verify_results``, which holds every WAV in ``mastered/``.
+    That list is longer when ``mastered/`` keeps a file no source matches
+    (the old master of a renamed or removed track) and shorter when mastering
+    skipped a source with no measurable loudness, so the same number can name
+    a different track there or run past its end. Find the anchor there by
+    filename.
+
+    Without an analysis entry to name the anchor (a frozen signature written
+    when the album had more tracks, say), the number is used as given, as
+    long as it fits ``results``.
+    """
+    anchor_idx = ctx.anchor_result.get("selected_index")
+    if not isinstance(anchor_idx, int) or anchor_idx < 1:
+        return None
+    anchor_name: str | None = None
+    if anchor_idx <= len(ctx.analysis_results):
+        anchor_name = ctx.analysis_results[anchor_idx - 1].get("filename")
+    if not anchor_name:
+        return anchor_idx if anchor_idx <= len(results) else None
+    for pos, result in enumerate(results, start=1):
+        if result.get("filename") == anchor_name:
+            return pos
+    return None
+
+
 async def _stage_coherence_check(ctx: MasterAlbumCtx) -> str | None:
     """Stage 5.1: Classify tracks against coherence tolerance bands (#290 step 5).
 
@@ -1317,10 +1349,23 @@ async def _stage_coherence_check(ctx: MasterAlbumCtx) -> str | None:
         }
         return None
 
+    # The anchor's place among the mastered tracks, which can differ from
+    # its number among the sources (see _anchor_position).
+    anchor_pos = _anchor_position(ctx, ctx.verify_results)
+    if anchor_pos is None:
+        ctx.stages["coherence_check"] = {
+            "status": "warn",
+            "reason": "anchor_not_mastered",
+            "outlier_count": 0,
+            "correctable_count": 0,
+            "anchor_index": anchor_idx,
+        }
+        return None
+
     tolerances = _coherence_load_tolerances(ctx.preset_dict)
-    deltas = compute_anchor_deltas(ctx.verify_results, anchor_index_1based=anchor_idx)
+    deltas = compute_anchor_deltas(ctx.verify_results, anchor_index_1based=anchor_pos)
     classifications = _coherence_classify(
-        deltas, ctx.verify_results, tolerances, anchor_index_1based=anchor_idx
+        deltas, ctx.verify_results, tolerances, anchor_index_1based=anchor_pos
     )
     ctx.coherence_classifications = classifications
 
@@ -1335,7 +1380,7 @@ async def _stage_coherence_check(ctx: MasterAlbumCtx) -> str | None:
     from tools.mastering.coherence import build_correction_plan
     plan = build_correction_plan(
         classifications, ctx.verify_results,
-        anchor_index_1based=anchor_idx,
+        anchor_index_1based=anchor_pos,
         max_tilt_db=tolerances["coherence_tilt_max_db"],
     )
     correctable_count = sum(1 for c in plan["corrections"] if c["correctable"])
@@ -1380,6 +1425,18 @@ async def _stage_coherence_correct(ctx: MasterAlbumCtx) -> str | None:
         }
         return None
 
+    # Index the mastered tracks by the anchor's place among them, not by its
+    # number among the sources (see _anchor_position).
+    anchor_pos = _anchor_position(ctx, ctx.verify_results)
+    if anchor_pos is None:
+        ctx.stages["coherence_correct"] = {
+            "status": "warn",
+            "reason": "anchor_not_mastered",
+            "iterations": 0,
+            "corrections": [],
+        }
+        return None
+
     assert ctx.source_dir is not None
     assert ctx.output_dir is not None
 
@@ -1394,14 +1451,14 @@ async def _stage_coherence_correct(ctx: MasterAlbumCtx) -> str | None:
     # the album median (anchor-based here) be captured once and held constant
     # across inner iterations to prevent correction feedback loops.
     frozen_anchor_lufs = float(
-        current_verify[anchor_idx - 1].get("lufs", 0.0)
-    ) if 1 <= anchor_idx <= len(current_verify) else 0.0
+        current_verify[anchor_pos - 1].get("lufs", 0.0)
+    ) if 1 <= anchor_pos <= len(current_verify) else 0.0
 
     prev_plan_signature: tuple[tuple[str, float, float], ...] | None = None
 
     for _iter in range(_COHERENCE_MAX_ITERATIONS):
         plan = _coherence_build_plan(
-            classifications, current_verify, anchor_idx,
+            classifications, current_verify, anchor_pos,
             max_tilt_db=tolerances["coherence_tilt_max_db"],
         )
         correctable = [c for c in plan["corrections"] if c["correctable"]]
@@ -1530,10 +1587,10 @@ async def _stage_coherence_correct(ctx: MasterAlbumCtx) -> str | None:
 
         # Re-classify with fresh analysis
         fresh_deltas = compute_anchor_deltas(
-            fresh_results, anchor_index_1based=anchor_idx
+            fresh_results, anchor_index_1based=anchor_pos
         )
         classifications = _coherence_classify(
-            fresh_deltas, fresh_results, tolerances, anchor_index_1based=anchor_idx
+            fresh_deltas, fresh_results, tolerances, anchor_index_1based=anchor_pos
         )
         current_verify = fresh_results
 

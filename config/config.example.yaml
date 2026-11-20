@@ -717,6 +717,9 @@ artwork:
   #   codex  - Your installed Codex CLI does, with its built-in image tool.
   #            The plugin saves the candidates beside the album's audio, opens
   #            them for you to look at, and files the one you choose.
+  #   suno   - Suno's image tool does, through Suno's MCP server. The plugin
+  #            saves the two candidates the same way and files the one you
+  #            choose.
   #
   # REQUIREMENTS for codex:
   #   - The Codex CLI on your PATH (or set codex_path below)
@@ -728,6 +731,15 @@ artwork:
   #
   # Codex returns a 1254x1254 image. The one you choose is enlarged to
   # 3000x3000 for distribution, which adds size but no detail.
+  #
+  # REQUIREMENTS for suno:
+  #   - Suno's MCP server connected and signed in (see
+  #     reference/suno/mcp-api-mapping.md), on a sign-in that includes Visuals
+  #
+  # COST for suno: Visuals credits, a balance of their own on your Suno
+  # account. One run makes two images. You are told the exact price and asked
+  # before any image is made. Measured with the Fast model: 1 credit for two
+  # 1024x1024 images.
   #
   # Default (if omitted): manual
   #
@@ -752,6 +764,18 @@ artwork:
   # Default (if omitted): found on PATH, then in ~/.local/bin and the like
   #
   # codex_path: "~/.local/bin/codex"
+
+  # ---------------------------
+  # suno_model [optional]
+  # ---------------------------
+  # The image model Suno uses (suno only). Suno's price list names image-1
+  # (Fast), image-2 (Standard) and image-4 (Max), cheapest first.
+  #
+  # Default (if omitted): Suno's own default, image-4 when this was written.
+  # A value that is not a model id stops the art plan with a message, so a
+  # typing mistake cannot fall through to the default model's price.
+  #
+  # suno_model: "image-1"
 
 
 # =============================================================================

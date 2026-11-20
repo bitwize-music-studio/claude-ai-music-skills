@@ -1,6 +1,6 @@
 # Skills Reference
 
-All 61 skills, invoked with `/bitwize-music:<skill-name>`. Claude also uses them automatically when relevant.
+All 63 skills, invoked with `/bitwize-music:<skill-name>`. Claude also uses them automatically when relevant.
 
 ---
 
@@ -18,9 +18,11 @@ All 61 skills, invoked with `/bitwize-music:<skill-name>`. Claude also uses them
 | `edit-take` | Fix one thing in a take (a word, a line, a section, an instrument) and keep the rest of its audio; or make an instrumental version of it |
 | `extend-take` | Carry a take on from a point in its audio — more of a song that stopped early, or a new second half — and join the result into whole songs |
 | `sound-effects` | Make a sound effect, a one-shot or a loop for an album through Suno's MCP server |
+| `lyric-video` | Make a lyric video for a track through Suno's MCP server: the cover under the keeper with the words burned in, saved with the mastered audio |
+| `music-video` | Make a music video for a track through Suno's Sequences: shots on the song's sections, keyframes, a free animatic, then clips for the shots you pick (paid, step by step) |
 | `suno-voice` | Put one of your saved Suno Voices on a track or an album, list your Voices, or get Suno's link to make a new one |
 | `pronunciation-specialist` | Prevent Suno mispronunciations with phonetic spelling |
-| `album-art-director` | Album artwork concepts and multi-platform AI art prompts; can have the Codex CLI make the cover (`artwork.generator: codex`) |
+| `album-art-director` | Album artwork concepts and multi-platform AI art prompts; can have the Codex CLI or Suno's image tool make the cover (`artwork.generator: codex` or `suno`) |
 | `mix-engineer` | Per-stem audio polish (noise reduction, EQ, compression) |
 | `mastering-engineer` | Audio mastering for streaming platforms (-14 LUFS) |
 
@@ -59,7 +61,7 @@ The research system is coordinated by a lead `/researcher` skill that dispatches
 
 | Skill | Description |
 |-------|-------------|
-| `promo-director` | Generate 15-second vertical promo videos |
+| `promo-director` | Generate 15-second vertical promo videos; on request, a clip Suno generates for a passage of a track (paid) |
 | `promo-writer` | Platform-specific social media copy |
 | `promo-reviewer` | Review and polish promo copy before release |
 | `cloud-uploader` | Upload promo content to Cloudflare R2 or AWS S3 |

@@ -55,6 +55,18 @@ def _write_sine_wav(path: Path, *, duration: float = 2.0,
     return path
 
 
+@pytest.fixture(autouse=True)
+def _no_fade_lookup(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The correct stage reads each re-mastered track's fade from the state
+    cache, and these tests have no album state. Without this the lookup only
+    worked when an earlier test in the run had left a cache behind: run on
+    its own, this file recorded every correction as an error and never
+    re-mastered anything."""
+    monkeypatch.setattr(
+        album_stages_mod._helpers, "_track_fade_out", lambda *_a, **_k: None,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Test 1: coherence check classifies tracks correctly (no outliers)
 # ---------------------------------------------------------------------------
@@ -1089,3 +1101,235 @@ def test_coherence_correct_mixed_clamp_and_drift_stays_warn(
     assert len(ctx.warnings) == 1, (
         f"mixed case must append exactly one warning, got {ctx.warnings}"
     )
+
+
+# ---------------------------------------------------------------------------
+# The anchor is found among the mastered tracks by filename. Its
+# selected_index numbers the SOURCE tracks (analysis_results), while
+# verify_results holds every WAV in mastered/. That list is longer when
+# mastered/ keeps a file no source matches, and shorter when mastering skipped
+# a source, so the same number would name a different track, or run past the
+# end of the list.
+#
+# A plainly silent source never reaches these stages in master_album: pre-QC
+# fails it first ("Leading silence"). 02-silent.wav below stands for a track
+# that passes that check and still has no valid LUFS, which mastering skips.
+# ---------------------------------------------------------------------------
+
+_SOURCES_WITH_SILENT_02 = ("01-a.wav", "02-silent.wav", "03-c.wav", "04-d.wav", "05-e.wav")
+
+
+def _analysis_with_silent_02() -> list[dict]:
+    return [
+        _make_verify_result(name, lufs=float("-inf") if name == "02-silent.wav" else -14.0)
+        for name in _SOURCES_WITH_SILENT_02
+    ]
+
+
+def _verify_without_02(loud: str) -> list[dict]:
+    """Mastered tracks (02 skipped as silent); ``loud`` sits 4 dB hot."""
+    return [
+        _make_verify_result(name, lufs=-10.0 if name == loud else -14.0)
+        for name in _SOURCES_WITH_SILENT_02 if name != "02-silent.wav"
+    ]
+
+
+def _new_ctx() -> MasterAlbumCtx:
+    return MasterAlbumCtx(
+        album_slug="test-album", genre="", target_lufs=-14.0,
+        ceiling_db=-1.0, cut_highmid=None, cut_highs=None,
+        source_subfolder="", freeze_signature=False, new_anchor=False,
+        loop=asyncio.get_running_loop(),
+    )
+
+
+def test_coherence_check_finds_anchor_after_silent_track_skipped() -> None:
+    """Anchor is source #3 (03-c); mastered list is [01, 03, 04, 05]. Read
+    positionally, #3 there is 04-d, the one loud track, and the three
+    on-target tracks would be reported as outliers against it."""
+    async def _run():
+        ctx = _new_ctx()
+        ctx.analysis_results = _analysis_with_silent_02()
+        ctx.anchor_result = {"selected_index": 3}
+        ctx.verify_results = _verify_without_02(loud="04-d.wav")
+        ctx.preset_dict = None
+        await _stage_coherence_check(ctx)
+        return ctx
+
+    ctx = asyncio.run(_run())
+
+    anchors = [c["filename"] for c in ctx.coherence_classifications if c["is_anchor"]]
+    assert anchors == ["03-c.wav"]
+    outliers = [c["filename"] for c in ctx.coherence_classifications if c["is_outlier"]]
+    assert outliers == ["04-d.wav"]
+    stage = ctx.stages["coherence_check"]
+    assert stage["outlier_count"] == 1
+    assert stage["anchor_index"] == 3  # still the album track number
+
+
+def test_coherence_check_last_track_anchor_after_silent_track_skipped() -> None:
+    """Anchor is source #5, the last; only four tracks were mastered. Read
+    positionally, compute_anchor_deltas raised ValueError (index out of
+    range) and the album run aborted."""
+    async def _run():
+        ctx = _new_ctx()
+        ctx.analysis_results = _analysis_with_silent_02()
+        ctx.anchor_result = {"selected_index": 5}
+        ctx.verify_results = _verify_without_02(loud="01-a.wav")
+        ctx.preset_dict = None
+        result = await _stage_coherence_check(ctx)
+        return result, ctx
+
+    result, ctx = asyncio.run(_run())
+
+    assert result is None
+    anchors = [c["filename"] for c in ctx.coherence_classifications if c["is_anchor"]]
+    assert anchors == ["05-e.wav"]
+    outliers = [c["filename"] for c in ctx.coherence_classifications if c["is_outlier"]]
+    assert outliers == ["01-a.wav"]
+
+
+def test_coherence_check_warns_when_anchor_was_not_mastered() -> None:
+    """An anchor with no mastered file is reported, not swapped for another
+    track and not an exception."""
+    async def _run():
+        ctx = _new_ctx()
+        ctx.analysis_results = _analysis_with_silent_02()
+        ctx.anchor_result = {"selected_index": 2}
+        ctx.verify_results = _verify_without_02(loud="04-d.wav")
+        ctx.preset_dict = None
+        result = await _stage_coherence_check(ctx)
+        return result, ctx
+
+    result, ctx = asyncio.run(_run())
+
+    assert result is None
+    stage = ctx.stages["coherence_check"]
+    assert stage["status"] == "warn"
+    assert stage["reason"] == "anchor_not_mastered"
+
+
+def test_coherence_check_finds_anchor_past_leftover_mastered_file() -> None:
+    """mastered/ keeps 02-old-take.wav, the master of a track since renamed,
+    so the mastered list is one longer than the sources. Anchor is source #3
+    (03-c); read positionally, #3 there is the leftover, the one loud file,
+    and the four real tracks would be reported as outliers against it."""
+    sources = ("01-a.wav", "02-b.wav", "03-c.wav", "04-d.wav")
+    mastered = ("01-a.wav", "02-b.wav", "02-old-take.wav", "03-c.wav", "04-d.wav")
+
+    async def _run():
+        ctx = _new_ctx()
+        ctx.analysis_results = [_make_verify_result(name, lufs=-14.0) for name in sources]
+        ctx.anchor_result = {"selected_index": 3}
+        ctx.verify_results = [
+            _make_verify_result(name, lufs=-10.0 if name == "02-old-take.wav" else -14.0)
+            for name in mastered
+        ]
+        ctx.preset_dict = None
+        await _stage_coherence_check(ctx)
+        return ctx
+
+    ctx = asyncio.run(_run())
+
+    anchors = [c["filename"] for c in ctx.coherence_classifications if c["is_anchor"]]
+    assert anchors == ["03-c.wav"]
+    outliers = [c["filename"] for c in ctx.coherence_classifications if c["is_outlier"]]
+    assert outliers == ["02-old-take.wav"]
+    assert ctx.stages["coherence_check"]["anchor_index"] == 3
+
+
+def test_coherence_check_warns_when_anchor_number_fits_neither_list() -> None:
+    """A frozen signature keeps the anchor number it was written with. With
+    four sources and four mastered files, anchor #5 names no track. No
+    analysis entry gives it a filename, and the number as given runs past the
+    mastered list: reported, not a ValueError that stops the album run."""
+    names = ("01-a.wav", "02-b.wav", "03-c.wav", "04-d.wav")
+
+    async def _run():
+        ctx = _new_ctx()
+        ctx.analysis_results = [_make_verify_result(name, lufs=-14.0) for name in names]
+        ctx.anchor_result = {"selected_index": 5}
+        ctx.verify_results = [_make_verify_result(name, lufs=-14.0) for name in names]
+        ctx.preset_dict = None
+        result = await _stage_coherence_check(ctx)
+        return result, ctx
+
+    result, ctx = asyncio.run(_run())
+
+    assert result is None
+    stage = ctx.stages["coherence_check"]
+    assert stage["status"] == "warn"
+    assert stage["reason"] == "anchor_not_mastered"
+    assert stage["anchor_index"] == 5
+    assert not ctx.coherence_classifications
+
+
+def test_coherence_check_uses_anchor_number_when_no_analysis_names_it() -> None:
+    """Without analysis results the anchor has no filename to look up, and its
+    number is read against the mastered list as before."""
+    async def _run():
+        ctx = _new_ctx()
+        ctx.anchor_result = {"selected_index": 2}
+        ctx.verify_results = [
+            _make_verify_result("01-a.wav", lufs=-14.0),
+            _make_verify_result("02-b.wav", lufs=-14.0),
+        ]
+        ctx.preset_dict = None
+        await _stage_coherence_check(ctx)
+        return ctx
+
+    ctx = asyncio.run(_run())
+
+    anchors = [c["filename"] for c in ctx.coherence_classifications if c["is_anchor"]]
+    assert anchors == ["02-b.wav"]
+
+
+def test_coherence_correct_targets_true_anchor_after_silent_track_skipped(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The correct stage re-masters only the loud track, toward the true
+    anchor's LUFS (-14), not toward the track at the anchor's source number."""
+    source_dir = tmp_path / "polished"
+    source_dir.mkdir()
+    output_dir = tmp_path / "mastered"
+    output_dir.mkdir()
+
+    import shutil
+    mastered = []
+    for name in _SOURCES_WITH_SILENT_02:
+        _write_sine_wav(source_dir / name)
+        if name != "02-silent.wav":
+            shutil.copy(source_dir / name, output_dir / name)
+            mastered.append(output_dir / name)
+
+    captured_calls: list[dict] = []
+
+    def _fake_master_track(src: str, dst: str, **kwargs) -> dict:
+        captured_calls.append({"src": src, "dst": dst, **kwargs})
+        shutil.copy(src, dst)
+        return {"status": "ok"}
+
+    monkeypatch.setattr(album_stages_mod, "_COHERENCE_MAX_ITERATIONS", 1)
+    import tools.mastering.master_tracks as _mt_mod
+    monkeypatch.setattr(_mt_mod, "master_track", _fake_master_track)
+
+    async def _run():
+        ctx = _new_ctx()
+        ctx.analysis_results = _analysis_with_silent_02()
+        ctx.anchor_result = {"selected_index": 3}
+        ctx.verify_results = _verify_without_02(loud="04-d.wav")
+        ctx.preset_dict = None
+        await _stage_coherence_check(ctx)
+        ctx.source_dir = source_dir
+        ctx.output_dir = output_dir
+        ctx.mastered_files = mastered
+        ctx.effective_ceiling = -1.0
+        ctx.effective_compress = 1.0
+        ctx.effective_preset = {}
+        await _stage_coherence_correct(ctx)
+        return ctx
+
+    asyncio.run(_run())
+
+    assert [Path(c["dst"]).name for c in captured_calls] == ["04-d.wav"]
+    assert captured_calls[0]["target_lufs"] == pytest.approx(-14.0, abs=1e-6)

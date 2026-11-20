@@ -8,7 +8,13 @@ allowed-tools:
   - Read
   - Edit
   - bitwize-music-mcp
-  - mcp__suno__*
+  - mcp__suno__account-upgrade
+  - mcp__suno__account-usage
+  - mcp__suno__audio-create
+  - mcp__suno__audio-like
+  - mcp__suno__audio-retrieve
+  - mcp__suno__audio-unlike
+  - mcp__suno__audio-wait
 ---
 
 ## Your Task
@@ -84,7 +90,7 @@ Go ahead?   yes · cancel
 3. The answer carries two ids in `clip_ids`. Call `audio-wait` with both and `until: "complete"`; call it again while either is pending. An edit usually finishes within a minute.
 4. Call `account-usage` again. Credits spent = balance before − balance after.
 
-Failures are handled as in `/bitwize-music:generate` Step 6: one retry with the same key after a timeout; a new key if an argument had to be dropped; `402` is out of credits; `403` means the song may not be remixed or the plan lacks a feature; `400` is Suno's content check or a mixed-mode request. Never send a second call for one go-ahead except as that table says.
+Failures are handled as in `/bitwize-music:generate` Step 6: one retry with the same key after a timeout; a new key if an argument had to be dropped; `402` is out of credits, so call `account-upgrade` and show its link; `403` means the song may not be remixed or the plan lacks a feature; `400` is Suno's content check or a mixed-mode request. Never send a second call for one go-ahead except as that table says.
 
 ## Step 6: Log and Hand Off
 
@@ -102,7 +108,7 @@ Failures are handled as in `/bitwize-music:generate` Step 6: one retry with the 
 
 3. Continue into `/bitwize-music:listen` for the two new rows, then `/bitwize-music:check-take` for them, as `/bitwize-music:generate` Step 8 does.
 
-The track's status does not change, and the original take stays in the log. If the user keeps an edited take, approval works as always (`/bitwize-music:listen` Step 7). When the edit was given in words and changed sung words, update the Lyrics Box and Streaming Lyrics to what the keeper sings.
+The track's status does not change, and the original take stays in the log. If the user keeps an edited take, approval works as always (`/bitwize-music:listen` Step 7, with its `audio-like` and `audio-unlike`). When the edit was given in words and changed sung words, update the Lyrics Box and Streaming Lyrics to what the keeper sings.
 
 ## An Instrumental Version
 

@@ -1229,6 +1229,19 @@
           "title": "Duration S",
           "type": "number"
         },
+        "settings": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Settings"
+        },
         "track_slug": {
           "title": "Track Slug",
           "type": "string"
@@ -2069,6 +2082,55 @@
           "title": "Album Slug",
           "type": "string"
         },
+        "asset_id": {
+          "default": "",
+          "title": "Asset Id",
+          "type": "string"
+        },
+        "duration_s": {
+          "default": 0.0,
+          "title": "Duration S",
+          "type": "number"
+        },
+        "shape": {
+          "default": "16:9",
+          "title": "Shape",
+          "type": "string"
+        },
+        "track_slug": {
+          "title": "Track Slug",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug",
+        "track_slug"
+      ],
+      "title": "get_lyric_video_planArguments",
+      "type": "object"
+    },
+    "name": "get_lyric_video_plan",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "get_lyric_video_planOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
         "track_slug": {
           "default": "",
           "title": "Track Slug",
@@ -2132,6 +2194,111 @@
         "result"
       ],
       "title": "get_midi_score_planOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "characters": {
+          "anyOf": [
+            {
+              "items": {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Characters"
+        },
+        "lyrics": {
+          "default": false,
+          "title": "Lyrics",
+          "type": "boolean"
+        },
+        "sets": {
+          "anyOf": [
+            {
+              "items": {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sets"
+        },
+        "shape": {
+          "default": "16:9",
+          "title": "Shape",
+          "type": "string"
+        },
+        "shots": {
+          "anyOf": [
+            {
+              "items": {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Shots"
+        },
+        "style": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Style"
+        },
+        "track_slug": {
+          "title": "Track Slug",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug",
+        "track_slug"
+      ],
+      "title": "get_music_video_planArguments",
+      "type": "object"
+    },
+    "name": "get_music_video_plan",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "get_music_video_planOutput",
       "type": "object"
     }
   },
@@ -2206,6 +2373,80 @@
         "result"
       ],
       "title": "get_plugin_versionOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "aspect": {
+          "default": "9:16",
+          "title": "Aspect",
+          "type": "string"
+        },
+        "duration_s": {
+          "default": 15,
+          "title": "Duration S",
+          "type": "integer"
+        },
+        "first_frame_asset_id": {
+          "default": "",
+          "title": "First Frame Asset Id",
+          "type": "string"
+        },
+        "model": {
+          "default": "",
+          "title": "Model",
+          "type": "string"
+        },
+        "prompt": {
+          "default": "",
+          "title": "Prompt",
+          "type": "string"
+        },
+        "singing": {
+          "default": true,
+          "title": "Singing",
+          "type": "boolean"
+        },
+        "song_duration_s": {
+          "default": 0.0,
+          "title": "Song Duration S",
+          "type": "number"
+        },
+        "start_s": {
+          "default": -1.0,
+          "title": "Start S",
+          "type": "number"
+        },
+        "track_slug": {
+          "title": "Track Slug",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug",
+        "track_slug"
+      ],
+      "title": "get_promo_clip_planArguments",
+      "type": "object"
+    },
+    "name": "get_promo_clip_plan",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "get_promo_clip_planOutput",
       "type": "object"
     }
   },
@@ -3315,6 +3556,69 @@
   {
     "inputSchema": {
       "properties": {
+        "bpm": {
+          "default": 0.0,
+          "title": "Bpm",
+          "type": "number"
+        },
+        "credits_per_second": {
+          "default": 0.0,
+          "title": "Credits Per Second",
+          "type": "number"
+        },
+        "duration_s": {
+          "title": "Duration S",
+          "type": "number"
+        },
+        "first_downbeat_s": {
+          "default": 0.0,
+          "title": "First Downbeat S",
+          "type": "number"
+        },
+        "max_shot_s": {
+          "default": 10,
+          "title": "Max Shot S",
+          "type": "number"
+        },
+        "sections": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Sections",
+          "type": "array"
+        },
+        "time_signature": {
+          "default": 4,
+          "title": "Time Signature",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "duration_s",
+        "sections"
+      ],
+      "title": "plan_music_video_shotsArguments",
+      "type": "object"
+    },
+    "name": "plan_music_video_shots",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "plan_music_video_shotsOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
         "length_s": {
           "default": 0.0,
           "title": "Length S",
@@ -3512,6 +3816,40 @@
         "result"
       ],
       "title": "polish_audioOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "shape": {
+          "default": "16:9",
+          "title": "Shape",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug"
+      ],
+      "title": "prepare_lyric_video_stillArguments",
+      "type": "object"
+    },
+    "name": "prepare_lyric_video_still",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "prepare_lyric_video_stillOutput",
       "type": "object"
     }
   },
@@ -4028,6 +4366,220 @@
         "result"
       ],
       "title": "run_pre_generation_gatesOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "links": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Links",
+          "type": "array"
+        },
+        "open_viewer": {
+          "default": true,
+          "title": "Open Viewer",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "album_slug",
+        "links"
+      ],
+      "title": "save_album_art_candidatesArguments",
+      "type": "object"
+    },
+    "name": "save_album_art_candidates",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "save_album_art_candidatesOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "link": {
+          "title": "Link",
+          "type": "string"
+        },
+        "master_audio": {
+          "default": true,
+          "title": "Master Audio",
+          "type": "boolean"
+        },
+        "replace": {
+          "default": false,
+          "title": "Replace",
+          "type": "boolean"
+        },
+        "shape": {
+          "default": "16:9",
+          "title": "Shape",
+          "type": "string"
+        },
+        "track_slug": {
+          "title": "Track Slug",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug",
+        "track_slug",
+        "link"
+      ],
+      "title": "save_lyric_videoArguments",
+      "type": "object"
+    },
+    "name": "save_lyric_video",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "save_lyric_videoOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "kind": {
+          "default": "video",
+          "title": "Kind",
+          "type": "string"
+        },
+        "link": {
+          "title": "Link",
+          "type": "string"
+        },
+        "master_audio": {
+          "default": true,
+          "title": "Master Audio",
+          "type": "boolean"
+        },
+        "replace": {
+          "default": false,
+          "title": "Replace",
+          "type": "boolean"
+        },
+        "shape": {
+          "default": "16:9",
+          "title": "Shape",
+          "type": "string"
+        },
+        "track_slug": {
+          "title": "Track Slug",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug",
+        "track_slug",
+        "link"
+      ],
+      "title": "save_music_videoArguments",
+      "type": "object"
+    },
+    "name": "save_music_video",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "save_music_videoOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "link": {
+          "title": "Link",
+          "type": "string"
+        },
+        "master_audio": {
+          "default": true,
+          "title": "Master Audio",
+          "type": "boolean"
+        },
+        "replace": {
+          "default": false,
+          "title": "Replace",
+          "type": "boolean"
+        },
+        "song_duration_s": {
+          "default": 0.0,
+          "title": "Song Duration S",
+          "type": "number"
+        },
+        "start_s": {
+          "title": "Start S",
+          "type": "number"
+        },
+        "track_slug": {
+          "title": "Track Slug",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug",
+        "track_slug",
+        "link",
+        "start_s"
+      ],
+      "title": "save_promo_clipArguments",
+      "type": "object"
+    },
+    "name": "save_promo_clip",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "save_promo_clipOutput",
       "type": "object"
     }
   },

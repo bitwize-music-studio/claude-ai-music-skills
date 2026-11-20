@@ -287,7 +287,7 @@ class TestArtworkSettings:
     @pytest.mark.parametrize("config", [None, {}, {"artwork": None}, {"artwork": []}, {"artwork": "codex"}])
     def test_the_default_is_manual_with_one_candidate(self, config):
         assert codex_art.artwork_settings(config) == {
-            "generator": "manual", "candidates": 1, "codex_path": "",
+            "generator": "manual", "candidates": 1, "codex_path": "", "suno_model": "",
         }
 
     def test_codex_can_be_chosen(self):
@@ -298,6 +298,20 @@ class TestArtworkSettings:
     @pytest.mark.parametrize("written", ["Codex", " codex ", "CODEX"])
     def test_the_generator_is_read_loosely(self, written):
         assert codex_art.artwork_settings({"artwork": {"generator": written}})["generator"] == "codex"
+
+    @pytest.mark.parametrize("written", ["suno", "Suno", " SUNO "])
+    def test_suno_can_be_chosen(self, written):
+        assert codex_art.artwork_settings({"artwork": {"generator": written}})["generator"] == "suno"
+
+    @pytest.mark.parametrize("written, expected", [
+        ("image-1", "image-1"), (" Image-4 ", "image-4"), ("", ""), (None, ""),
+        ("image_1", "image_1"), ("image 4", "image 4"), (4, "4"),
+        (["image-1"], "(unreadable)"), (True, "(unreadable)"),
+    ])
+    def test_the_suno_model_is_kept_as_written_for_the_plan_to_judge(self, written, expected):
+        """A typing mistake must reach the plan, not turn quietly into Suno's dearer default."""
+        settings = codex_art.artwork_settings({"artwork": {"generator": "suno", "suno_model": written}})
+        assert settings["suno_model"] == expected
 
     @pytest.mark.parametrize("bad", ["midjourney", 7, True, ["codex"], None])
     def test_an_unknown_generator_falls_back_to_manual(self, bad):

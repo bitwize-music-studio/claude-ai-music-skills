@@ -10,7 +10,20 @@ allowed-tools:
   - Read
   - Edit
   - bitwize-music-mcp
-  - mcp__suno__*
+  - mcp__suno__account-upgrade
+  - mcp__suno__account-usage
+  - mcp__suno__audio-covers-create
+  - mcp__suno__audio-create
+  - mcp__suno__audio-like
+  - mcp__suno__audio-unlike
+  - mcp__suno__audio-wait
+  - mcp__suno__midi-upload-complete
+  - mcp__suno__midi-upload-create
+  - mcp__suno__speech-create
+  - mcp__suno__voices-list
+  - mcp__suno__workspaces-create
+  - mcp__suno__workspaces-list
+  - mcp__suno__workspaces-update-clips
 ---
 
 ## Your Task
@@ -182,7 +195,7 @@ Then continue straight into `/bitwize-music:listen` for those two rows, in the w
 
 Skip the hand-off when the user passed `--no-listen` or answered "generate only".
 
-**Take check.** Once the takes are open, run `/bitwize-music:check-take <album> <track>` for those two rows and show its report. It asks Suno's listening agent whether each take sings the lyrics as written and matches the tempo, voice and exclusions; it is free and takes about a minute, so the user reads it while listening. Skip it when the user passed `--no-check` or its plan says `enabled: false` (`generation.take_check: false`). Then ask which take to keep. The report informs that choice; it never makes it.
+**Take check.** Once the takes are open, run `/bitwize-music:check-take <album> <track>` for those two rows and show its report. It asks Suno's listening agent whether each take sings the lyrics as written and matches the tempo, voice and exclusions, and reads back the model, Variety, Max Mode and exclusions Suno made each take with; it is free and takes about a minute, so the user reads it while listening. Skip it when the user passed `--no-check` or its plan says `enabled: false` (`generation.take_check: false`). Then ask which take to keep. The report informs that choice; it never makes it.
 
 ## Approving a Take
 

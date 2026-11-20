@@ -22,7 +22,9 @@ from tools.state import indexer  # noqa: E402
 class TestConfigSnapshot:
     def test_the_default_is_in_the_snapshot(self):
         section = indexer.build_config_section({"artist": {"name": "a"}})
-        assert section["artwork"] == {"generator": "manual", "candidates": 1, "codex_path": ""}
+        assert section["artwork"] == {
+            "generator": "manual", "candidates": 1, "codex_path": "", "suno_model": "",
+        }
 
     def test_a_chosen_generator_is_carried_through(self):
         section = indexer.build_config_section({"artwork": {"generator": "codex", "candidates": 2}})
@@ -59,5 +61,5 @@ class TestTheShippedExample:
 
     def test_the_readme_documents_every_key(self, example):
         readme = (PROJECT_ROOT / "config" / "README.md").read_text(encoding="utf-8")
-        for key in ("generator", "candidates", "codex_path"):
+        for key in ("generator", "candidates", "codex_path", "suno_model"):
             assert f"`artwork.{key}`" in readme, key

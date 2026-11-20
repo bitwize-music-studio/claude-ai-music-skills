@@ -483,11 +483,14 @@ from handlers import (
     generation,
     health,
     ideas,
+    lyric_video,
     lyrics_analysis,
     maintenance,
+    music_video,
     playback,
     processing,
     promo,
+    promo_clip,
     release_kit,
     rename,
     skills,
@@ -522,6 +525,9 @@ take_check.register(mcp)
 take_edit.register(mcp)
 take_extend.register(mcp)
 suno_sounds.register(mcp)
+lyric_video.register(mcp)
+promo_clip.register(mcp)
+music_video.register(mcp)
 suno_voices.register(mcp)
 album_generation.register(mcp)
 suno_release.register(mcp)
@@ -586,6 +592,7 @@ from handlers.album_art import (  # noqa: F401
     generate_album_art,
     get_album_art_plan,
     import_album_art,
+    save_album_art_candidates,
 )
 from handlers.album_fields import (  # noqa: F401
     sync_album_tracklist,
@@ -672,6 +679,11 @@ from handlers.ideas import (  # noqa: F401
     promote_idea,
     update_idea,
 )
+from handlers.lyric_video import (  # noqa: F401
+    get_lyric_video_plan,
+    prepare_lyric_video_still,
+    save_lyric_video,
+)
 
 # Lyrics analysis tools
 from handlers.lyrics_analysis import (  # noqa: F401
@@ -688,6 +700,13 @@ from handlers.maintenance import (  # noqa: F401
     cleanup_legacy_venvs,
     migrate_audio_layout,
     reset_mastering,
+)
+
+# Take-check tools
+from handlers.music_video import (  # noqa: F401
+    get_music_video_plan,
+    plan_music_video_shots,
+    save_music_video,
 )
 
 # Auditioning tools
@@ -733,6 +752,9 @@ from handlers.promo import (  # noqa: F401
     get_promo_status,
 )
 
+# Promo clip tools
+from handlers.promo_clip import get_promo_clip_plan, save_promo_clip  # noqa: F401
+
 # Release kit
 from handlers.release_kit import build_release_kit  # noqa: F401
 
@@ -775,8 +797,6 @@ from handlers.suno_midi import (  # noqa: F401
     get_midi_score_plan,
     get_suno_midi_plan,
 )
-
-# Take-check tools
 from handlers.suno_release import (  # noqa: F401
     get_suno_release_plan,
     set_album_playlist,
