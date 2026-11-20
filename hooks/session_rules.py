@@ -12,7 +12,9 @@ session on the machine, in every repository. It therefore prints the full rules
 (``reference/plugin-rules.md``) only when the session's working directory is
 inside the music workspace named in ``~/.bitwize-music/config.yaml``
 (``content_root``, ``audio_root`` or ``documents_root``). Anywhere else it
-prints a one-line pointer to the rules file instead.
+prints a one-line pointer to the rules file instead, and when there is no
+config (or it names no workspace) a one-line note that the plugin is not set
+up yet, pointing to ``/bitwize-music:configure``.
 
 Claude Code keeps SessionStart output whole only below 10,000 characters;
 anything longer is replaced by a 2 KB preview and a file path. The rules are
@@ -46,6 +48,16 @@ POINTER = (
     "mastering, release). This session is outside the music workspace set in "
     "~/.bitwize-music/config.yaml, so the plugin's rules are not loaded. Before "
     "doing any music work here, read {rules} and follow it."
+)
+
+# No config, or a config that names no workspace folder: the plugin was
+# installed but never set up, so there is no workspace to be outside of.
+SETUP_POINTER = (
+    "The bitwize-music plugin is installed (AI music: albums, lyrics, Suno, "
+    "mastering, release) but not set up yet: ~/.bitwize-music/config.yaml is "
+    "missing or names no workspace folder. If the user wants music work, suggest "
+    "/bitwize-music:configure (and /bitwize-music:setup for dependencies), and "
+    "read {rules} first."
 )
 
 _KEY_LINE = re.compile(
@@ -137,8 +149,11 @@ def render(rules_text: str, root: Path) -> str:
 def build_output(cwd: Path, config_text: str | None, root: Path) -> str:
     """What the hook prints for a session in *cwd*."""
     rules_path = root / RULES_RELPATH
+    roots = workspace_roots(config_text) if config_text is not None else []
+    if not roots:
+        return SETUP_POINTER.format(rules=rules_path.as_posix())
     pointer = POINTER.format(rules=rules_path.as_posix())
-    if config_text is None or not in_workspace(cwd, workspace_roots(config_text)):
+    if not in_workspace(cwd, roots):
         return pointer
     try:
         rules = render(rules_path.read_text(encoding="utf-8"), root)

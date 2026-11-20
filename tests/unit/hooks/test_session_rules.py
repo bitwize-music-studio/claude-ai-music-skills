@@ -184,9 +184,23 @@ class TestBuildOutput:
         assert f"{_PROJECT_ROOT.as_posix()}/reference/plugin-rules.md" in out
         assert len(out) < 500
 
-    def test_without_a_config_it_prints_the_pointer(self, tmp_path):
+    def test_without_a_config_it_says_the_plugin_is_not_set_up(self, tmp_path):
         out = session_rules.build_output(tmp_path, None, _PROJECT_ROOT)
-        assert out.startswith("The bitwize-music plugin is installed")
+        assert "not set up yet" in out
+        assert "/bitwize-music:configure" in out
+        assert "outside the music workspace" not in out
+        assert f"{_PROJECT_ROOT.as_posix()}/reference/plugin-rules.md" in out
+        assert len(out) < 500
+
+    def test_a_config_naming_no_workspace_is_not_set_up_either(self, tmp_path):
+        out = session_rules.build_output(tmp_path, "artist:\n  name: x\n", _PROJECT_ROOT)
+        assert "not set up yet" in out
+
+    def test_with_a_workspace_set_the_pointer_says_outside(self, tmp_path):
+        text, *_ = _config(tmp_path)
+        out = session_rules.build_output(tmp_path / "elsewhere", text, _PROJECT_ROOT)
+        assert "outside the music workspace" in out
+        assert "not set up yet" not in out
 
     def test_rules_too_long_to_survive_fall_back_to_the_pointer(self, tmp_path):
         text, content, *_ = _config(tmp_path)
@@ -255,6 +269,11 @@ class TestAsAHook:
         result = _run(tmp_path, tmp_path / "another-repo")
         assert result.returncode == 0
         assert result.stdout.startswith("The bitwize-music plugin is installed")
+
+    def test_with_no_config_it_says_the_plugin_is_not_set_up(self, tmp_path):
+        result = _run(tmp_path, tmp_path)
+        assert result.returncode == 0
+        assert "not set up yet" in result.stdout
 
     @pytest.mark.parametrize("stdin", ["", "{not json", "\x00\x01"])
     def test_bad_input_never_fails_the_session(self, tmp_path, stdin):

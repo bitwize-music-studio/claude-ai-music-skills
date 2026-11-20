@@ -65,6 +65,6 @@ When updating hooks in this directory, remember to:
 
 | Event | Script | Does |
 |---|---|---|
-| `SessionStart` (startup, resume, clear, compact) | `session_rules.py` | Adds `reference/plugin-rules.md` to the session's context when the working directory is inside the music workspace from `~/.bitwize-music/config.yaml`, and a one-line pointer to it anywhere else. This is how users get the plugin's rules: Claude Code never loads a plugin's `CLAUDE.md`. Output must stay under 10,000 characters to arrive whole |
+| `SessionStart` (startup, resume, clear, compact) | `session_rules.py` | Adds `reference/plugin-rules.md` to the session's context when the working directory is inside the music workspace from `~/.bitwize-music/config.yaml`, a one-line pointer to it anywhere else, and a one-line "not set up yet, run `/bitwize-music:configure`" note when there is no config. This is how users get the plugin's rules: Claude Code never loads a plugin's `CLAUDE.md`. Output must stay under 10,000 characters to arrive whole |
 | `PostToolUse` (Write, Edit) | `validate_track.py` | Checks a track file's frontmatter after it is written |
 | `PostToolUse` (Write, Edit) | `check_version_sync.py` | Warns when the three plugin version files disagree |

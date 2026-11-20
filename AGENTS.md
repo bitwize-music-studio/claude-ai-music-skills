@@ -8,7 +8,7 @@ Here `{plugin_root}` is the repository root.
 
 ## The rules plugin users get
 
-Plugin users never see this file or `CLAUDE.md`: Claude Code doesn't load a `CLAUDE.md` from a plugin's folder. The rules a user's session follows are in **`reference/plugin-rules.md`**, which the `SessionStart` hook `hooks/session_rules.py` adds to every session whose working directory is inside the music workspace (`content_root`, `audio_root` or `documents_root` in `~/.bitwize-music/config.yaml`). Elsewhere the hook adds a one-line pointer to that file.
+Plugin users never see this file or `CLAUDE.md`: Claude Code doesn't load a `CLAUDE.md` from a plugin's folder. The rules a user's session follows are in **`reference/plugin-rules.md`**, which the `SessionStart` hook `hooks/session_rules.py` adds to every session whose working directory is inside the music workspace (`content_root`, `audio_root` or `documents_root` in `~/.bitwize-music/config.yaml`). Elsewhere the hook adds a one-line pointer to that file, or, with no config yet, a one-line note to run `/bitwize-music:configure`.
 
 - **Change a workflow rule in `reference/plugin-rules.md`**, not here. When working in this repo, follow it too: `CLAUDE.md` imports it for Claude Code.
 - **It must stay under 9,000 characters** with `{plugin_root}` filled in. Claude Code keeps SessionStart output whole only below 10,000; longer output becomes a 2 KB preview. `tests/unit/hooks/test_session_rules.py` enforces the limit. Put detail in the skill or reference file it belongs to and link it with `{plugin_root}/…`.
