@@ -365,7 +365,15 @@ The Sequence stays on Suno with everything made for it. Run again, the skill loo
 
 *Priced with `dry_run`:* keyframes on `image-1` are 1 credit a shot, two takes each. A clip is charged by the whole second, rounded up: shots of 9.44 and 6.8 seconds on `video-1` were priced as 10 and 7 seconds, 150 and 105 credits, and the answer's `notes` said what trimming each to a whole second would save. The skill does not trim: a trim shortens the video, so every later shot moves off the music and the master no longer fits under the picture. A 55-second song laid out as six shots would be 57 charged seconds: 855 credits at 480p.
 
-*Not measured:* a real keyframe or clip, how well a character or a set holds from shot to shot, and how a `failed` shot is recovered. Those steps follow Suno's tool descriptions.
+*Measured with six keyframes and one clip* (81 Visuals credits, on a six-shot Sequence with one set): `sequence-generate` answered `{"sequence_id", "shots": [{"shot_id", "status": "started", "generation_id", "labels": ["1-1", "1-2"]}], "visuals_credits_remaining"}`, and the price the dry run gave was gone from the balance in that answer, as with `video-create`.
+
+- **Keyframes.** Six on `image-1` cost 6 credits and were all ready within one `visuals-wait`, two takes each at 1360x768. The first take sat in its shot (`status: "ready"`, `media_type: "image"`, label "1-1"), and `sequence-update` put the other take in for nothing. A shot citing a set was priced as `image_edit`, a shot citing nothing as `text_to_image`, at the same credit.
+- **A set holds.** The three shots that cited the set showed the same kettle, the same boats and the same sill as its one reference image. It also outweighs the prompt: a shot that asked for one boat alone showed the several in the reference.
+- **The animatic** of six keyframes was a 1920x1080 MP4 as long as the song, about 12 MB, ready within one wait.
+- **A clip.** A shot of exactly 5 seconds on `video-1` was priced and charged as 5 seconds, 75 credits, with the task `image_to_video`: it opened on the shot's keyframe. Both takes were ready within one wait, 5.167 seconds each, and the first sat in its shot (`media_type: "video"`). The export with it in was again 1920x1080, the 480p clip filling the frame.
+- `save_music_video` saved the animatic and the finished cut, and put a stand-in master of the song's length under the finished one.
+
+*Not measured:* characters, a `failed` shot and its recovery, the `rate_limited`, `refused` and `unknown` answers, `video-2`, a batch of more than six shots, and what a shot shorter than five seconds is charged. Those parts of the skill follow Suno's tool descriptions.
 
 **What spends Visuals credits**
 
@@ -393,7 +401,7 @@ The Sequence stays on Suno with everything made for it. Run again, the skill loo
 - Uploading an image or a video needs Suno's upload notice accepted once (`403 upload_consent_required` until then).
 - Give the user each image's or video's `suno_url`. Claude.ai and ChatGPT show the takes on a board of their own. In Claude Code, `visuals-show` hands each picture to the model as an image *(measured)*; the user needs the link, or the saved file, to see one.
 
-*Not measured:* `image-create` with any model but `image-1`, lettering on a cover, uploading an image or a video, `video-create` beyond one five-second `video-1` clip, and a real `sequence-generate` call.
+*Not measured:* `image-create` with any model but `image-1`, lettering on a cover, uploading an image or a video, `video-create` and `sequence-generate` beyond one five-second `video-1` clip each, and keyframes on any model but `image-1`.
 
 ---
 

@@ -54,6 +54,8 @@ Suno's Sequences lay a music video out as a timeline of shots over a song. Each 
 
 A whole song as clips costs thousands: three minutes at 480p is about 2,700. That is why the animatic comes first, and why most videos keep stills for most shots. Say so before any work, in Step 3.
 
+Measured on a six-shot test: six keyframes cost 6 credits and a five-second clip 75, each charged when its call was made and ready in under a minute. Still unmeasured, and written from Suno's tool descriptions: characters, a shot that fails, and the rate-limit, refusal and unknown answers.
+
 **Every paid call is sent for real once.** It goes out exactly as it was priced, with a key fixed beforehand, and it is sent again only where Step 6's table says so. A shot that holds a take, or is making one, is never made again unless the user asks for that and approves its price.
 
 Background, the answers each tool gives, and what was and was not measured: `${CLAUDE_PLUGIN_ROOT}/reference/suno/mcp-api-mapping.md` § Visuals.
@@ -138,6 +140,8 @@ Three things are the user's to choose, so ask unless they have said:
 - **Whether anyone sings on screen**, and whether the words are burned in (`lyrics`).
 
 A performer or a place that should look the same from shot to shot needs reference images that are already on Suno, one to three each: the asset ids of images made there, or the user's saved characters from `characters-list`. Without them, leave `characters` and `sets` out: each shot is then drawn from its prompt alone, and faces will not match between shots. Say so if the user wants a performer.
+
+A set holds well *(measured)*: three shots citing one reference image showed the same objects and the same place. It also outweighs the prompt: a shot that asked for one object alone showed the several in the reference. So cite a set only in shots that should show what its images show.
 
 Then draft the storyboard: one line a shot, saying what it shows, the framing and how the camera moves, all within the look. Show it as a table with each shot's number, start time, length and section, and change it until the user approves it. The lengths come from Step 3; to change them, plan again with another `max_shot_s`.
 

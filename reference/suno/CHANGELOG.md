@@ -17,8 +17,13 @@ This file tracks all updates to the Suno reference documentation, including new 
 - `audio-analysis` answered `processing` first and was complete a minute later, with sections, beats, the key and a tempo twice the one asked for.
 - Dry runs of `sequence-generate`: keyframes on `image-1` are 1 credit a shot; clips are charged by the whole second, rounded up (9.44 seconds as 10, 6.8 as 7), and the answer's `notes` say what a trim would save.
 
+- Six real keyframes on `image-1`: 6 credits, charged when the call was made, all ready in under a minute at 1360x768, the first take in its shot. Swapping in the other take with `sequence-update` is free.
+- A set holds: three shots citing one reference image showed the same objects and place. It outweighs the prompt where the two disagree.
+- One real clip in a shot of exactly 5 seconds on `video-1`: priced and charged as 5 seconds (75 credits), task `image_to_video`, opening on the shot's keyframe, two takes of 5.167 seconds ready in under a minute.
+- An export is 1920x1080 whether its shots hold stills or a 480p clip.
+
 ### Not Measured
-- A real keyframe or clip, characters and sets, and the recovery of a `failed` shot.
+- Characters, a `failed` shot and its recovery, the `rate_limited`, `refused` and `unknown` answers, `video-2`, and a shot shorter than five seconds.
 
 ---
 
