@@ -1,11 +1,11 @@
 # Suno MCP: Setup, Costs and Track-File Mapping
 
-Suno runs an official MCP server (beta since October 2026). When it is connected, the plugin can generate a track, play the takes and import the keeper without a trip to suno.com. When it is not, everything falls back to the clipboard flow and nothing breaks.
+Suno runs an official MCP server, available on every Suno plan after a beta that began in October 2026. Songs use the plan's song credits; Visuals need a paid plan. When it is connected, the plugin can generate a track, play the takes and import the keeper without a trip to suno.com. When it is not, everything falls back to the clipboard flow and nothing breaks.
 
 > **Related skills**: `/bitwize-music:generate`, `/bitwize-music:listen`, `/bitwize-music:check-take`, `/bitwize-music:edit-take`, `/bitwize-music:extend-take`, `/bitwize-music:sound-effects`, `/bitwize-music:suno-voice`, `/bitwize-music:import-audio`, `/bitwize-music:album-art-director`, `/bitwize-music:lyric-video`, `/bitwize-music:music-video`, `/bitwize-music:promo-director`
 > **Related docs**: [models.md](models.md), [creative-sliders.md](creative-sliders.md), [tips-and-tricks.md](tips-and-tricks.md)
 
-Everything marked *measured* was tested on a Premier account. The server is in beta and its tools change — treat the live tool definitions as the authority over this page.
+Everything marked *measured* was tested on a Premier account. Suno still adds tools and changes their arguments — treat the live tool definitions as the authority over this page.
 
 ---
 
@@ -430,7 +430,7 @@ When the server is missing, not signed in, lacks a feature, or the track uses a 
 
 ## Sources
 
-- [Suno MCP](https://suno.com/mcp) · [What is Suno MCP (Beta)?](https://help.suno.com/en/articles/14551361) · [Connecting it](https://help.suno.com/en/articles/14551425) · [FAQ](https://help.suno.com/en/articles/14486145)
+- [Suno MCP](https://suno.com/mcp) · [What is Suno MCP?](https://help.suno.com/en/articles/14551361) · [Connecting it](https://help.suno.com/en/articles/14551425) · [FAQ](https://help.suno.com/en/articles/14486145)
 - [Download limits](https://help.suno.com/en/articles/13614785) — "Streaming and sharing on Suno remain unlimited on every plan"; one song is one download whatever the format; stems count as part of the song's download; users "will still be able to download their work from Studio without limitation".
 - [Pricing](https://suno.com/pricing) — "Access to Suno Studio" is listed under Premier; Free and Pro say "Not included".
 - [Introducing Visuals](https://suno.com/blog/introducing-visuals) · [Introduction to Suno Visuals](https://help.suno.com/en/articles/14661121) — clips of up to 15 seconds made from a song in the library; "Visual credits are purchased separately from song credits".

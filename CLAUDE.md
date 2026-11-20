@@ -69,7 +69,7 @@ Suno's official MCP server is a separate server the user adds themselves (`claud
 
 - **Never spend Suno credits of any kind without a go-ahead.** Generating, splitting stems, a download that answers `requires_credit`, and any image or video (Visuals credits are a balance of their own) each need the user's yes first, with the cost stated. Reading the library and the account is free.
 - **Never pick a take or an image, mark a keeper, set a track `Final`, or change a song's visibility on your own.** The user listens, or looks, first.
-- **Trust the live tool definitions.** The server is in beta and its tools and arguments change. A session lists the tools as they were when it started, so restart the session before deciding that one is missing. Setup, costs and the track-file mapping: `/reference/suno/mcp-api-mapping.md`.
+- **Trust the live tool definitions.** Suno still adds tools and changes their arguments. A session lists the tools as they were when it started, so restart the session before deciding that one is missing. Setup, costs and the track-file mapping: `/reference/suno/mcp-api-mapping.md`.
 
 ---
 

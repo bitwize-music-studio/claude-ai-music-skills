@@ -6,6 +6,9 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+### Changed
+- **The docs no longer call Suno's MCP server a beta** — Suno now offers it on every plan: its help article, retitled from "What is Suno MCP (Beta)?" to "What is Suno MCP ?", says "Suno MCP is available on all Suno plans", and its product page marks Visuals "Available on paid plans". The README told users the server was "an invite-only beta" they could connect "only once Suno has invited you"; it now gives the plan rules instead, including that some AI apps only let you add a connector on one of their own paid plans. CLAUDE.md, the generate skill, the FAQ and the Suno references drop the beta label but keep the rule behind it: Suno still adds tools and changes their arguments, so the live tool definitions win ([#663](https://github.com/bitwize-music-studio/claude-ai-music-skills/issues/663)).
+
 ## [0.105.0] - 2026-11-20
 
 ### Added
