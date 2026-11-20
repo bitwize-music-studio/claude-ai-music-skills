@@ -58,6 +58,7 @@ Quick-reference guide for finding the right skill for any task.
 | ...put one of my saved Voices on a track or an album, see my Voices, or make a new one | `/suno-voice` (checks the Voice is on your Suno account and writes it into the track files; free. A new Voice is made on suno.com through the link it gives) |
 | ...have Suno play a melody I wrote | `/generate <album> <track> --midi <file>` (the takes are the track when it is instrumental, a sketch to cover when it has lyrics) |
 | ...make a sound effect, an ambience or a loop | `/sound-effects` (2 Suno credits for two sounds) |
+| ...make a lyric video for a track | `/lyric-video <album> <track>` (Suno renders it with the words burned in; free when measured) |
 | ...regenerate a track I'm not happy with | See Regeneration Workflow below |
 | ...approve a generated track | Mark ✓ in Generation Log, set Status: `Final` |
 
@@ -144,6 +145,7 @@ Quick-reference guide for finding the right skill for any task.
 | [`listen`](/skills/listen/SKILL.md) | Play Suno takes or local audio in the terminal, or open the song page in the browser | Auditioning takes before picking the keeper |
 | [`lyric-refiner`](/skills/lyric-refiner/SKILL.md) | Multi-pass lyric refinement for tightening, cohesion, and album unity | Polishing lyrics after writing, before QC |
 | [`lyric-reviewer`](/skills/lyric-reviewer/SKILL.md) | QC gate before Suno generation (14-point checklist) | Final quality check before generating |
+| [`lyric-video`](/skills/lyric-video/SKILL.md) | Make a lyric video for a track through Suno's MCP server, with the mastered audio under it | "Make a lyric video for track 3" |
 | [`lyric-writer`](/skills/lyric-writer/SKILL.md) | Write or review lyrics with prosody and rhyme craft | Writing new lyrics or fixing existing ones |
 | [`mastering-engineer`](/skills/mastering-engineer/SKILL.md) | Audio mastering guidance, loudness optimization | Mastering tracks to -14 LUFS for streaming |
 | [`mix-engineer`](/skills/mix-engineer/SKILL.md) | Per-stem audio polish (noise, EQ, compression, remix) | Polishing raw Suno output before mastering |
@@ -205,6 +207,7 @@ What to have ready before using each skill:
 | `/edit-take` | A take generated through the Suno MCP server; Suno MCP server connected; song credits |
 | `/extend-take` | A take generated through the Suno MCP server, the time to carry on from, and the section of the Lyrics Box that follows; Suno MCP server connected; song credits |
 | `/sound-effects` | An album; Suno MCP server connected; song credits (Suno's Pro plan or higher) |
+| `/lyric-video` | A track with an approved take made through the Suno MCP server; an album cover, or an image already on Suno; Suno MCP server connected on a sign-in that includes Visuals |
 | `/suno-voice` | Suno MCP server connected; Voices on the plan (Pro or Premier). Taking a Voice off needs neither |
 | `/mix-engineer` | WAV files (stems preferred) imported from Suno |
 | `/mastering-engineer` | WAV files downloaded from Suno (or polished output) |
@@ -388,7 +391,7 @@ Skills are assigned to models based on task complexity. See [model-strategy.md](
 - `/researchers-legal` - Complex legal synthesis
 - `/researchers-verifier` - High-stakes verification
 
-### `sonnet` (Reasoning & Coordination — 38 skills)
+### `sonnet` (Reasoning & Coordination — 40 skills)
 - `/album-art-director` - Visual direction
 - `/album-ideas` - Idea brainstorming and organization
 - `/cloud-uploader` - Cloud storage coordination
@@ -418,6 +421,7 @@ Skills are assigned to models based on task complexity. See [model-strategy.md](
 - `/session-start` - Session startup procedure
 - `/sheet-music-publisher` - Transcription workflow
 - `/sound-effects` - Cost and go-ahead for a sound, without choosing between the two
+- `/lyric-video` - Plans and saves a lyric video; never picks a take, and never accepts Suno's upload notice for the user
 - `/suno-voice` - Checks a Voice exists before writing it; never picks one for the user
 - `/tutorial` - Interactive guided creation
 - `/verify-sources` - Human verification gate

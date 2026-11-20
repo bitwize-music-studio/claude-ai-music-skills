@@ -18,6 +18,7 @@ All 61 skills, invoked with `/bitwize-music:<skill-name>`. Claude also uses them
 | `edit-take` | Fix one thing in a take (a word, a line, a section, an instrument) and keep the rest of its audio; or make an instrumental version of it |
 | `extend-take` | Carry a take on from a point in its audio — more of a song that stopped early, or a new second half — and join the result into whole songs |
 | `sound-effects` | Make a sound effect, a one-shot or a loop for an album through Suno's MCP server |
+| `lyric-video` | Make a lyric video for a track through Suno's MCP server: the cover under the keeper with the words burned in, saved with the mastered audio |
 | `suno-voice` | Put one of your saved Suno Voices on a track or an album, list your Voices, or get Suno's link to make a new one |
 | `pronunciation-specialist` | Prevent Suno mispronunciations with phonetic spelling |
 | `album-art-director` | Album artwork concepts and multi-platform AI art prompts; can have the Codex CLI or Suno's image tool make the cover (`artwork.generator: codex` or `suno`) |
