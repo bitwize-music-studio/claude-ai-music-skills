@@ -289,6 +289,8 @@ Only when the user asks for it: "a generated clip", "an AI video for track 3", "
 
 Suno's price list when this was written: `video-1` 15 credits a second, `video-2` 30. So 5 seconds is 75 or 150, and 15 seconds is 225 or 450. Dry runs priced a 5-second `video-1` clip at 75 and a 15-second `video-2` clip at 450, two takes each. The dry run is the price that counts.
 
+Measured with one 5-second `video-1` clip: the 75 credits were charged when the call was made, both takes were ready in under a minute, and each was a 480x840 MP4 of a little over five seconds. Its sound was the song from the second asked for, so the master's passage lines up under it.
+
 
 ## Technical Reference
 

@@ -341,7 +341,11 @@ The words are Suno's own reading of the take. A third take, whose `audio-lyrics-
 
 *Priced with `dry_run`, which spends nothing:* five seconds on `video-1` answered `{"dry_run": true, "credits": 75, "items": [{"task": "text_to_video", "model": "video-1", "takes": 2, "duration_s": 5, "resolution": "480p", "credits": 75}], "visuals_credits_remaining": ...}`. With a first frame the task was `image_to_video`, at the same price. With no model named, fifteen seconds was priced on `video-2` at 720p: 450.
 
-*Not measured:* a real clip. What `video-create` answers, how long a clip takes, the file, and how the picture sits against the song are still to be found out.
+*Measured with one clip* (five seconds, `video-1`, 9:16, no one singing): the call answered `{"id": "gen_...", "status": "processing", "prompt", "model", "created_at", "assets": [{"status": "processing", "label": "1"}, {"status": "processing", "label": "2"}], "visuals_credits_remaining"}`, and the 75 credits it was quoted were gone from the balance in that answer: a clip is charged when the call is made. Both takes were ready within one `visuals-wait`, under a minute. `visuals-wait` gave each take's `asset_id`, `duration_s`, `width`, `height`, `label` and `suno_url`, and `visuals-download` was free.
+
+Each take was an MP4 of 5.167 seconds: H.264 at 24 frames a second, 480x840, with 48 kHz AAC, a little under 1 MB. Both showed what the prompt asked for, with no one on screen. The clip's own sound was the song from the second asked for, to within 5 milliseconds, and `save_promo_clip`, given the song itself as a stand-in master, put the same passage under the picture.
+
+*Not measured:* `video-2` and 720p, a clip longer than five seconds, a clip that opens on a first frame, a take that fails, and a prompt that moderation refuses.
 
 **What spends Visuals credits**
 
@@ -369,7 +373,7 @@ The words are Suno's own reading of the take. A third take, whose `audio-lyrics-
 - Uploading an image or a video needs Suno's upload notice accepted once (`403 upload_consent_required` until then).
 - Give the user each image's or video's `suno_url`. Claude.ai and ChatGPT show the takes on a board of their own. In Claude Code, `visuals-show` hands each picture to the model as an image *(measured)*; the user needs the link, or the saved file, to see one.
 
-*Not measured:* `image-create` with any model but `image-1`, lettering on a cover, uploading an image or a video, and a real `video-create` or `sequence-generate` call (`video-create` was priced with `dry_run`).
+*Not measured:* `image-create` with any model but `image-1`, lettering on a cover, uploading an image or a video, `video-create` beyond one five-second `video-1` clip, and a real `sequence-generate` call.
 
 ---
 
