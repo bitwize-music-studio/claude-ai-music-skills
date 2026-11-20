@@ -128,6 +128,39 @@ class TestPrepareStill:
             assert _near(still.getpixel((270, 540)), RED) and _near(still.getpixel((810, 540)), BLUE)
             assert not _near(still.getpixel((270, 60)), RED)   # above the cover is backdrop
 
+    def test_a_cover_turned_by_its_exif_tag_is_shown_the_way_it_is_viewed(self, tmp_path):
+        """Stored 800x400, tagged 'rotate 90 CW': viewed, it is tall, red above blue."""
+        stored = _cover(tmp_path / "phone.png", size=(800, 400))
+        with Image.open(stored) as image:
+            exif = Image.Exif()
+            exif[0x0112] = 6
+            image.convert("RGB").save(tmp_path / "phone.jpg", "JPEG", quality=95, exif=exif)
+        info = lv.prepare_still(tmp_path / "phone.jpg", tmp_path / "still.jpg", "1:1")
+        with Image.open(info["path"]) as still:
+            assert _near(still.getpixel((540, 200)), RED, 40)
+            assert _near(still.getpixel((540, 880)), BLUE, 40)
+            assert not _near(still.getpixel((100, 540)), RED, 40)     # beside it is backdrop
+
+    def test_a_long_thin_cover_does_not_blow_the_backdrop_up(self, tmp_path, monkeypatch):
+        """Enlarged whole to cover a 9:16 frame, a 4000x40 cover would be 192,000 pixels wide."""
+        sizes = []
+        resize = Image.Image.resize
+
+        def spy(self, size, *args, **kwargs):
+            sizes.append(tuple(size))
+            return resize(self, size, *args, **kwargs)
+
+        monkeypatch.setattr(Image.Image, "resize", spy)
+        info = lv.prepare_still(_cover(tmp_path / "strip.png", size=(4000, 40)), tmp_path / "still.jpg", "9:16")
+        assert (info["width"], info["height"]) == (1080, 1920)
+        assert sizes and max(max(size) for size in sizes) <= 4000
+
+    def test_a_cover_too_large_to_open_safely_is_an_error_not_a_crash(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(Image, "MAX_IMAGE_PIXELS", 1000)
+        with pytest.raises(ValueError, match=r"big\.png"):
+            lv.prepare_still(_cover(tmp_path / "big.png", size=(100, 100)), tmp_path / "still.jpg", "1:1")
+        assert not (tmp_path / "still.jpg").exists()
+
     def test_an_earlier_still_is_replaced(self, tmp_path):
         target = tmp_path / "still.jpg"
         target.write_bytes(b"old")
@@ -141,7 +174,7 @@ class TestPrepareStill:
         with pytest.raises(ValueError, match="4:3"):
             lv.prepare_still(_cover(tmp_path / "album.png"), tmp_path / "still.jpg", "4:3")
         (tmp_path / "junk.png").write_bytes(b"not an image")
-        with pytest.raises(ValueError, match="not an image"):
+        with pytest.raises(ValueError, match="could not be read as an image"):
             lv.prepare_still(tmp_path / "junk.png", tmp_path / "still.jpg", "16:9")
 
 
@@ -189,14 +222,33 @@ class TestBuildRequest:
 
 
 class _Response:
-    def __init__(self, data: bytes = b"", endless: bool = False, fail_after: int | None = None) -> None:
+    """A reply as http.client hands it out: ``read1`` gives what one raw read got.
+
+    ``read(n)`` is refused: it loops until it has n bytes, so a reply that
+    drips in would hold it long past the deadline.
+    """
+
+    def __init__(
+        self, data: bytes = b"", endless: bool = False, fail_after: int | None = None,
+        piece: int | None = None, stated: int | None = None, on_read=None,
+    ) -> None:
         self._data, self._at, self._endless, self._fail_after = data, 0, endless, fail_after
+        self._piece, self._on_read = piece, on_read
         self.handed_out = 0
+        self.reads = 0
+        self.headers = {} if stated is None else {"Content-Length": str(stated)}
 
     def read(self, amount: int | None = None) -> bytes:
+        raise AssertionError("read() waits until the amount is full; use read1()")
+
+    def read1(self, amount: int = -1) -> bytes:
         assert amount is not None and amount > 0, "read the reply without a limit"
+        self.reads += 1
+        if self._on_read:
+            self._on_read()
         if self._fail_after is not None and self.handed_out >= self._fail_after:
-            raise http.client.IncompleteRead(b"cut")
+            raise ConnectionResetError("connection reset by peer")
+        amount = min(amount, self._piece or amount)
         chunk = b"x" * amount if self._endless else self._data[self._at:self._at + amount]
         self._at += len(chunk)
         self.handed_out += len(chunk)
@@ -251,9 +303,43 @@ class TestDownloadVideo:
             lv.download_video(LINK, tmp_path / "track.part", opener=_Opener(endless=True))
         assert list(tmp_path.iterdir()) == []
 
-    def test_a_download_cut_short_leaves_nothing(self, tmp_path):
-        with pytest.raises(http.client.IncompleteRead):
+    def test_a_connection_that_breaks_leaves_nothing(self, tmp_path):
+        with pytest.raises(OSError, match="reset"):
             lv.download_video(LINK, tmp_path / "track.part", opener=_Opener(endless=True, fail_after=100_000))
+        assert list(tmp_path.iterdir()) == []
+
+    def test_a_reply_that_stops_short_of_its_stated_length_is_refused(self, tmp_path):
+        """A dropped connection ends the reply quietly: read1 just returns nothing."""
+        half = b"\x00\x00\x00\x20ftypisom" + b"v" * 100_000
+        opener = _Opener(data=half, stated=len(half) * 2)
+        with pytest.raises(ValueError, match="stopped"):
+            lv.download_video(LINK, tmp_path / "track.part", opener=opener)
+        assert list(tmp_path.iterdir()) == []
+
+    def test_a_reply_of_its_stated_length_is_kept(self, tmp_path):
+        data = b"\x00\x00\x00\x20ftypisom" + b"v" * 5000
+        dest = tmp_path / "track.part"
+        assert lv.download_video(LINK, dest, opener=_Opener(data=data, stated=len(data))) == len(data)
+        assert dest.read_bytes() == data
+
+    def test_a_stated_length_that_cannot_be_read_is_not_held_against_the_reply(self, tmp_path):
+        opener = _Opener(data=b"video")
+        opener.response.headers = {"Content-Length": "soon"}
+        assert lv.download_video(LINK, tmp_path / "track.part", opener=opener) == 5
+
+    def test_the_deadline_is_checked_between_raw_reads(self, tmp_path, monkeypatch):
+        """A reply that drips a little every few seconds is given up on, not waited out."""
+        clock = {"now": 0.0}
+        monkeypatch.setattr(lv.time, "monotonic", lambda: clock["now"])
+
+        def tick():
+            clock["now"] += 30.0
+
+        opener = _Opener(endless=True, piece=1024, on_read=tick)
+        with pytest.raises(ValueError, match="longer than"):
+            lv.download_video(LINK, tmp_path / "track.part", opener=opener)
+        assert opener.response.reads <= lv.TOTAL_TIMEOUT_S / 30 + 2
+        assert opener.response.handed_out < lv.CHUNK_BYTES
         assert list(tmp_path.iterdir()) == []
 
     def test_without_an_opener_it_uses_one_that_stays_on_suno(self, tmp_path, monkeypatch):
@@ -314,6 +400,39 @@ class TestProbe:
         with pytest.raises(ValueError):
             lv.probe(Path("v.mp4"), run=run)
 
+    def test_counting_says_how_many_of_the_pictures_frames_are_really_there(self, tmp_path):
+        counted = json.dumps({"format": {"duration": "20.0"}, "streams": [
+            {"codec_type": "video", "width": 320, "height": 180, "nb_frames": "600", "nb_read_packets": "270"},
+            {"codec_type": "audio", "nb_frames": "861", "nb_read_packets": "400"},
+        ]})
+        calls = []
+
+        def run(cmd, **kwargs):
+            calls.append(cmd)
+            return _done(counted)
+
+        info = lv.probe(tmp_path / "v.mp4", count=True, run=run)
+        assert "-count_packets" in calls[0]
+        assert (info["frames"], info["packets"]) == (600, 270)
+        assert info["duration_s"] == 20.0 and info["video"] is True
+
+    def test_a_count_ffprobe_does_not_give_is_none(self, tmp_path):
+        bare = json.dumps({"format": {"duration": "20.0"}, "streams": [
+            {"codec_type": "video", "width": 320, "height": 180, "nb_frames": "N/A"},
+        ]})
+        info = lv.probe(tmp_path / "v.mp4", count=True, run=lambda cmd, **kw: _done(bare))
+        assert info["frames"] is None and info["packets"] is None
+
+    def test_it_does_not_count_unless_asked(self, tmp_path):
+        calls = []
+
+        def run(cmd, **kwargs):
+            calls.append(cmd)
+            return _done(PROBE_VIDEO)
+
+        info = lv.probe(tmp_path / "v.mp4", run=run)
+        assert "-count_packets" not in calls[0] and "frames" not in info
+
     def test_no_ffprobe_is_an_error_that_says_so(self):
         def run(cmd, **kwargs):
             raise FileNotFoundError("ffprobe")
@@ -360,7 +479,7 @@ def _mp4(path: Path) -> Path:
 
 
 class TestFinish:
-    def _finish(self, tmp_path, *, video_s=55.2, master_s=None, has_video=True):
+    def _finish(self, tmp_path, *, video_s=55.2, master_s=None, has_video=True, frames=None, packets=None):
         downloaded = _mp4(tmp_path / "track.part")
         dest = tmp_path / "track-16x9.mp4"
         master = None
@@ -368,12 +487,15 @@ class TestFinish:
             master = tmp_path / "master.wav"
             master.write_bytes(b"RIFF")
         swaps = []
+        self.probed = []
 
         def probe(path, **kwargs):
+            self.probed.append((Path(path).name, kwargs))
             if path == master:
                 return {"duration_s": master_s, "video": False, "audio": True, "width": None, "height": None}
             return {"duration_s": video_s, "video": has_video, "audio": True,
-                    "width": 1920 if has_video else None, "height": 1080 if has_video else None}
+                    "width": 1920 if has_video else None, "height": 1080 if has_video else None,
+                    "frames": frames, "packets": packets}
 
         def swap(video, audio, out, **kwargs):
             swaps.append((video, audio, out))
@@ -390,21 +512,40 @@ class TestFinish:
         assert (info["width"], info["height"], info["duration_s"]) == (1920, 1080, 55.2)
         assert info["bytes"] == dest.stat().st_size
 
-    @pytest.mark.parametrize("master_s", [55.2, 55.9, 54.4])
+    @pytest.mark.parametrize("master_s", [55.2, 55.4, 55.0])
     def test_a_master_of_the_same_length_goes_under_the_picture(self, tmp_path, master_s):
         info, swaps, downloaded, dest = self._finish(tmp_path, master_s=master_s)
         assert len(swaps) == 1
         assert dest.read_bytes() == b"with the master" and not downloaded.exists()
         assert info["audio"] == "master" and info["audio_note"] == ""
 
-    @pytest.mark.parametrize("master_s", [52.0, 58.5])
+    @pytest.mark.parametrize("master_s", [52.0, 58.5, 54.8, 55.6])
     def test_a_master_of_another_length_is_left_out_and_it_says_why(self, tmp_path, master_s):
-        """The words are timed to the take: under audio of another length they would drift."""
+        """The words are timed to the take: under audio of another length they would drift.
+
+        Half a second of silence put before a master is enough to see.
+        """
         info, swaps, _downloaded, dest = self._finish(tmp_path, master_s=master_s)
         assert swaps == []
         assert info["audio"] == "suno"
         assert f"{master_s:g}" in info["audio_note"] and "55.2" in info["audio_note"]
         assert dest.read_bytes().startswith(b"\x00\x00\x00\x20ftyp")
+
+    def test_a_video_with_frames_missing_is_refused_and_removed(self, tmp_path):
+        """A download cut short still states its full length; its frames give it away."""
+        with pytest.raises(ValueError, match="stops early"):
+            self._finish(tmp_path, frames=600, packets=270, master_s=55.2)
+        assert list(tmp_path.glob("track*")) == []
+
+    @pytest.mark.parametrize(("frames", "packets"), [(600, 600), (600, 599), (None, None), (600, None)])
+    def test_a_video_with_its_frames_is_kept(self, tmp_path, frames, packets):
+        info, _swaps, _downloaded, dest = self._finish(tmp_path, frames=frames, packets=packets)
+        assert dest.is_file() and info["audio"] == "suno"
+
+    def test_only_the_download_is_counted(self, tmp_path):
+        self._finish(tmp_path, master_s=55.2)
+        assert self.probed[0] == ("track.part", {"count": True})
+        assert all(not kwargs.get("count") for name, kwargs in self.probed if name == "master.wav")
 
     def test_a_download_with_no_picture_in_it_is_refused(self, tmp_path):
         with pytest.raises(ValueError, match="no picture"):
@@ -481,3 +622,31 @@ class TestWithRealFfmpeg:
         assert result["video"] and result["audio"]
         assert (result["width"], result["height"]) == (320, 180)
         assert abs(result["duration_s"] - 2.0) < 0.3
+
+
+    def test_a_real_video_cut_off_halfway_is_refused(self, tmp_path):
+        """Faststart puts the index first, so half the file still claims the whole length."""
+        whole, video = tmp_path / "whole.mp4", tmp_path / "track.part"
+        subprocess.run(
+            ["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc=s=320x180:r=30:d=6",
+             "-f", "lavfi", "-i", "sine=frequency=440:duration=6", "-shortest",
+             "-pix_fmt", "yuv420p", "-movflags", "+faststart", "-f", "mp4", str(whole)],
+            check=True, timeout=120,
+        )
+        data = whole.read_bytes()
+        video.write_bytes(data[: len(data) // 2])
+        assert abs(lv.probe(video)["duration_s"] - 6.0) < 0.3      # it still says six seconds
+        with pytest.raises(ValueError, match="stops early"):
+            lv.finish(video, tmp_path / "out.mp4", None)
+        assert not video.exists() and not (tmp_path / "out.mp4").exists()
+
+    def test_a_whole_real_video_passes_the_count(self, tmp_path):
+        video = tmp_path / "track.part"
+        subprocess.run(
+            ["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc=s=320x180:r=30:d=2",
+             "-f", "lavfi", "-i", "sine=frequency=440:duration=2", "-shortest",
+             "-pix_fmt", "yuv420p", "-movflags", "+faststart", "-f", "mp4", str(video)],
+            check=True, timeout=120,
+        )
+        info = lv.finish(video, tmp_path / "out.mp4", None)
+        assert info["audio"] == "suno" and (tmp_path / "out.mp4").is_file()

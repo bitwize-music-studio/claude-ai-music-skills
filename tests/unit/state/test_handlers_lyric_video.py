@@ -17,6 +17,8 @@ Usage:
 from __future__ import annotations
 
 import json
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -192,6 +194,11 @@ class TestPlan:
         assert fragment in blocking["detail"]
         assert plan["request"] is None and plan["ready"] is False
 
+    def test_an_asset_id_that_is_not_one_blocks_before_the_length_is_known(self, track):
+        plan = _plan(asset_id="../etc/passwd")
+        assert _codes(plan, "blocking") == ["request_invalid"]
+        assert plan["request"] is None and plan["ready"] is False
+
     def test_no_request_while_the_track_has_no_keeper(self, album):  # noqa: F811
         _image(album.audio_dir / "album.png")
         assert _plan(asset_id=ASSET, duration_s=60)["request"] is None
@@ -333,6 +340,31 @@ class TestSave:
         assert replaced["saved"] is True
         assert out.read_bytes() != b"earlier"
 
+    def test_an_earlier_video_survives_a_replace_that_fails(self, suno, monkeypatch):
+        out = suno.audio_dir / "lyric_videos" / "01-first-track-16x9.mp4"
+        out.parent.mkdir(parents=True)
+        out.write_bytes(b"earlier")
+
+        def cut_off(downloaded, dest, master, **kwargs):
+            Path(dest).write_bytes(b"half")
+            raise ValueError("The video stops early: 270 of its 600 frames arrived.")
+
+        monkeypatch.setattr(handler.lv, "finish", cut_off)
+        result = _save(replace=True)
+        assert result["saved"] is False and "stops early" in result["error"]
+        assert out.read_bytes() == b"earlier"
+        assert [p.name for p in out.parent.iterdir()] == [out.name]
+
+    def test_two_saves_never_share_a_working_file(self, suno):
+        """A save still running when another starts must not have its file cut from under it."""
+        _save()
+        _save(replace=True)
+        first, second = (call["dest"] for call in suno.calls["download"])
+        assert first != second
+        assert [call["dest"] for call in suno.calls["finish"]] != []
+        made = [call["dest"] for call in suno.calls["finish"]]
+        assert made[0] != made[1]
+
     def test_a_link_that_is_not_sunos_is_refused_and_nothing_is_fetched(self, track):
         result = _save("https://example.org/video.mp4")
         assert result["saved"] is False and "example.org" in result["error"]
@@ -373,6 +405,63 @@ class TestSave:
     def test_an_unknown_track(self, suno):
         assert _save(track="99-missing")["found"] is False
         assert suno.calls["download"] == []
+
+
+@pytest.mark.skipif(
+    shutil.which("ffmpeg") is None or shutil.which("ffprobe") is None,
+    reason="needs ffmpeg and ffprobe",
+)
+class TestSaveWithRealFfmpeg:
+    def test_a_real_video_is_checked_and_saved_with_the_master_under_it(self, track, monkeypatch):
+        """Nothing replaced but the download itself: the real check, the real ffmpeg."""
+        source = track.audio_dir / "from-suno.mp4"
+        master = track.audio_dir / "mastered" / "01-first-track.wav"
+        master.parent.mkdir(parents=True)
+        subprocess.run(
+            ["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc=s=320x180:r=30:d=2",
+             "-f", "lavfi", "-i", "sine=frequency=440:duration=2", "-shortest",
+             "-pix_fmt", "yuv420p", "-movflags", "+faststart", "-f", "mp4", str(source)],
+            check=True, timeout=120,
+        )
+        subprocess.run(
+            ["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "sine=frequency=880:duration=2", str(master)],
+            check=True, timeout=120,
+        )
+
+        def download(url, dest, **kwargs):
+            Path(dest).parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(source, dest)
+            return source.stat().st_size
+
+        monkeypatch.setattr(handler.lv, "download_video", download)
+        result = _save()
+        out = track.audio_dir / "lyric_videos" / "01-first-track-16x9.mp4"
+        assert result["saved"] is True and result["audio"] == "master", result
+        assert result["path"] == str(out)
+        assert (result["width"], result["height"]) == (320, 180)
+        assert [p.name for p in out.parent.iterdir()] == [out.name]
+        probed = handler.lv.probe(out)
+        assert probed["video"] and probed["audio"] and abs(probed["duration_s"] - 2.0) < 0.3
+
+    def test_a_real_video_cut_off_halfway_is_not_saved(self, track, monkeypatch):
+        source = track.audio_dir / "from-suno.mp4"
+        subprocess.run(
+            ["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc=s=320x180:r=30:d=6",
+             "-f", "lavfi", "-i", "sine=frequency=440:duration=6", "-shortest",
+             "-pix_fmt", "yuv420p", "-movflags", "+faststart", "-f", "mp4", str(source)],
+            check=True, timeout=120,
+        )
+        data = source.read_bytes()
+
+        def download(url, dest, **kwargs):
+            Path(dest).parent.mkdir(parents=True, exist_ok=True)
+            Path(dest).write_bytes(data[: len(data) // 2])
+            return len(data) // 2
+
+        monkeypatch.setattr(handler.lv, "download_video", download)
+        result = _save()
+        assert result["saved"] is False and "stops early" in result["error"]
+        assert list((track.audio_dir / "lyric_videos").iterdir()) == []
 
 
 class TestTheyAreRegisteredTools:

@@ -37,7 +37,7 @@ You never pick a take. The video is made for the track's approved take, and only
 
 Suno's `video-assemble` holds a picture under a song and burns the words in as they are sung, lit word by word. This skill has it do that with the album's cover and the track's keeper.
 
-Measured on songs of 52 to 97 seconds: rendering, waiting and downloading spent no credit of any kind, and each video was ready in under a minute. Suno's own description says stills and rendering are free. Check it every run all the same: Step 2 reads the balances and Step 7 reads them again.
+Measured on songs of 52 to 97 seconds: rendering and waiting spent no credit of any kind, and each video was ready in under a minute. Downloading was free too for the two whose song was already unlocked. Suno's own description says stills and rendering are free. Check it every run all the same: Step 2 reads the balances and Step 7 reads them again.
 
 Background, the answers each tool gives and what was measured: `${CLAUDE_PLUGIN_ROOT}/reference/suno/mcp-api-mapping.md` § Visuals.
 
@@ -53,7 +53,7 @@ Usage: /lyric-video <album-name> <track> [--shape 16:9|1:1|9:16]
 Example: /lyric-video sample-album 03
 ```
 
-Call `get_lyric_video_plan(album_slug, track_slug, shape)`. The shape is `16:9` unless the user names another.
+Call `get_lyric_video_plan(album_slug, track_slug, shape)`, with `asset_id` as well when the user passed `--asset`: an album with no cover is only blocked without one. The shape is `16:9` unless the user names another.
 
 | Result | Do |
 |--------|-----|
@@ -74,16 +74,17 @@ Call `account-usage` and keep the three balances: `credits_remaining`, `download
 ## Step 3: The Song
 
 1. `audio-retrieve(id: <song.clip_id>)`. Keep `metadata.duration`.
-2. Check that the song can be downloaded, because Suno will not hand over a video whose song is still locked. Call `audio-download(id: <song.clip_id>, format: "mp3")` **without** `confirm`. Do not save what it returns.
+2. Find out whether the song is locked, because Suno renders a video for a locked song but will not hand it over. Call `audio-download(id: <song.clip_id>, format: "mp3")` **without** `confirm`. Do not save what it returns, and spend nothing yet.
 
    | Answer | Do |
    |--------|-----|
    | `status: "ok"` | The song is unlocked. Nothing was spent |
-   | `status: "requires_credit"` | Unlocking the song costs one download credit. Say so, with the balance (`credits_remaining` in the answer), and ask. On a yes, call again with `confirm: true`. On a no, stop: Suno renders the video for a locked song but refuses to hand it over |
-   | `status: "processing"` | Call `audio-download` again |
+   | `status: "requires_credit"` | The song is locked: unlocking it costs one download credit. Keep the balance (`credits_remaining` in the answer) and carry on. The question comes in Step 5, once nothing else can stop the video |
+   | `status: "processing"` | Call `audio-download` again, three times at most |
    | `rate_limited` | Wait the `retry_after_seconds` it names, then call again |
+   | Any other refusal (`quota_exhausted`, `daily_limit_exceeded`, `no_permission`, …) | Report it and stop. Do not retry |
 
-   A keeper that was imported with `/bitwize-music:import-audio --from-suno` is already unlocked.
+   A keeper whose WAV was downloaded from Suno for a download credit is already unlocked. One exported through Suno Studio is not.
 
 ## Step 4: The Picture
 
@@ -98,20 +99,21 @@ Otherwise the picture is made from the album's cover and uploaded:
 3. Send the file to `upload_url` as a multipart form, every `upload_fields` entry first and the file last as `file`:
 
    ```bash
-   curl -sS -o /dev/null -w '%{http_code}' -F 'key=…' -F 'policy=…' … -F 'file=@<still.path>' '<upload_url>'
+   curl -sS -o /dev/null -w '%{http_code}' --form-string 'key=…' --form-string 'policy=…' … -F 'file=@<still.path>' '<upload_url>'
    ```
 
-   The address and the fields are credentials for this one upload: do not show them. A `2xx` code is success.
-4. `visuals-upload-complete(id: <the asset id>)`, then `visuals-wait(ids: <that id>)` until it is `ready`. An upload that ends `failed` says why in `error` (`moderated`, `invalid_file` or `processing_failed`): report it and stop.
+   Each field goes in with `--form-string`, which sends its value as it is; `-F` would read a value that starts with `@` or `<` as a file to send. Only the file itself takes `-F`. The address and the fields are credentials for this one upload: do not repeat them in your reply. A `2xx` code is success; anything else → report the code and stop.
+4. `visuals-upload-complete(id: <the asset id>)`, then `visuals-wait(ids: <that id>)` until it is `ready`, six times at most. An upload that ends `failed` says why in `error` (`moderated`, `invalid_file` or `processing_failed`): report it and stop.
 
 The upload steps follow Suno's tool descriptions. They were not measured: the test account had not accepted the notice.
 
 ## Step 5: Assemble
 
-1. `get_lyric_video_plan(album_slug, track_slug, shape, asset_id: <the picture's id>, duration_s: <metadata.duration>)`. Its `request` holds the arguments for `video-assemble`. A blocking `request_invalid` → show its `detail` and stop.
-2. Say what is about to happen in one line: "Suno will render a 16:9 lyric video of [Title] (3:26). It was free when measured and takes about a minute. It leaves a Sequence in your Suno library." No go-ahead is needed for a call that spends nothing.
-3. Call `video-assemble` with the keys of `request` and `idempotency_key: "{album_slug}/{track_slug}/lyric-video/{UTC timestamp}"`. Add nothing else. Keep the `id` and the `editor_url` it answers with.
-4. `visuals-wait(ids: <that id>)`. It returns after about 50 seconds whether or not the video is ready: call it again while `status` is `processing`. A job that ends `failed` → report it and stop.
+1. **If the song is locked (Step 3), ask now.** "The video can be made free, but Suno will only hand it over once the song is unlocked, which costs one download credit. You have N." On a yes, `audio-download(id: <song.clip_id>, format: "mp3", confirm: true)`. On a no, stop before rendering anything.
+2. `get_lyric_video_plan(album_slug, track_slug, shape, asset_id: <the picture's id>, duration_s: <metadata.duration>)`. Its `request` holds the arguments for `video-assemble`. A blocking `request_invalid` → show its `detail` and stop. A `request` that is null means the picture's id or the song's length did not arrive: stop and say which.
+3. Say what is about to happen in one line: "Suno will render a 16:9 lyric video of [Title] (3:26). It was free when measured and takes about a minute. It leaves a Sequence in your Suno library." No go-ahead is needed for a call that spends nothing.
+4. Call `video-assemble` with the keys of `request` and `idempotency_key: "{album_slug}/{track_slug}/lyric-video/{UTC timestamp}"`. Add nothing else. Keep the `id` and the `editor_url` it answers with. Make the key once and keep it: every retry in this run uses the same one.
+5. `visuals-wait(ids: <that id>)`. It returns after about 50 seconds whether or not the video is ready: call it again while `status` is `processing`, ten times at most, then give the user the `id` and the `editor_url` and stop. A job that answers `unread` was skipped by a rate limit: wait its `retry_after_seconds` and ask again. A job that ends `failed` → report it and stop.
 
 | What happened | Do |
 |---------------|-----|
@@ -121,10 +123,14 @@ The upload steps follow Suno's tool descriptions. They were not measured: the te
 
 ## Step 6: Save
 
-1. `visuals-download(id: <the video's asset_id>)`. It answers with a `url`; call it again while it answers `processing`. A `403` with reason `clip_not_unlocked` means the song is still locked: go back to Step 3, item 2.
+1. `visuals-download(id: <the video's asset_id>)`. It answers with a `url`; call it again while it answers `processing`, six times at most.
+
+   A `403` with reason `clip_not_unlocked` means the song is still locked. The video is made and stays made: do not render it again. Unlock the song as Step 5 item 1 says, asking first, then call `visuals-download` once more. If it still refuses, give the user the video's `suno_url` and stop.
 2. `save_lyric_video(album_slug, track_slug, link: <that url>, shape)`. Add `master_audio: false` when the user passed `--suno-audio`, and `replace: true` only when the user said to replace the earlier video.
 
-   It fetches the file, checks that it is a video, and saves it under the album's `lyric_videos/`. When the track has a mastered file as long as the video, the master goes under the picture; the picture itself is copied untouched. `saved: false` → report its `error` and stop.
+   It fetches the file, checks that it is a whole video, and saves it under the album's `lyric_videos/`. When the track has a mastered file as long as the video, the master goes under the picture; the picture itself is copied untouched.
+
+   `saved: false` → report its `error` and stop. One exception: when the error says the download stopped early, ask `visuals-download` for the link again and call `save_lyric_video` once more.
 
 ## Step 7: Report
 

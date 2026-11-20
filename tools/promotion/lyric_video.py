@@ -51,8 +51,12 @@ TOTAL_TIMEOUT_S = 900
 CHUNK_BYTES = 256 * 1024
 _USER_AGENT = "bitwize-music-mcp/1.0 (lyric video)"
 
-# The words are timed to the take. A master of another length would drift under them.
-MASTER_TOLERANCE_S = 1.0
+# The words are timed to the take. A master of another length would drift under
+# them: one with silence put before it, or made from a take since edited. A
+# video and its own song measured 0.01 to 0.04 seconds apart.
+MASTER_TOLERANCE_S = 0.25
+# A video with fewer of its frames than this was cut off on the way.
+_WHOLE = 0.98
 _PROBE_TIMEOUT_S = 60
 _MUX_TIMEOUT_S = 900
 
@@ -119,12 +123,18 @@ def prepare_still(cover: Path, dest: Path, shape: str) -> dict[str, Any]:
     if not cover.is_file():
         raise ValueError(f"Cover not found: {cover}")
     image_module = _pillow()
+    from PIL import ImageEnhance, ImageFilter, ImageOps
+
     try:
         with image_module.open(cover) as opened:
-            art = _flattened(opened)
+            # A phone photo is stored on its side with a tag saying how to turn it.
+            art = _flattened(ImageOps.exif_transpose(opened))
             art.load()
-    except (OSError, SyntaxError, ValueError) as exc:  # UnidentifiedImageError is an OSError
-        raise ValueError(f"{cover.name} is not an image: {exc}") from exc
+    except (
+        OSError, SyntaxError, ValueError,          # UnidentifiedImageError is an OSError
+        image_module.DecompressionBombError,       # too many pixels to open safely
+    ) as exc:
+        raise ValueError(f"{cover.name} could not be read as an image: {exc}") from exc
 
     fit = min(width / art.width, height / art.height)
     front = art.resize(
@@ -133,15 +143,9 @@ def prepare_still(cover: Path, dest: Path, shape: str) -> dict[str, Any]:
     if front.size == (width, height):
         frame = front
     else:
-        from PIL import ImageEnhance, ImageFilter
-
-        fill = max(width / art.width, height / art.height)
-        back = art.resize(
-            (max(width, round(art.width * fill)), max(height, round(art.height * fill))),
-            image_module.Resampling.BILINEAR,
-        )
-        left, top = (back.width - width) // 2, (back.height - height) // 2
-        back = back.crop((left, top, left + width, top + height))
+        # The middle of the cover, cut to the frame's shape and then enlarged:
+        # enlarging the whole of a long thin cover first would be enormous.
+        back = ImageOps.fit(art, (width, height), image_module.Resampling.BILINEAR)
         frame = ImageEnhance.Brightness(back.filter(ImageFilter.GaussianBlur(40))).enhance(0.55)
         frame.paste(front, ((width - front.width) // 2, (height - front.height) // 2))
 
@@ -200,13 +204,14 @@ def download_video(url: str, dest: Path, *, opener: Any = None) -> int:
     """Save the file behind a Suno download link to *dest*; returns its size.
 
     The link has to be an https address on Suno's hosts or its download bucket,
-    and a redirect is followed only while it stays there. Read a chunk at a
-    time, so a reply that never ends stops at ``MAX_VIDEO_BYTES`` and one that
-    trickles in stops at ``TOTAL_TIMEOUT_S``. Whatever goes wrong, nothing is
-    left at *dest*.
+    and a redirect is followed only while it stays there. Read one raw read at
+    a time, so a reply that never ends stops at ``MAX_VIDEO_BYTES`` and one that
+    trickles in stops at ``TOTAL_TIMEOUT_S``. A connection that drops ends a
+    reply without an error, so the bytes are counted against the length the
+    reply stated. Whatever goes wrong, nothing is left at *dest*.
 
     Raises:
-        ValueError: not a Suno link, too large, or too slow.
+        ValueError: not a Suno link, too large, too slow, or cut short.
         OSError, http.client.HTTPException: the download failed.
     """
     if not suno_links.is_suno_link(url, files=True):
@@ -221,8 +226,12 @@ def download_video(url: str, dest: Path, *, opener: Any = None) -> int:
     size = 0
     try:
         with opener.open(request, timeout=TIMEOUT_S) as response, open(dest, "wb") as handle:
+            # read(n) loops until it has n bytes, however slowly they come;
+            # read1(n) returns what one raw read got, so the deadline is seen.
+            read = getattr(response, "read1", None) or response.read
+            stated = _stated_length(response)
             while True:
-                chunk: bytes = response.read(CHUNK_BYTES)
+                chunk: bytes = read(CHUNK_BYTES)
                 if not chunk:
                     break
                 size += len(chunk)
@@ -233,10 +242,25 @@ def download_video(url: str, dest: Path, *, opener: Any = None) -> int:
                 if time.monotonic() - started > TOTAL_TIMEOUT_S:
                     raise ValueError(f"The download took longer than {TOTAL_TIMEOUT_S} seconds")
                 handle.write(chunk)
+        if stated is not None and size != stated:
+            raise ValueError(
+                f"The download stopped at {size} of {stated} bytes. Ask Suno for the link "
+                "again and retry.",
+            )
     except BaseException:
         dest.unlink(missing_ok=True)
         raise
     return size
+
+
+def _stated_length(response: Any) -> int | None:
+    """The reply's Content-Length, or None when it states none that can be read."""
+    headers = getattr(response, "headers", None)
+    try:
+        written = headers.get("Content-Length") if headers is not None else None
+        return int(written) if written is not None else None
+    except (TypeError, ValueError, AttributeError):
+        return None
 
 
 # ---------------------------------------------------------------------------
@@ -244,20 +268,34 @@ def download_video(url: str, dest: Path, *, opener: Any = None) -> int:
 # ---------------------------------------------------------------------------
 
 
-def probe(path: Path, *, run: Runner = subprocess.run) -> dict[str, Any]:
+def _count(value: Any) -> int | None:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def probe(path: Path, *, count: bool = False, run: Runner = subprocess.run) -> dict[str, Any]:
     """What ffprobe says a media file holds.
 
+    With *count*, the whole file is read through, and the answer also says how
+    many frames the picture's index promises (``frames``) and how many are
+    really there (``packets``); either is None when ffprobe does not give it.
+
     Returns:
-        ``{"duration_s", "video", "audio", "width", "height"}``
+        ``{"duration_s", "video", "audio", "width", "height"}``, and with
+        *count* also ``{"frames", "packets"}``
 
     Raises:
         ToolMissing: ffprobe is not installed.
         ValueError: ffprobe could not read the file.
     """
-    cmd = [
-        "ffprobe", "-v", "error", "-show_entries",
-        "format=duration:stream=codec_type,width,height", "-of", "json", str(path),
-    ]
+    entries = "format=duration:stream=codec_type,width,height"
+    cmd = ["ffprobe", "-v", "error"]
+    if count:
+        cmd.append("-count_packets")
+        entries += ",nb_frames,nb_read_packets"
+    cmd += ["-show_entries", entries, "-of", "json", str(path)]
     try:
         done = run(
             cmd, capture_output=True, text=True, encoding="utf-8", errors="replace",
@@ -278,13 +316,17 @@ def probe(path: Path, *, run: Runner = subprocess.run) -> dict[str, Any]:
     except (ValueError, KeyError, TypeError) as exc:
         raise ValueError(f"ffprobe could not read {path.name}: no duration in its answer") from exc
     video = next((s for s in streams if s.get("codec_type") == "video"), None)
-    return {
+    info: dict[str, Any] = {
         "duration_s": round(duration, 3),
         "video": video is not None,
         "audio": any(s.get("codec_type") == "audio" for s in streams),
         "width": int(video["width"]) if video and video.get("width") else None,
         "height": int(video["height"]) if video and video.get("height") else None,
     }
+    if count:
+        info["frames"] = _count(video.get("nb_frames")) if video else None
+        info["packets"] = _count(video.get("nb_read_packets")) if video else None
+    return info
 
 
 def swap_audio(video: Path, audio: Path, dest: Path, *, run: Runner = subprocess.run) -> None:
@@ -329,6 +371,45 @@ def _looks_like_mp4(path: Path) -> bool:
     return len(head) == 12 and head[4:8] == b"ftyp"
 
 
+def check_download(
+    downloaded: Path, *, probe: Callable[..., dict[str, Any]] = probe,
+) -> tuple[dict[str, Any], str]:
+    """Check that the file Suno sent is a whole video; returns what it holds, and a note.
+
+    A file cut off on the way still states its full length, because the index
+    comes first, so the picture's frames are counted against that index.
+
+    The note is empty unless ffprobe is missing: then the file could not be
+    looked into, the answer's values are ``None``, and the note says so.
+
+    Raises:
+        ValueError: not an MP4, no picture in it, or frames missing.
+            *downloaded* is removed.
+    """
+    info: dict[str, Any] = {"duration_s": None, "width": None, "height": None}
+    note = ""
+    try:
+        if not _looks_like_mp4(downloaded):
+            raise ValueError("What Suno sent is not an MP4")
+        try:
+            info = probe(downloaded, count=True)
+        except ToolMissing as exc:
+            note = f"{exc} The file was saved as Suno made it, with Suno's own audio."
+        else:
+            if not info["video"]:
+                raise ValueError("What Suno sent has no picture in it")
+            frames, packets = info.get("frames"), info.get("packets")
+            if frames and packets is not None and packets < frames * _WHOLE:
+                raise ValueError(
+                    f"The video stops early: {packets} of its {frames} frames arrived. "
+                    "Ask Suno for the link again and retry.",
+                )
+    except ValueError:
+        downloaded.unlink(missing_ok=True)
+        raise
+    return info, note
+
+
 def finish(
     downloaded: Path,
     dest: Path,
@@ -339,8 +420,8 @@ def finish(
 ) -> dict[str, Any]:
     """Turn the file Suno sent into the lyric video at *dest*.
 
-    The download has to be an MP4 with a picture in it. When *master* is given
-    and is as long as the video, to within ``MASTER_TOLERANCE_S``, it replaces
+    The download has to be a whole MP4 with a picture in it. When *master* is
+    given and is as long as the video, to within ``MASTER_TOLERANCE_S``, it replaces
     Suno's audio: the video's sound is the take, not the master. A master of
     another length is left out, because the words are timed to the take.
     Without ffmpeg the file is kept as Suno made it, unchecked.
@@ -355,22 +436,10 @@ def finish(
     Raises:
         ValueError: the download is not a video.
     """
-    info: dict[str, Any] = {"duration_s": None, "width": None, "height": None}
-    audio, note = "suno", ""
-    try:
-        if not _looks_like_mp4(downloaded):
-            raise ValueError("What Suno sent is not an MP4")
-        try:
-            info = probe(downloaded)
-        except ToolMissing as exc:
-            master = None
-            note = f"{exc} The file was saved as Suno made it, with Suno's own audio."
-        else:
-            if not info["video"]:
-                raise ValueError("What Suno sent has no picture in it")
-    except ValueError:
-        downloaded.unlink(missing_ok=True)
-        raise
+    info, note = check_download(downloaded, probe=probe)
+    audio = "suno"
+    if note:
+        master = None
 
     if master is not None:
         try:

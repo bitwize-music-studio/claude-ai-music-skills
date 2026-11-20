@@ -1,6 +1,6 @@
 # Skills Reference
 
-All 61 skills, invoked with `/bitwize-music:<skill-name>`. Claude also uses them automatically when relevant.
+All 62 skills, invoked with `/bitwize-music:<skill-name>`. Claude also uses them automatically when relevant.
 
 ---
 

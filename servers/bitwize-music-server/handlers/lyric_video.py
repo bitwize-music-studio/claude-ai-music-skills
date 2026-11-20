@@ -14,11 +14,13 @@ leaves a Sequence in the user's Suno library.
 from __future__ import annotations
 
 import asyncio
-import functools
+import contextlib
 import http.client
 import logging
 import re
+import secrets
 import shutil
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -75,6 +77,45 @@ def _shape_or_error(shape: str) -> tuple[str | None, str | None]:
             "error": f"'{shape}' is not a shape Suno makes; use 16:9, 1:1 or 9:16",
         })
     return normal, None
+
+
+async def fetch_and_finish(
+    link: str, output: Path, finish: Callable[[Path, Path], dict[str, Any]],
+) -> tuple[dict[str, Any] | None, str | None]:
+    """Fetch a Suno download link and turn it into the file at *output*.
+
+    The download lands beside *output* under a name of its own, *finish* turns
+    it into a second file, and only a finished file takes *output*'s place: an
+    earlier file there survives anything that goes wrong, and two saves at once
+    never write to the same working file. Neither working file is left behind.
+
+    Args:
+        link: The `url` Suno's visuals-download gave.
+        output: Where the finished file goes.
+        finish: ``finish(downloaded, dest)`` checks the download, writes *dest*
+            and returns what it holds.
+
+    Returns:
+        ``(info, None)``, or ``(None, message)`` when nothing was saved.
+    """
+    token = secrets.token_hex(4)
+    part = output.with_name(f"{output.name}.{token}.part")
+    made = output.with_name(f"{output.name}.{token}.new")
+    loop = asyncio.get_running_loop()
+    try:
+        await loop.run_in_executor(None, lv.download_video, link, part)
+        info = await loop.run_in_executor(None, finish, part, made)
+        made.replace(output)
+    except (ValueError, OSError, http.client.HTTPException) as exc:
+        return None, str(exc)
+    except Exception as exc:  # whatever a library raises, the caller gets an answer
+        logger.warning("Saving a video from Suno failed: %s", exc)
+        return None, f"Saving the video failed: {exc}"
+    finally:
+        for leftover in (part, made):
+            with contextlib.suppress(OSError):
+                leftover.unlink(missing_ok=True)
+    return {**info, "path": str(output)}, None
 
 
 async def get_lyric_video_plan(
@@ -170,13 +211,13 @@ async def get_lyric_video_plan(
         ))
 
     request: dict[str, Any] | None = None
-    if clip_id and asset and duration_s:
-        try:
-            if not _ASSET_ID_RE.fullmatch(asset):
-                raise ValueError(f"'{asset}' is not an asset id from Suno")
+    try:
+        if asset and not _ASSET_ID_RE.fullmatch(asset):
+            raise ValueError(f"'{asset}' is not an asset id from Suno")
+        if clip_id and asset and duration_s:
             request = lv.build_request(clip_id, asset, duration_s, normal)
-        except ValueError as exc:
-            problems.append(_problem("request_invalid", "blocking", str(exc)))
+    except ValueError as exc:
+        problems.append(_problem("request_invalid", "blocking", str(exc)))
 
     return _safe_json({
         "found": True,
@@ -315,22 +356,11 @@ async def save_lyric_video(
         found = _local_stages(ctx["album_slug"], ctx["album"], ctx["track_slug"])["mastered"]
         master = Path(found) if found else None
 
-    part = output.with_name(f"{output.name}.part")
-    made = output.with_name(f"{output.name}.new")
-    loop = asyncio.get_running_loop()
-    try:
-        await loop.run_in_executor(None, lv.download_video, link, part)
-        info = await loop.run_in_executor(None, functools.partial(lv.finish, part, made, master))
-        made.replace(output)
-    except (ValueError, OSError, http.client.HTTPException) as exc:
-        part.unlink(missing_ok=True)
-        made.unlink(missing_ok=True)
-        return refused(str(exc))
-    except Exception as exc:  # whatever a library raises, leave nothing half-made behind
-        logger.warning("Saving a lyric video failed: %s", exc)
-        part.unlink(missing_ok=True)
-        made.unlink(missing_ok=True)
-        return refused(f"Saving the video failed: {exc}")
+    info, problem = await fetch_and_finish(
+        link, output, lambda part, made: lv.finish(part, made, master),
+    )
+    if info is None:
+        return refused(problem or "Saving the video failed.")
 
     logger.info("Saved a lyric video for '%s' / '%s'", ctx["album_slug"], ctx["track_slug"])
     return _safe_json({
@@ -339,7 +369,7 @@ async def save_lyric_video(
         "track_slug": ctx["track_slug"],
         "saved": True,
         "shape": normal,
-        **{**info, "path": str(output)},
+        **info,
     })
 
 
