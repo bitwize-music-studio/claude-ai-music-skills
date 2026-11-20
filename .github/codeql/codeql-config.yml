@@ -1,0 +1,12 @@
+# CodeQL configuration for .github/workflows/codeql.yml.
+#
+# tests/ is left out of the analysis. Tests build hostile inputs and assert on
+# them on purpose, e.g. `"example.org" in result["error"]` to check that a
+# refused link is named in the error, and CodeQL reads those as the code under
+# test doing the unsafe thing. All eleven alerts raised before this file existed
+# were in tests/ and dismissed as "used in tests" (#1-#11). The code tests
+# exercise lives in tools/, servers/ and hooks/, which stay in scope.
+name: "bitwize-music CodeQL config"
+
+paths-ignore:
+  - tests
