@@ -60,7 +60,7 @@ The research system is coordinated by a lead `/researcher` skill that dispatches
 
 | Skill | Description |
 |-------|-------------|
-| `promo-director` | Generate 15-second vertical promo videos |
+| `promo-director` | Generate 15-second vertical promo videos; on request, a clip Suno generates for a passage of a track (paid) |
 | `promo-writer` | Platform-specific social media copy |
 | `promo-reviewer` | Review and polish promo copy before release |
 | `cloud-uploader` | Upload promo content to Cloudflare R2 or AWS S3 |

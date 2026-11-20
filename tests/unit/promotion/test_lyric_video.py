@@ -458,6 +458,50 @@ class TestSwapAudio:
         assert "-c:v copy" in text            # the burned-in words are not re-encoded
         assert "-shortest" in text
 
+    def test_the_whole_audio_is_used_unless_a_passage_is_named(self, tmp_path):
+        calls = []
+
+        def run(cmd, **kwargs):
+            calls.append(cmd)
+            return _done()
+
+        lv.swap_audio(tmp_path / "v.mp4", tmp_path / "m.wav", tmp_path / "out.mp4", run=run)
+        assert "-ss" not in calls[0] and "-t" not in calls[0]
+
+    def test_a_passage_of_the_audio(self, tmp_path):
+        """The seek belongs to the audio input, not to the picture."""
+        calls = []
+
+        def run(cmd, **kwargs):
+            calls.append(cmd)
+            return _done()
+
+        lv.swap_audio(
+            tmp_path / "v.mp4", tmp_path / "m.wav", tmp_path / "out.mp4",
+            audio_start_s=47.2, seconds=15.04, run=run,
+        )
+        cmd = calls[0]
+        inputs = [i for i, part in enumerate(cmd) if part == "-i"]
+        assert cmd[inputs[0] + 1] == str(tmp_path / "v.mp4")
+        assert cmd[inputs[1] + 1] == str(tmp_path / "m.wav")
+        between = cmd[inputs[0] + 2: inputs[1]]
+        assert between == ["-ss", "47.200", "-t", "15.040"]
+        assert "-ss" not in cmd[: inputs[0]]
+
+    def test_a_passage_from_the_start_needs_no_seek(self, tmp_path):
+        calls = []
+
+        def run(cmd, **kwargs):
+            calls.append(cmd)
+            return _done()
+
+        lv.swap_audio(
+            tmp_path / "v.mp4", tmp_path / "m.wav", tmp_path / "out.mp4",
+            audio_start_s=0, seconds=5, run=run,
+        )
+        assert "-ss" not in calls[0]
+        assert calls[0][calls[0].index("-t") + 1] == "5.000"
+
     def test_a_failed_mux_is_an_error_and_leaves_nothing(self, tmp_path):
         def run(cmd, **kwargs):
             Path(cmd[-1]).write_bytes(b"half")

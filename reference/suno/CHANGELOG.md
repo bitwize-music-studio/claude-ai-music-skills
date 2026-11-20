@@ -4,6 +4,27 @@ This file tracks all updates to the Suno reference documentation, including new 
 
 ---
 
+## 2026-11-19 - Promo Clips
+
+`/bitwize-music:promo-director` gains an optional, paid route: a clip Suno's `video-create` generates for a passage of a track's keeper.
+
+### Features
+- Two tools (`get_promo_clip_plan`, `save_promo_clip`) and a step in the skill. [mcp-api-mapping.md](mcp-api-mapping.md) § Visuals has the steps.
+
+### Measured
+- `video-create` with `dry_run: true` spends nothing and answers with the price, the model, the resolution and the number of takes: 75 credits for five seconds on `video-1` (480p), two takes.
+- A first frame makes the task `image_to_video`, at the same price.
+- With no model named, the call is priced on `video-2` at 720p: 450 credits for fifteen seconds. The plugin's request always names its model.
+- One real clip, five seconds on `video-1`: the 75 credits quoted were charged when the call was made, and both takes were ready in under a minute.
+- Each take was an MP4 of 5.167 seconds, H.264 at 24 frames a second, 480x840, with 48 kHz AAC, a little under 1 MB.
+- The clip's sound was the song from the second asked for, to within 5 milliseconds, so the same passage of a master lines up under the picture.
+- `visuals-wait` and `visuals-download` spent nothing, and no download credit was used.
+
+### Not Measured
+- `video-2` and 720p, a longer clip, a first frame, a failed take and a refused prompt.
+
+---
+
 ## 2026-11-19 - Lyric Video
 
 `/bitwize-music:lyric-video` has Suno render a lyric video for a track: the album's cover under the keeper, with the words burned in as they are sung. Measured on a Premier account with three takes of a test song, 52, 55 and 97 seconds long.

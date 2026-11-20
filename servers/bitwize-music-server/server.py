@@ -489,6 +489,7 @@ from handlers import (
     playback,
     processing,
     promo,
+    promo_clip,
     release_kit,
     rename,
     skills,
@@ -524,6 +525,7 @@ take_edit.register(mcp)
 take_extend.register(mcp)
 suno_sounds.register(mcp)
 lyric_video.register(mcp)
+promo_clip.register(mcp)
 suno_voices.register(mcp)
 album_generation.register(mcp)
 suno_release.register(mcp)
@@ -741,6 +743,9 @@ from handlers.promo import (  # noqa: F401
     get_promo_status,
 )
 
+# Promo clip tools
+from handlers.promo_clip import get_promo_clip_plan, save_promo_clip  # noqa: F401
+
 # Release kit
 from handlers.release_kit import build_release_kit  # noqa: F401
 
@@ -783,8 +788,6 @@ from handlers.suno_midi import (  # noqa: F401
     get_midi_score_plan,
     get_suno_midi_plan,
 )
-
-# Take-check tools
 from handlers.suno_release import (  # noqa: F401
     get_suno_release_plan,
     set_album_playlist,
