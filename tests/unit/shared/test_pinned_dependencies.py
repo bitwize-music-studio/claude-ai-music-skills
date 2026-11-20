@@ -189,10 +189,10 @@ def test_documented_mcp_install_is_capped_below_3(
 # Every place that tells a session (or a user) how to check the SDK is healthy.
 # This is the failure that actually reached people: bare `import mcp` succeeds
 # whichever line is installed — and even when neither server module is present —
-# so the gate CLAUDE.md says must halt the session reported ready on an install
-# where the server was already dead.
+# so the session-start gate that must halt the session reported ready on an
+# install where the server was already dead. The probe lived in CLAUDE.md until
+# #664 moved the procedure wholly into the session-start skill.
 PROBE_FILES = [
-    "CLAUDE.md",
     "skills/session-start/SKILL.md",
     "skills/setup/SKILL.md",
     "reference/workflows/error-recovery.md",

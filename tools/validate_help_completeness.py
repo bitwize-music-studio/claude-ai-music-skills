@@ -44,19 +44,51 @@ def get_all_skills(plugin_root: Path) -> list[str]:
 
     return skills
 
-def check_claude_md_ghosts(plugin_root: Path, skills: list[str]) -> list[str]:
-    """Find CLAUDE.md references to skills that don't exist.
+# The files that route users to skills. ``reference/plugin-rules.md`` is what
+# plugin users get (the SessionStart hook prints it); AGENTS.md and CLAUDE.md
+# are what contributors get. CLAUDE.md is now only imports, but scanning it
+# keeps a reference added there honest too.
+ROUTER_FILES = ("reference/plugin-rules.md", "AGENTS.md", "CLAUDE.md")
+RULES_FILE = ROUTER_FILES[0]
 
-    CLAUDE.md is a curated router by design: it need not reference every
-    skill, but every /bitwize-music:{name} it does reference must exist.
+# ``/bitwize-music:name`` anywhere, and a bare backticked name after an arrow,
+# the form the rules' routing list uses (``Plan an album → `album-conceptualizer```).
+# MCP tool names (``list_skills``) contain underscores and are skipped.
+_COMMAND_REF = re.compile(r"/bitwize-music:([a-z0-9][a-z0-9-]*)")
+_ARROW_REF = re.compile(r"→ `([a-z0-9][a-z0-9_-]*)")
+
+
+def referenced_skills(content: str, *, arrows: bool = False) -> set[str]:
+    """Skill names a router file refers to.
+
+    *arrows* also counts bare names after ``→``: right for the rules' routing
+    list, wrong for prose like "merge `develop` → `main`" in AGENTS.md.
     """
-    claude_file = plugin_root / "CLAUDE.md"
-    if not claude_file.exists():
-        logger.error("CLAUDE.md not found!")
-        return []
-    content = claude_file.read_text(encoding='utf-8')
-    referenced = set(re.findall(r"/bitwize-music:([a-z0-9][a-z0-9-]*)", content))
-    return sorted(referenced - set(skills))
+    names = set(_COMMAND_REF.findall(content))
+    if arrows:
+        names |= {n for n in _ARROW_REF.findall(content) if "_" not in n}
+    return names
+
+
+def check_router_ghosts(plugin_root: Path, skills: list[str]) -> list[str]:
+    """Find references to skills that don't exist in the files that route to skills.
+
+    The router files are curated by design: they need not reference every
+    skill, but every skill they do reference must exist. A missing
+    ``reference/plugin-rules.md`` is reported as ``<missing reference/plugin-rules.md>``,
+    since plugin users would then get no rules at all.
+    """
+    findings: set[str] = set()
+    for rel in ROUTER_FILES:
+        path = plugin_root / rel
+        if not path.exists():
+            if rel == RULES_FILE:
+                findings.add(f"<missing {rel}>")
+            continue
+        content = path.read_text(encoding="utf-8")
+        findings |= referenced_skills(content, arrows=rel == RULES_FILE) - set(skills)
+    return sorted(findings)
+
 
 def check_help_skill(plugin_root: Path, skills: list[str]) -> list[str]:
     """Check which skills are missing from skills/help/SKILL.md."""
@@ -103,17 +135,17 @@ def main() -> int:
 
     errors = 0
 
-    # Check CLAUDE.md
-    logger.info("Checking CLAUDE.md for ghost skill references...")
-    claude_ghosts = check_claude_md_ghosts(plugin_root, all_skills)
+    # Check the router files
+    logger.info("Checking %s for ghost skill references...", ", ".join(ROUTER_FILES))
+    router_ghosts = check_router_ghosts(plugin_root, all_skills)
 
-    if not claude_ghosts:
-        print(f"{GREEN}[OK] All CLAUDE.md skill references are valid{NC}")
+    if not router_ghosts:
+        print(f"{GREEN}[OK] All skill references in the router files are valid{NC}")
     else:
-        print(f"{RED}[FAIL] CLAUDE.md references nonexistent skills:{NC}")
-        for skill in claude_ghosts:
+        print(f"{RED}[FAIL] Router files reference nonexistent skills:{NC}")
+        for skill in router_ghosts:
             print(f"  - {skill}")
-        errors += len(claude_ghosts)
+        errors += len(router_ghosts)
     print()
 
     # Check help system
@@ -136,14 +168,14 @@ def main() -> int:
         print()
         print("All skills are listed in:")
         print("  - skills/help/SKILL.md (help system, every skill)")
-        print("  - CLAUDE.md (curated router, ghost-free)")
+        print("  - reference/plugin-rules.md, AGENTS.md (curated routers, ghost-free)")
         return 0
     else:
         print(f"{RED}[FAIL] Found {errors} documentation issues{NC}")
         print()
         print("To fix:")
         print("  1. Add missing skills to skills/help/SKILL.md (help must list every skill)")
-        print("  2. Fix or remove CLAUDE.md references to nonexistent skills")
+        print("  2. Fix or remove router-file references to nonexistent skills")
         print("  3. Update CHANGELOG.md with the changes")
         print()
         print("See CONTRIBUTING.md for complete checklist")

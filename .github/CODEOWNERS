@@ -14,3 +14,6 @@
 
 # Core documentation that defines workflow behavior
 CLAUDE.md @bitwize-music
+AGENTS.md @bitwize-music
+reference/plugin-rules.md @bitwize-music
+hooks/session_rules.py @bitwize-music

@@ -274,7 +274,7 @@ cp config/overrides.example/suno-preferences.md ~/music-projects/overrides/
 ### Available Overrides
 
 #### `CLAUDE.md` - Workflow Instructions
-Supplements base CLAUDE.md with your personal workflow preferences.
+Supplements the plugin's rules (`reference/plugin-rules.md`) with your personal workflow preferences. `/bitwize-music:session-start` loads it.
 
 **Example:**
 ```markdown

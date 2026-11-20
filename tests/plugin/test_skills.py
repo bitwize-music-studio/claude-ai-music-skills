@@ -388,19 +388,23 @@ class TestAlbumStatusManagement:
             "verify-sources SKILL.md missing auto-advancement documentation"
         )
 
-    def test_claude_md_documentary_album_flow(self, claude_md_content):
-        """CLAUDE.md must document documentary album status flow."""
-        assert 'Documentary' in claude_md_content or 'documentary' in claude_md_content, (
-            "CLAUDE.md missing documentary album status flow"
+    def test_plugin_rules_documentary_album_flow(self, claude_md_content):
+        """The plugin rules must give the documentary album status flow."""
+        assert 'documentary only' in claude_md_content, (
+            "reference/plugin-rules.md missing the documentary-only research statuses"
         )
         assert 'Research Complete' in claude_md_content, (
-            "CLAUDE.md missing 'Research Complete' status for documentary flow"
+            "reference/plugin-rules.md missing 'Research Complete' status for documentary flow"
         )
 
-    def test_claude_md_standard_album_flow(self, claude_md_content):
-        """CLAUDE.md must document standard (non-documentary) album status flow."""
-        assert 'Standard albums' in claude_md_content or 'standard albums' in claude_md_content, (
-            "CLAUDE.md missing standard album status flow"
+    def test_status_tracking_documents_both_album_flows(self, reference_dir):
+        """status-tracking.md must give the documentary and the standard album flows."""
+        content = (reference_dir / "workflows" / "status-tracking.md").read_text(encoding="utf-8")
+        assert 'Documentary' in content and 'Research Complete' in content, (
+            "status-tracking.md missing the documentary album status flow"
+        )
+        assert 'Standard (non-documentary) albums' in content, (
+            "status-tracking.md missing the standard album status flow"
         )
 
 
@@ -421,7 +425,7 @@ class TestSkillIndex:
         skill_index_file = reference_dir / "SKILL_INDEX.md"
         assert skill_index_file.exists(), (
             "reference/SKILL_INDEX.md missing — it is a required plugin asset "
-            "(CLAUDE.md routes skill lookups through it)"
+            "(reference/plugin-rules.md routes skill lookups through it)"
         )
 
         index_content = skill_index_file.read_text(encoding="utf-8")

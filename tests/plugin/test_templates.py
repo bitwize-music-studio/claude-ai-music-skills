@@ -37,7 +37,7 @@ class TestTemplateExistence:
             ref for ref in set(template_refs)
             if not (templates_dir / ref).exists()
         ]
-        assert not missing, f"Templates referenced in CLAUDE.md but missing: {missing}"
+        assert not missing, f"Templates referenced in AGENTS.md / reference/plugin-rules.md but missing: {missing}"
 
 
 class TestTrackTemplate:

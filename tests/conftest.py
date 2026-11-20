@@ -246,13 +246,37 @@ def all_skill_frontmatter(all_skill_dirs) -> Dict[str, Dict[str, Any]]:
     return skills
 
 
+def _expand_imports(path: Path, seen: set[Path] | None = None) -> str:
+    """A memory file's text with its ``@path`` import lines replaced by the files.
+
+    Claude Code expands a line that is just ``@some/file.md`` into that file's
+    contents. Since #664 ``CLAUDE.md`` is only ``@AGENTS.md`` and
+    ``@reference/plugin-rules.md``, so the instructions a session in this repo
+    gets are the expanded text, not the two lines.
+    """
+    seen = set() if seen is None else seen
+    path = path.resolve()
+    if path in seen or not path.exists():
+        return ""
+    seen.add(path)
+    parts = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if stripped.startswith("@") and " " not in stripped and len(stripped) > 1:
+            parts.append(_expand_imports(path.parent / stripped[1:], seen))
+        else:
+            parts.append(line)
+    return "\n".join(parts) + "\n"
+
+
 @pytest.fixture(scope="session")
 def claude_md_content(project_root) -> str:
-    """Contents of CLAUDE.md."""
-    claude_file = project_root / "CLAUDE.md"
-    if claude_file.exists():
-        return claude_file.read_text(encoding="utf-8")
-    return ""
+    """The instructions CLAUDE.md gives a session, ``@`` imports expanded.
+
+    That is ``AGENTS.md`` (contributor rules) plus ``reference/plugin-rules.md``
+    (the rules the SessionStart hook gives plugin users).
+    """
+    return _expand_imports(project_root / "CLAUDE.md")
 
 
 # ---------------------------------------------------------------------------

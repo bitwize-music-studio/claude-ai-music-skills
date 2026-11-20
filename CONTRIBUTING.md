@@ -54,7 +54,7 @@ Follow the existing code patterns and documentation style.
 
 **Key files to update:**
 - If adding a skill: Create `/skills/your-skill/SKILL.md`
-- If changing workflow: Update `CLAUDE.md`
+- If changing a workflow rule: Update `reference/plugin-rules.md` (the rules plugin users get at session start; keep it under 9,000 characters and put detail in the skill or reference doc). Contributor rules go in `AGENTS.md`
 - If user-facing: Update `README.md`
 - Always: Update `CHANGELOG.md` under "Unreleased"
 
@@ -64,7 +64,7 @@ When adding a new skill, you MUST update all of these files:
 
 **Required (skill won't work without these):**
 - [ ] Create `/skills/your-skill/SKILL.md` with skill documentation
-- [ ] Add a routing rule to `CLAUDE.md` Key Routing Rules ONLY if users reach the skill through workflow triggers (CLAUDE.md is a curated router — most skills belong in the help index, not CLAUDE.md)
+- [ ] Add a routing rule to `reference/plugin-rules.md` "Workflow and routing" ONLY if users reach the skill through workflow triggers (it is a curated router with a size limit — most skills belong in the help index, not there)
 - [ ] Add entry to `skills/help/SKILL.md` in appropriate category
 - [ ] Add entry to `skills/help/SKILL.md` Common Workflows section (if applicable)
 - [ ] Update `CHANGELOG.md` under "Unreleased" → "Added"
@@ -73,8 +73,8 @@ When adding a new skill, you MUST update all of these files:
 - [ ] Add entry to `reference/SKILL_INDEX.md` (alphabetical table + decision tree + skill categories)
 - [ ] Add entry to `reference/model-strategy.md` under appropriate model tier
 - [ ] Add quick tip to `skills/help/SKILL.md` Quick Tips section (if relevant)
-- [ ] Update workflow diagram in `CLAUDE.md` (if part of main workflow)
-- [ ] Add to Album Completion Checklist in `CLAUDE.md` (if part of release)
+- [ ] Update the workflow line in `reference/plugin-rules.md` (if part of main workflow)
+- [ ] Add to the Verify Completion Checklist in `reference/workflows/release-procedures.md` (if part of release)
 - [ ] Add reference docs in `/reference/` if complex
 - [ ] Update `README.md` Skills Reference tables (add to appropriate section: Core Production, Research, Quality Control, Release, or Setup & Maintenance)
 
@@ -82,12 +82,12 @@ When adding a new skill, you MUST update all of these files:
 - [ ] Run `/bitwize-music:test all` to ensure no regressions
 - [ ] Test skill invocation: `/bitwize-music:your-skill`
 - [ ] Verify skill appears in `/bitwize-music:help` output
-- [ ] Run `tools/validate_help_completeness.py` — must exit 0 (help index complete, no CLAUDE.md ghost references)
+- [ ] Run `tools/validate_help_completeness.py` — must exit 0 (help index complete, no ghost skill references in `reference/plugin-rules.md` or `AGENTS.md`)
 
 **Common mistakes to avoid:**
 - ❌ Forgetting to add skill to help system
 - ❌ Not updating CHANGELOG.md
-- ❌ Adding to CLAUDE.md but not help/SKILL.md
+- ❌ Adding to `reference/plugin-rules.md` but not help/SKILL.md
 - ❌ Inconsistent naming between files
 - ❌ Breaking alphabetical order in lists
 
@@ -257,7 +257,7 @@ claude --plugin-dir /path/to/claude-ai-music-skills
 ## Questions?
 
 - Check existing skills in `/skills/` for examples
-- Read `CLAUDE.md` for workflow documentation
+- Read `reference/plugin-rules.md` for the workflow rules and `AGENTS.md` for contributor rules
 - Open an issue for clarification
 
 ## License

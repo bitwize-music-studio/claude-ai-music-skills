@@ -189,27 +189,31 @@ jobs:
         print(f'[OK] All {len(skill_dirs)} skills have valid SKILL.md with required frontmatter')
         "
 
-    - name: Check CLAUDE.md size
+    - name: Check instruction file sizes
       run: |
         python -c "
         import sys
 
-        MAX_CHARS = 40000
+        # AGENTS.md: contributor instructions (CLAUDE.md imports it).
+        # reference/plugin-rules.md: what the SessionStart hook gives plugin users.
+        # Claude Code keeps hook output whole only below 10,000 characters, and
+        # hooks/session_rules.py prints the rules only under 9,000 with the
+        # install path filled in; tests/unit/hooks/test_session_rules.py checks
+        # that rendered size, this checks the raw file early.
+        LIMITS = {'AGENTS.md': 40000, 'reference/plugin-rules.md': 9000}
 
-        with open('CLAUDE.md', 'r', encoding='utf-8') as f:
-            content = f.read()
-            char_count = len(content)
+        failed = False
+        for path, max_chars in LIMITS.items():
+            with open(path, 'r', encoding='utf-8') as f:
+                char_count = len(f.read())
+            print(f'{path}: {char_count} chars (max {max_chars})')
+            if char_count > max_chars:
+                print(f'[FAIL] {path} is over by {char_count - max_chars} chars')
+                failed = True
 
-        size_k = char_count / 1000
-        print(f'CLAUDE.md: {size_k:.1f}K chars (max {MAX_CHARS // 1000}K)')
-
-        if char_count > MAX_CHARS:
-            print(f'[FAIL] CLAUDE.md exceeds {MAX_CHARS // 1000}K character limit')
-            print(f'  Current: {char_count} chars')
-            print(f'  Over by: {char_count - MAX_CHARS} chars')
+        if failed:
             sys.exit(1)
-
-        print('[OK] CLAUDE.md size within limit')
+        print('[OK] Instruction files within limits')
         "
 
   # Each OS's suite runs as two parallel shards (tests/sharding.py). As one job

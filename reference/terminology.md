@@ -24,7 +24,7 @@ Comprehensive reference for terms used in the bitwize-music plugin. Alphabetized
 | Term | Definition | Example |
 |------|------------|---------|
 | **7 Planning Phases** | Structured planning process required before writing lyrics: Foundation, Concept Deep Dive, Sonic Direction, Structure Planning, Album Art, Practical Details, Confirmation. | "Phase 3: What are the sonic inspirations?" |
-| **Album Completion Checklist** | Final checklist before release covering all tracks Final, album art, mastering, metadata, and platform uploads. | See CLAUDE.md "Album Completion Checklist" |
+| **Album Completion Checklist** | Final checklist before release covering all tracks Final, album art, mastering, metadata, and platform uploads. | See `reference/workflows/release-procedures.md` "Verify Completion Checklist" |
 | **Album Status** | Lifecycle state of an album: Concept, Research Complete, Sources Verified, In Progress, Complete, Released. | `Status: In Progress` in album README |
 | **Generation Log** | Table in each track file logging Suno generation attempts with date, model, result URL, notes, and keeper rating. | `| 2 | 2025-12-03 | v6 | [Listen](url) | Boosted vocals | ✓ |` |
 | **Human Verification** | Required manual review confirming captured sources are accurate before using them in lyrics. For true-story albums only. | Status changes from `Pending` to `Verified (2025-01-15)` |
@@ -178,7 +178,7 @@ Variables used in documentation that resolve from config:
 
 ## See Also
 
-- [CLAUDE.md](/CLAUDE.md) - Main workflow instructions
+- [reference/plugin-rules.md](/reference/plugin-rules.md) - The workflow rules every session gets
 - [skills/help/SKILL_GLOSSARY.md](/skills/help/SKILL_GLOSSARY.md) - Quick glossary in help skill
 - [reference/suno/best-practices.md](/reference/suno/best-practices.md) - Suno prompting guide
 - [reference/suno/models.md](/reference/suno/models.md) - Suno model catalog
