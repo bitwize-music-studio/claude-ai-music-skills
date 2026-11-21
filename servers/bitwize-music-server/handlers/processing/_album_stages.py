@@ -2165,7 +2165,10 @@ async def _stage_archival(ctx: MasterAlbumCtx) -> str | None:
     archival_dir = ctx.audio_dir / "archival"
     archival_dir.mkdir(exist_ok=True)
     mastered_names = {p.name for p in ctx.mastered_files}
-    pruned = prune_archival_orphans(archival_dir, mastered_names)
+    # A stray (a WAV in mastered/ that matches no track) is reported, never
+    # deleted, so its archived float copy stays too until the user moves it.
+    strays = set(ctx.stages.get("mastering", {}).get("stray_wavs") or [])
+    pruned = prune_archival_orphans(archival_dir, mastered_names | strays)
 
     archived = 0
     archive_errors: list[str] = []

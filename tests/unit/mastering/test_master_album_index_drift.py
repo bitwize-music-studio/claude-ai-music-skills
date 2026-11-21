@@ -316,6 +316,29 @@ class TestStrayMasters:
         assert ctx.stages["playlist"]["tracks"] == 3
         assert "02-old-title.wav" not in (tmp_path / "LAYOUT.md").read_text(encoding="utf-8")
 
+    def test_a_strays_archived_copy_is_kept(self, tmp_path: Path) -> None:
+        """Strays are reported, never deleted, and that covers their archive too."""
+        mastered = tmp_path / "mastered"
+        mastered.mkdir()
+        _noise(mastered / "02-old-title.wav", 0.005, seed=9)
+        archival = tmp_path / "archival"
+        archival.mkdir()
+        _noise(archival / "02-old-title.wav", 0.005, seed=9)
+        _noise(archival / "99-gone.wav", 0.005, seed=3)  # no master anywhere
+
+        async def _run() -> MasterAlbumCtx:
+            ctx = _mastering_ctx(tmp_path, asyncio.get_running_loop())
+            assert await _album_stages._stage_mastering(ctx) is None
+            ctx.targets["archival_enabled"] = True  # archival is opt-in
+            await _album_stages._stage_archival(ctx)
+            return ctx
+
+        ctx = asyncio.run(_run())
+
+        assert (archival / "02-old-title.wav").is_file()
+        assert not (archival / "99-gone.wav").exists()
+        assert ctx.stages["archival"]["pruned"] == ["99-gone.wav"]
+
     def test_an_aligned_album_has_no_strays(self, tmp_path: Path) -> None:
         async def _run() -> MasterAlbumCtx:
             ctx = _mastering_ctx(tmp_path, asyncio.get_running_loop())
