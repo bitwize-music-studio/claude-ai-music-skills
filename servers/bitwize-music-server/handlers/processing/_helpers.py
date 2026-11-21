@@ -249,6 +249,8 @@ def _derive_album_genre(album_slug: str) -> str:
         normalized = _normalize_slug(album_slug)
     except ValueError:
         return ""
+    if _shared.cache is None:  # the server has not loaded its state yet
+        return ""
     state = _shared.cache.get_state()
     albums = state.get("albums", {})
     album_data = albums.get(normalized, {})

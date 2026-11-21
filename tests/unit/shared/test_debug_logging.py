@@ -28,6 +28,8 @@ def _reset_file_logging():
     # Restore handlers that existed before the test
     root.handlers = original_handlers
     root.level = original_level
+    # And the sentinel, so a later test in this process can configure logging
+    logging_config._file_logging_configured = False
 
 
 class TestConfigureFileLoggingDisabled:
