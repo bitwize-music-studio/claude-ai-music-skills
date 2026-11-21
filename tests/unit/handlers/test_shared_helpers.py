@@ -113,3 +113,12 @@ class TestGetValidGenresCachePoisoning:
         monkeypatch.setattr(_shared, "PLUGIN_ROOT", fake_root)
         _shared._get_valid_genres()
         assert _shared._VALID_GENRES is None  # degenerate result not stored
+
+
+def test_every_test_starts_with_a_state_cache():
+    """The root conftest gives each test a state cache when none is set (#670).
+
+    Without it, a handler test that never loads server.py passed only when an
+    earlier test on the same worker had left a cache behind.
+    """
+    assert _shared.cache is not None

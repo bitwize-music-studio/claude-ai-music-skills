@@ -1258,8 +1258,12 @@ class TestCheckStreamingLyrics:
 
     def setup_method(self):
         state = _fresh_state()
+        self._orig_cache = _shared_mod.cache
         self._mock_cache = MockStateCache(state)
         _shared_mod.cache = self._mock_cache
+
+    def teardown_method(self):
+        _shared_mod.cache = self._orig_cache
 
     def test_ready_track_passes_all(self):
         with patch("pathlib.Path.read_text", return_value=STREAMING_READY_FILE):

@@ -6,6 +6,9 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+### Fixed
+- **Five test files no longer depend on what ran before them** — `handlers._shared.cache` is `None` until `server.py` sets it, and the mastering and mixing handlers read it directly (`_track_fade_out`, `_derive_album_genre`). Twelve tests in `test_album_coherence_handlers.py`, `test_album_cut_eq_disable.py`, `test_master_album_recovery_delivery_format.py`, `test_master_album_verification_warn_fallback.py` and `test_analyze_mix_issues.py` passed only when an earlier test on the same xdist worker had left a cache behind, and failed when run alone, as #651 found for four others. Tests that left caches behind were part of the problem: `TestCheckStreamingLyrics` installed one with no teardown, and `test_shared_helpers.py` assigned it directly. A new autouse fixture in `tests/conftest.py` now gives every test the cache it started with, or an empty one when there was none, and restores it afterwards however the test changed it; the gates class restores its own as well. `test_debug_logging.py` also resets the file-logging flag after each test, not only before. `_derive_album_genre` now keeps its "never raises" promise when there is no cache ([#670](https://github.com/bitwize-music-studio/claude-ai-music-skills/issues/670)).
+
 ## [0.105.1] - 2026-11-20
 
 ### Fixed
