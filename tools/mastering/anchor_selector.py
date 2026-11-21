@@ -7,7 +7,14 @@ Pure-Python scoring — no I/O, no MCP coupling. The handler in
 
 Selection strategy (in order):
 1. ``override_index`` supplied by caller (from album README
-   frontmatter ``anchor_track``). Validated against the track list.
+   frontmatter ``anchor_track``). It is a track number, so it is matched
+   to the file whose leading digits carry that number (``03-x.wav`` is
+   track 3), wherever that file sits in the list: a leftover file such
+   as ``02-old-title.wav`` beside ``02-new-title.wav`` shifts the
+   positions but not the numbers (#668). A number no file carries, or
+   one two files share, falls through to composite scoring and says why
+   in ``override_reason``. Only when no file is numbered is the number
+   read as a position in the list.
 2. Composite scoring: ``0.4 * mix_quality + 0.4 * representativeness
    - 1.0 * ceiling_penalty`` (formula from issue #290).
 3. Deterministic tie-breaker when top two scores differ by < 0.05:
@@ -20,6 +27,8 @@ Tracks missing any of ``stl_95`` / ``low_rms`` / ``vocal_rms`` /
 
 from __future__ import annotations
 
+import re
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -27,6 +36,41 @@ import numpy as np
 BANDS = ("sub_bass", "bass", "low_mid", "mid", "high_mid", "high", "air")
 SIGNATURE_KEYS = ("stl_95", "short_term_range", "low_rms", "vocal_rms")
 TIE_BREAKER_EPSILON = 0.05
+_TRACK_NUMBER_RE = re.compile(r"^(\d+)")
+
+
+def _track_number(filename: Any) -> int | None:
+    """The track number in a file name's leading digits (``03-x.wav`` → 3)."""
+    if not isinstance(filename, str):
+        return None
+    match = _TRACK_NUMBER_RE.match(Path(filename).name)
+    return int(match.group(1)) if match else None
+
+
+def resolve_track_number(
+    tracks: list[dict[str, Any]], number: int,
+) -> tuple[int | None, str | None]:
+    """The 1-based position in ``tracks`` of the file numbered ``number``.
+
+    Returns ``(position, None)``, or ``(None, reason)`` when no file carries
+    that number or more than one does. When no file in ``tracks`` is
+    numbered at all, the number is read as a position, as it always was.
+    """
+    numbers = [_track_number(t.get("filename")) for t in tracks]
+    if all(n is None for n in numbers):
+        if 1 <= number <= len(tracks):
+            return number, None
+        return None, f"out of range [1, {len(tracks)}]"
+    matches = [i + 1 for i, n in enumerate(numbers) if n == number]
+    if len(matches) == 1:
+        return matches[0], None
+    if matches:
+        names = ", ".join(str(tracks[i - 1].get("filename")) for i in matches)
+        return None, f"track {number} is ambiguous: {len(matches)} files carry it ({names})"
+    reason = f"no file is numbered {number}"
+    if not 1 <= number <= len(tracks):
+        reason += f" (out of range [1, {len(tracks)}])"
+    return None, reason
 
 
 def _spectral_match_score(band_energy: dict[str, float],
@@ -117,12 +161,17 @@ def select_anchor(
         preset: Genre preset dict; must include
                 ``genre_ideal_lra_lu`` and ``spectral_reference_energy``
                 (fall back to defaults.yaml shape when missing).
-        override_index: Optional 1-based track number from album README
-                frontmatter ``anchor_track``. Values ≤ 0 or > len(tracks)
-                fall through to composite scoring.
+        override_index: Optional track number from album README
+                frontmatter ``anchor_track``, matched to the file whose
+                leading digits carry it (see ``resolve_track_number``).
+                Values ≤ 0, and numbers no file or several files carry,
+                fall through to composite scoring with ``override_reason``
+                saying why.
 
     Returns:
         Dict — see module docstring + plan design section for shape.
+        ``selected_index`` is always the 1-based position in ``tracks``;
+        ``override_index`` echoes the track number the caller passed.
     """
     ideal_lra = float(preset.get("genre_ideal_lra_lu", 8.0))
     spectral_ref = preset.get("spectral_reference_energy") or {
@@ -151,9 +200,10 @@ def select_anchor(
 
     # Override path
     if override_index is not None and override_index > 0:
-        if 1 <= override_index <= len(tracks):
+        position, unresolved = resolve_track_number(tracks, override_index)
+        if position is not None:
             return {
-                "selected_index": override_index,
+                "selected_index": position,
                 "method": "override",
                 "scores": [
                     {"index": i + 1,
@@ -166,9 +216,7 @@ def select_anchor(
                 "override_index": override_index,
                 "override_reason": None,
             }
-        override_reason = (
-            f"out of range [1, {len(tracks)}] — fell through to composite scoring"
-        )
+        override_reason = f"{unresolved} — fell through to composite scoring"
     elif override_index is not None and override_index <= 0:
         override_reason = "non-positive — treated as no override"
 

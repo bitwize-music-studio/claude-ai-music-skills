@@ -247,8 +247,16 @@ def create_copyright_page(title: str, artist: str, year: int, page_size: tuple[f
     return PdfReader(buffer).pages[0]
 
 
-def create_toc_page(tracks: list[tuple[str, int]], page_size: tuple[float, float]) -> Any:
-    """Create a table of contents page."""
+def create_toc_page(
+    tracks: list[tuple[str, int]],
+    page_size: tuple[float, float],
+    numbers: list[int] | None = None,
+) -> Any:
+    """Create a table of contents page.
+
+    ``numbers`` holds each track's number on the album, in the order of
+    ``tracks``; without it the tracks are numbered 1, 2, 3 in order.
+    """
     buffer = io.BytesIO()
     width, height = page_size
     c = canvas.Canvas(buffer, pagesize=page_size)
@@ -268,7 +276,8 @@ def create_toc_page(tracks: list[tuple[str, int]], page_size: tuple[float, float
         display_name = track_name
 
         # Draw track number and name
-        c.drawString(1 * inch, y, f"{i}.")
+        number = numbers[i - 1] if numbers is not None else i
+        c.drawString(1 * inch, y, f"{number}.")
         c.drawString(1.4 * inch, y, display_name)
 
         # Draw dots and page number
@@ -439,6 +448,8 @@ def create_songbook(
         except (json.JSONDecodeError, OSError) as e:
             logger.warning("Failed to read manifest: %s", e)
 
+    # Each found PDF's track number from its manifest entry (#668).
+    manifest_numbers: dict[Path, int] = {}
     if manifest:
         # Use manifest for ordering — try filename field first (numbered singles),
         # then title (clean-titled), then source/source_slug (legacy)
@@ -446,26 +457,21 @@ def create_songbook(
         for entry in manifest.get("tracks", []):
             entry_title = entry.get("title", "")
             filename = entry.get("filename", "")
-            # Try numbered filename first (e.g., "01 - First Pour")
-            if filename:
-                pdf_path = source_path / f"{filename}.pdf"
-                if pdf_path.exists():
-                    pdf_files.append(pdf_path)
-                    continue
-            # Fallback: try clean title
-            if entry_title:
-                pdf_path = source_path / f"{entry_title}.pdf"
-                if pdf_path.exists():
-                    pdf_files.append(pdf_path)
-                    continue
-            # Fallback: try source slug
             source_name = entry.get("source", entry.get("source_slug", ""))
-            if source_name:
-                alt_path = source_path / f"{source_name}.pdf"
-                if alt_path.exists():
-                    pdf_files.append(alt_path)
-                    continue
-            logger.warning("PDF not found for track: %s", entry_title or filename)
+            # Try numbered filename first (e.g., "01 - First Pour"), then the
+            # clean title, then the source slug (legacy).
+            candidates = [
+                source_path / f"{name}.pdf"
+                for name in (filename, entry_title, source_name) if name
+            ]
+            pdf_path = next((c for c in candidates if c.exists()), None)
+            if pdf_path is None:
+                logger.warning("PDF not found for track: %s", entry_title or filename)
+                continue
+            pdf_files.append(pdf_path)
+            number = entry.get("number")
+            if isinstance(number, int) and not isinstance(number, bool):
+                manifest_numbers[pdf_path] = number
     else:
         # No manifest — include all PDFs, try numbered first, then alphabetical
         numbered = sorted([
@@ -519,6 +525,21 @@ def create_songbook(
             return True
         return not re.match(r'^\d+', pdf_file.stem)
 
+    def _track_number(position: int, pdf_file: Path) -> int:
+        """The track's number on the album, not its place among the PDFs found.
+
+        A track without a PDF (a transcription that failed) must not shift
+        the numbers of the tracks after it (#668). The manifest entry's
+        number comes first, then the file name's leading digits; only a PDF
+        with neither is numbered by its place.
+        """
+        if pdf_file in manifest_numbers:
+            return manifest_numbers[pdf_file]
+        match = re.match(r'^(\d+)', pdf_file.stem)
+        return int(match.group(1)) if match else position
+
+    track_numbers = [_track_number(i, f) for i, f in enumerate(pdf_files, 1)]
+
     # Get page counts for TOC
     tracks = []
     for pdf_file in pdf_files:
@@ -545,10 +566,10 @@ def create_songbook(
     print("\nAdding front matter...")
     writer.add_page(create_title_page(title, artist, page_size, cover_image, website))
     writer.add_page(create_copyright_page(title, artist, year, page_size, website))
-    writer.add_page(create_toc_page(tracks, page_size))
+    writer.add_page(create_toc_page(tracks, page_size, track_numbers))
 
     # Add each track
-    for i, pdf_file in enumerate(pdf_files, 1):
+    for pdf_file, track_number in zip(pdf_files, track_numbers, strict=True):
         if pdf_file.stem in manifest_title_lookup:
             track_name = manifest_title_lookup[pdf_file.stem]
         elif re.match(r'^\d+', pdf_file.stem):
@@ -559,7 +580,7 @@ def create_songbook(
 
         # Optional section header
         if include_section_headers:
-            writer.add_page(create_section_header(track_name, i, page_size))
+            writer.add_page(create_section_header(track_name, track_number, page_size))
 
         # Add all pages from the track PDF
         # Singles have a prepended title page — skip it in the songbook

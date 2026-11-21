@@ -15,6 +15,19 @@ from handlers.processing import _helpers
 logger = logging.getLogger(__name__)
 
 
+def _has_stems(audio_dir: Path) -> bool:
+    """Whether the album has a non-empty ``stems/`` folder to polish from.
+
+    The one rule for stems vs. full mix: polish_audio, polish_album and
+    analyze_mix_issues all use it, so the analysis polish looks its
+    recommendations up in is of the files polish processes. The layout
+    import-audio writes (the keeper WAV beside ``stems/<track>/``) is stems
+    mode for all three (#668).
+    """
+    stems_dir = audio_dir / "stems"
+    return stems_dir.is_dir() and any(stems_dir.iterdir())
+
+
 async def polish_audio(
     album_slug: str,
     genre: str = "",
@@ -171,11 +184,9 @@ async def polish_audio(
 
     # Auto-detect stems when use_stems=True (default): prefer stems if
     # available, fall back to full-mix mode gracefully instead of erroring.
-    if use_stems:
-        stems_dir = audio_dir / "stems"
-        if not stems_dir.is_dir() or not any(stems_dir.iterdir()):
-            # Graceful fallback — process full mixes instead of erroring
-            use_stems = False
+    if use_stems and not _has_stems(audio_dir):
+        # Graceful fallback — process full mixes instead of erroring
+        use_stems = False
 
     if track_filename and not _is_path_confined(audio_dir, track_filename):
         return _safe_json({
@@ -649,7 +660,9 @@ async def analyze_mix_issues(
 
     Scans WAV files for noise floor, muddiness (low-mid energy), harshness
     (high-mid energy), clicks, and stereo issues. Returns per-track diagnostics
-    with recommended mix-engineer settings.
+    with recommended mix-engineer settings. When ``stems/`` holds per-track
+    folders, the stems are analyzed (``source_mode: "stems"``) even with
+    full-mix WAVs beside them, since that is what polish processes.
 
     Args:
         album_slug: Album slug (e.g., "my-album")
@@ -703,8 +716,13 @@ async def analyze_mix_issues(
         if f.suffix.lower() == ".wav" and "venv" not in str(f)
     ])
 
-    # If no root WAVs, check stems/ for per-track directories and analyze
-    # every stem in each track (per-stem diagnostics).
+    # When stems/ has per-track directories, analyze every stem in each
+    # track (per-stem diagnostics), even with full-mix WAVs beside them:
+    # polish processes the stems whenever stems/ is there (_has_stems), and
+    # looks its per-stem recommendations up in this analysis (#336). Taking
+    # the WAVs instead left polish nothing to look up in the layout
+    # import-audio writes (the keeper WAV beside stems/<track>/), and every
+    # recommendation was dropped (#668).
     #
     # CRITICAL: key the per-stem analyses by the CANONICAL STEM_NAMES
     # category (vocals, drums, ...) — not by the raw WAV filename stem.
@@ -717,27 +735,26 @@ async def analyze_mix_issues(
     stems_mode = False
     # Per-track categorized stem list: (track_name, [(category, path), ...])
     stem_track_map: list[tuple[str, list[tuple[str, Path]]]] = []
-    if not wav_files:
+    if _has_stems(audio_dir):
         stems_dir = audio_dir / "stems"
-        if stems_dir.is_dir():
-            from tools.mixing.mix_tracks import discover_stems
-            track_dirs = sorted([d for d in stems_dir.iterdir() if d.is_dir()])
-            for td in track_dirs:
-                categorized = discover_stems(td)
-                if not categorized:
-                    continue
-                # Flatten: for each category, take the first file (multi-file
-                # categories like multiple drum stems share one analysis —
-                # polish combines them during processing).
-                entries: list[tuple[str, Path]] = []
-                for category, paths in categorized.items():
-                    path_list = [paths] if isinstance(paths, str) else list(paths)
-                    if path_list:
-                        entries.append((category, Path(path_list[0])))
-                if entries:
-                    stem_track_map.append((td.name, entries))
-            if stem_track_map:
-                stems_mode = True
+        from tools.mixing.mix_tracks import discover_stems
+        track_dirs = sorted([d for d in stems_dir.iterdir() if d.is_dir()])
+        for td in track_dirs:
+            categorized = discover_stems(td)
+            if not categorized:
+                continue
+            # Flatten: for each category, take the first file (multi-file
+            # categories like multiple drum stems share one analysis —
+            # polish combines them during processing).
+            entries: list[tuple[str, Path]] = []
+            for category, paths in categorized.items():
+                path_list = [paths] if isinstance(paths, str) else list(paths)
+                if path_list:
+                    entries.append((category, Path(path_list[0])))
+            if entries:
+                stem_track_map.append((td.name, entries))
+        if stem_track_map:
+            stems_mode = True
 
     if not wav_files and not stem_track_map:
         return _safe_json({"error": f"No WAV files found in {audio_dir}"})
@@ -875,9 +892,9 @@ async def polish_album(
     if not genre:
         genre = _helpers._derive_album_genre(album_slug)
 
-    # Determine mode: stems or full mix
+    # Determine mode: stems or full mix (the rule stage 1's analysis uses too)
     stems_dir = audio_dir / "stems"
-    use_stems = stems_dir.is_dir() and any(stems_dir.iterdir())
+    use_stems = _has_stems(audio_dir)
 
     stages["pre_flight"] = {
         "status": "pass",
