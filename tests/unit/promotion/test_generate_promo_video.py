@@ -61,6 +61,12 @@ class TestGetTitleFromMarkdown:
         md.write_text("---\nstatus: Final\n---\n")
         assert mod.get_title_from_markdown(md) is None
 
+    def test_title_after_bom(self, tmp_path):
+        """A UTF-8 byte order mark ahead of the "---" is skipped (#669)."""
+        md = tmp_path / "track.md"
+        md.write_text("\ufeff---\ntitle: Boot Sequence\n---\n", encoding="utf-8")
+        assert mod.get_title_from_markdown(md) == "Boot Sequence"
+
     def test_nonexistent_file(self, tmp_path):
         md = tmp_path / "missing.md"
         assert mod.get_title_from_markdown(md) is None
