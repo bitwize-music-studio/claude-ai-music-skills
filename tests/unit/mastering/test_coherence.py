@@ -126,6 +126,36 @@ class TestClassifyOutliers:
         assert len(lufs_violations) == 1
         assert lufs_violations[0]["severity"] == "ok"
 
+    @pytest.mark.parametrize("metric, key, tolerance_key", [
+        ("lufs", "delta_lufs", "lufs_tolerance_lu"),
+        ("stl_95", "delta_stl_95", "coherence_stl_95_lu"),
+        ("low_rms", "delta_low_rms", "coherence_low_rms_db"),
+        ("vocal_rms", "delta_vocal_rms", "coherence_vocal_rms_db"),
+    ])
+    @pytest.mark.parametrize("sign", [1.0, -1.0])
+    def test_a_delta_exactly_at_tolerance_is_ok(self, metric, key, tolerance_key, sign):
+        tolerance = TOLERANCES[tolerance_key]
+        for delta, severity in ((tolerance, "ok"), (tolerance + 0.01, "outlier")):
+            deltas = [_delta(index=1, **{key: sign * delta}), _delta(index=2, is_anchor=True)]
+            analyses = [_analysis(filename="01.wav"), _analysis(filename="02.wav")]
+            result = classify_outliers(deltas, analyses, TOLERANCES, anchor_index_1based=2)
+            found = [v for v in result[0]["violations"] if v["metric"] == metric]
+            assert [v["severity"] for v in found] == [severity], (metric, sign * delta)
+            assert result[0]["is_outlier"] is (severity == "outlier")
+
+    @pytest.mark.parametrize("lra, severity", [(1.0, "ok"), (0.99, "outlier")])
+    def test_lra_exactly_at_the_floor_is_ok(self, lra, severity):
+        assert TOLERANCES["coherence_lra_floor_lu"] == pytest.approx(1.0)
+        deltas = [_delta(index=1), _delta(index=2, is_anchor=True)]
+        analyses = [
+            _analysis(filename="01.wav", short_term_range=lra),
+            _analysis(filename="02.wav", short_term_range=6.5),
+        ]
+        result = classify_outliers(deltas, analyses, TOLERANCES, anchor_index_1based=2)
+        floor = [v for v in result[0]["violations"] if v["metric"] == "lra_floor"]
+        assert [v["severity"] for v in floor] == [severity]
+        assert result[0]["is_outlier"] is (severity == "outlier")
+
     def test_stl_95_outlier_flagged_and_not_correctable(self):
         deltas = [
             _delta(index=1, delta_stl_95=0.9),

@@ -582,8 +582,14 @@ class TestNumericalStability:
         out_path = tmp_path / "vquiet_out.wav"
         _write_wav(in_path, data, rate)
         result = master_track(str(in_path), str(out_path), target_lufs=-14.0)
-        # Should either complete or skip, but not crash
-        assert 'original_lufs' in result
+        # Should either reach the target or skip explicitly, but not crash
+        if result.get('skipped'):
+            assert result['gain_applied'] == 0.0
+            assert result['final_lufs'] == float('-inf')
+            assert not out_path.exists()
+        else:
+            assert result['final_lufs'] == pytest.approx(-14.0, abs=1.0)
+            assert out_path.is_file()
 
 
 # ─── Tests: YAML Preset Loading ───────────────────────────────────────

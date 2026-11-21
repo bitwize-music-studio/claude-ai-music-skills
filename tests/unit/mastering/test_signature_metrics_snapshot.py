@@ -58,12 +58,23 @@ def test_low_rms_is_finite(full_mix_wav: str) -> None:
 
 
 def test_short_term_range_is_non_negative(full_mix_wav: str) -> None:
-    """short_term_range (loudness range) is >= 0 LU."""
+    """short_term_range (loudness range) is >= 0 LU, and near 0 for this steady mix."""
     result = analyze_track(full_mix_wav)
     short_term_range = result.get("short_term_range")
     assert short_term_range is not None, "analyze_track must return short_term_range key"
     assert isinstance(short_term_range, (int, float))
-    assert short_term_range >= 0.0, f"short_term_range must be non-negative, got {short_term_range}"
+    assert 0.0 <= short_term_range < 1.0, (
+        f"the fixture holds one level throughout, so its range should be under 1 LU, "
+        f"got {short_term_range}"
+    )
+
+
+def test_short_term_range_measures_a_level_step(tmp_path: Path) -> None:
+    """The same mix dropped 10 dB halfway through has a short-term range of about 10 LU."""
+    data, rate = make_full_mix(duration=25.0)
+    data[data.shape[0] // 2:] *= 10 ** (-10 / 20)
+    result = analyze_track(write_wav(str(tmp_path / "stepped.wav"), data, rate))
+    assert result["short_term_range"] == pytest.approx(10.0, abs=1.0)
 
 
 def test_stl_95_within_4_lu_of_lufs(full_mix_wav: str) -> None:

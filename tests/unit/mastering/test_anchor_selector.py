@@ -134,15 +134,23 @@ class TestSelectAnchorComposite:
         assert result["scores"][2]["score"] < result["scores"][0]["score"]
 
     def test_ceiling_penalty_demotes_hot_track(self):
-        # Representative but near 0 dBFS → penalty beats representativeness.
+        # The hot track sits on the album median and the genre's ideal LRA, so it
+        # is the most representative and best-mixed; only the ceiling penalty can
+        # demote it. A weaker penalty weight would let it win.
         t1 = _track(filename="01.wav", stl_95=-14.0, short_term_range=8.0,
-                    low_rms=-20.0, vocal_rms=-18.0, peak_db=-0.5)
-        t2 = _track(filename="02.wav", stl_95=-14.0, short_term_range=8.0,
-                    low_rms=-20.0, vocal_rms=-18.0, peak_db=-6.0)
-        result = select_anchor([t1, t2], _preset())
+                    low_rms=-20.0, vocal_rms=-18.0, peak_db=-1.5)
+        t2 = _track(filename="02.wav", stl_95=-13.0, short_term_range=9.0,
+                    low_rms=-19.0, vocal_rms=-17.0, peak_db=-6.0)
+        t3 = _track(filename="03.wav", stl_95=-16.0, short_term_range=6.0,
+                    low_rms=-22.0, vocal_rms=-20.0, peak_db=-6.0)
+        result = select_anchor([t1, t2, t3], _preset())
+        hot, cool, far = result["scores"]
+        assert hot["representativeness"] > cool["representativeness"] > far["representativeness"]
+        assert hot["mix_quality"] > cool["mix_quality"]
         assert result["selected_index"] == 2  # cooler track wins
-        assert result["scores"][0]["ceiling_penalty"] > 0
-        assert result["scores"][1]["ceiling_penalty"] == 0.0
+        assert result["method"] == "composite"  # by a clear margin, not a tie
+        assert hot["ceiling_penalty"] == pytest.approx(0.5)
+        assert cool["ceiling_penalty"] == 0.0
 
 
 class TestSelectAnchorOverride:
