@@ -49,9 +49,10 @@ def frontmatter_problem(content: str) -> str | None:
 
     A file that does not start with a ``---`` line has no frontmatter, which
     is fine. One that does must have a second ``---`` line to close it.
-    Trailing spaces and Windows line endings are allowed on both.
+    Trailing spaces and Windows line endings are allowed on both, and so is a
+    UTF-8 byte order mark ahead of the first.
     """
-    lines = content.splitlines()
+    lines = content.removeprefix("\ufeff").splitlines()
     if not lines or lines[0].strip() != "---":
         return None
     if any(line.strip() == "---" for line in lines[1:]):

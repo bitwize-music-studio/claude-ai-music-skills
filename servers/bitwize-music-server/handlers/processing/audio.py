@@ -1534,11 +1534,13 @@ async def measure_album_signature(
         genre: Optional genre preset slug (e.g., "pop"). When set, the
             anchor selector runs with the resolved preset's
             ``genre_ideal_lra_lu`` and ``spectral_reference_energy``.
-        anchor_track: Optional explicit 1-based track number to use as
-            the anchor. Overrides both ``genre``-based selection and any
-            album-README ``anchor_track:`` frontmatter value. Out-of-range
-            values fall through to composite scoring (and are surfaced
-            via ``anchor.override_reason``).
+        anchor_track: Optional explicit track number to use as the
+            anchor: the WAV whose leading digits carry it (``03-x.wav``
+            is track 3), wherever it sorts. Overrides both
+            ``genre``-based selection and any album-README
+            ``anchor_track:`` frontmatter value. A number no WAV carries,
+            or one two WAVs share, falls through to composite scoring,
+            surfaced via ``anchor.override_reason`` and ``warnings``.
 
     Returns:
         JSON string. On success includes ``tracks``, ``album``, and —
@@ -1666,8 +1668,18 @@ async def measure_album_signature(
         else:
             anchor_block["deltas"] = []
         response["anchor"] = anchor_block
+        if override_index is not None and anchor_result["method"] != "override":
+            response["warnings"] = [_anchor_override_warning(override_index, anchor_result)]
 
     return _safe_json(response)
+
+
+def _anchor_override_warning(number: int, anchor_result: dict[str, Any]) -> str:
+    """Why a requested anchor track number was not used (#668)."""
+    return (
+        f"anchor_track {number} not used ({anchor_result['override_reason']}); "
+        f"the anchor was chosen by {anchor_result['method']} instead."
+    )
 
 
 async def album_coherence_check(
@@ -1695,9 +1707,11 @@ async def album_coherence_check(
         genre: Genre preset slug. Required unless anchor_track is given
             (in which case hardcoded default tolerances are used and a
             warning is emitted).
-        anchor_track: Optional 1-based track number override for the
-            anchor. Overrides genre-driven composite scoring + state-
-            cache frontmatter.
+        anchor_track: Optional track number override for the anchor,
+            matched to the WAV whose leading digits carry it. Overrides
+            genre-driven composite scoring + state-cache frontmatter. A
+            number no WAV carries falls through to composite scoring
+            with a warning.
 
     Returns:
         JSON string with settings, album aggregates, anchor block,
@@ -1813,6 +1827,8 @@ async def album_coherence_check(
         "override_reason": anchor_result["override_reason"],
         "scores":          anchor_result["scores"],
     }
+    if override_index is not None and anchor_result["method"] != "override":
+        warnings.append(_anchor_override_warning(override_index, anchor_result))
 
     classifications: list[dict[str, Any]] = []
     summary: dict[str, Any] = {
