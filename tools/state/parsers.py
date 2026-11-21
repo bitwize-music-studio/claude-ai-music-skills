@@ -78,12 +78,14 @@ def _frontmatter_bool(value: Any, default: bool = False, context: str = "explici
 def parse_frontmatter(text: str) -> dict[str, Any]:
     """Parse YAML frontmatter from markdown content.
 
-    Expects content starting with '---' delimiter.
+    Expects content starting with '---' delimiter. A UTF-8 byte order mark
+    before it, which some editors write, is ignored.
 
     Returns:
         Dict of frontmatter fields, or empty dict if no frontmatter found.
         On parse error, returns {'_error': str}.
     """
+    text = text.removeprefix('\ufeff')
     if not text.startswith('---'):
         return {}
 
@@ -596,10 +598,10 @@ _bold_field_cache: dict[str, re.Pattern[str]] = {}
 
 
 def _extract_bold_field(text: str, key: str) -> str | None:
-    """Extract value from **Key**: Value pattern in text."""
+    """Extract value from a **Key**: Value line, or **Key:** Value."""
     if key not in _bold_field_cache:
         _bold_field_cache[key] = re.compile(
-            r'\*\*' + re.escape(key) + r'\*\*\s*:\s*(.+)', re.IGNORECASE
+            r'\*\*' + re.escape(key) + r'(?::\*\*|\*\*\s*:)\s*(.+)', re.IGNORECASE
         )
     match = _bold_field_cache[key].search(text)
     if match:

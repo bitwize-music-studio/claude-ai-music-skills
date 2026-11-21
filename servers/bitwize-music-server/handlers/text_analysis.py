@@ -15,6 +15,7 @@ from handlers._shared import (
     _SECTION_TAG_RE,
     _WORD_TOKEN_RE,
     _check_text_length,
+    _clean_word_token,
     _extract_code_block,
     _extract_markdown_section,
     _find_album_or_error,
@@ -97,9 +98,22 @@ _HIGH_RISK_HOMOGRAPHS = {
     ],
 }
 
-# Pre-compiled word boundary patterns for homograph scanning
+# Homographs whose -s form is just as ambiguous: "tears" is TEERZ or TAIRZ,
+# "lives" LIVZ or LYVZ, "records" REK-ordz or ri-KORDZ. The rest stay base-word
+# only: their -s form is mostly read one way ("minutes", "wounds", "reads",
+# "closes"), and "contents" is a word of its own.
+_HOMOGRAPHS_WITH_S_FORM = frozenset({
+    "tear", "live", "wind", "lead", "bow", "row", "sow", "record", "present",
+    "object", "project", "desert", "refuse", "resume",
+})
+
+# Pre-compiled word boundary patterns for homograph scanning. The pre-generation
+# Homograph gate (handlers/gates.py) reads these too, so both see the -s forms.
 _HOMOGRAPH_PATTERNS = {
-    word: re.compile(r'\b' + re.escape(word) + r'\b', re.IGNORECASE)
+    word: re.compile(
+        r'\b' + re.escape(word) + ('s?' if word in _HOMOGRAPHS_WITH_S_FORM else '') + r'\b',
+        re.IGNORECASE,
+    )
     for word in _HIGH_RISK_HOMOGRAPHS
 }
 
@@ -378,6 +392,34 @@ _BASE_EXPLICIT_WORDS = {
     "goddamn", "goddammit",
 }
 
+# Inflections every listed word also matches: the plural or third-person -s
+# ("fucks", "shits", "sluts", "whores", "fuckers") and the g-dropped -in
+# ("fuckin'", "bitchin'"). An apostrophe is not a word character, so
+# "fuckin'" still ends on a word boundary.
+_EXPLICIT_SUFFIXES: tuple[str, ...] = ("s", "in")
+
+# Further inflections for the words that take them ("fucked" and "fucker" are
+# listed already; these cover them for the compound and for "goddamned").
+_EXPLICIT_EXTRA_SUFFIXES: dict[str, tuple[str, ...]] = {
+    "fuck": ("ed", "er", "ers"),
+    "motherfuck": ("ed", "er", "ers"),
+    "goddamn": ("ed",),
+}
+
+
+def _explicit_word_pattern(word: str) -> re.Pattern[str]:
+    """Pattern for *word* and its inflections, as a whole word.
+
+    A listed "-ing" word also matches its g-dropped spelling ("shitting" ->
+    "shittin'"), which the -in suffix on the stem cannot reach.
+    """
+    suffixes = _EXPLICIT_SUFFIXES + _EXPLICIT_EXTRA_SUFFIXES.get(word, ())
+    forms = [re.escape(word) + "(?:" + "|".join(suffixes) + ")?"]
+    if word.endswith("ing") and len(word) > 4:
+        forms.append(re.escape(word[:-1]))
+    return re.compile(r'\b(?:' + "|".join(forms) + r')\b', re.IGNORECASE)
+
+
 _explicit_word_cache: set[str] | None = None
 _explicit_word_patterns: dict[str, re.Pattern[str]] | None = None  # word -> compiled re.Pattern
 _explicit_word_mtime: float = 0.0
@@ -447,9 +489,11 @@ def _load_explicit_words() -> set[str]:
         _explicit_word_cache = words
         _explicit_word_mtime = current_mtime
         # Pre-compile patterns for each word
+        # Longest word first, so a listed word owns its own spelling: "fucked"
+        # is counted as "fucked", not also as an inflection of "fuck".
         _explicit_word_patterns = {
-            w: re.compile(r'\b' + re.escape(w) + r'\b', re.IGNORECASE)
-            for w in words
+            w: _explicit_word_pattern(w)
+            for w in sorted(words, key=lambda w: (-len(w), w))
         }
         return words
 
@@ -487,9 +531,13 @@ async def check_explicit_content(text: str) -> str:
         # Skip section tags
         if stripped.startswith("[") and stripped.endswith("]"):
             continue
+        # Each span of the line is counted once, for the first (longest) word
+        # whose pattern matches it.
+        claimed: set[tuple[int, int]] = set()
         for word, pattern in _explicit_word_patterns.items():
-            matches = pattern.findall(line)
+            matches = [m.span() for m in pattern.finditer(line) if m.span() not in claimed]
             if matches:
+                claimed.update(matches)
                 if word not in hits:
                     hits[word] = {"count": 0, "lines": []}
                 hits[word]["count"] += len(matches)
@@ -724,7 +772,7 @@ def _tokenize_lyrics_by_line(lyrics: str) -> list[list[str]]:
         words = []
         for token in _WORD_TOKEN_RE.findall(stripped.lower()):
             # Strip leading/trailing apostrophes (e.g., 'bout -> bout)
-            clean = token.strip("'")
+            clean = _clean_word_token(token)
             if len(clean) > 1:
                 words.append(clean)
         if words:

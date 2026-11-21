@@ -134,6 +134,52 @@ def _isolate_iterm(monkeypatch, tmp_path):
     )
 
 
+SERVER_DIR = PROJECT_ROOT / "servers" / "bitwize-music-server"
+
+
+class _EmptyStateCache:
+    """A state cache holding no albums, what the server has before its first scan."""
+
+    def __init__(self) -> None:
+        self._state: dict[str, Any] = {"albums": {}, "ideas": {}, "session": {}}
+
+    def get_state(self) -> dict[str, Any]:
+        return self._state
+
+    def get_state_ref(self) -> dict[str, Any]:
+        return self._state
+
+
+@pytest.fixture(autouse=True)
+def _isolate_handler_state_cache(monkeypatch):
+    """Give every test the server's state cache it started with, or an empty one.
+
+    ``handlers._shared.cache`` is ``None`` until ``server.py`` sets it, and the
+    handlers read it directly (``_track_fade_out``, ``_derive_album_genre``, the
+    gates). A test that drives a handler without loading ``server.py`` or
+    installing a fake cache therefore passed only when an earlier test on the
+    same xdist worker had left a cache behind, and failed when run alone or
+    sharded differently (#651, #670). Other tests assigned ``_shared.cache``
+    directly and never put it back, which is how caches got left behind.
+
+    So for every test: when there is no cache, install an empty one; either
+    way, restore the original afterwards, however the test changed it. A test
+    that needs ``cache is None`` still sets it itself (``patch.object`` or
+    assignment), which runs after this.
+    """
+    if str(SERVER_DIR) not in sys.path:
+        # Appended, not inserted first, so server.py cannot shadow anything.
+        sys.path.append(str(SERVER_DIR))
+    try:
+        import handlers._shared as shared
+    except ImportError:
+        return
+    original = shared.cache
+    # setattr records the original for monkeypatch to restore at teardown, even
+    # when the value is unchanged here.
+    monkeypatch.setattr(shared, "cache", original if original is not None else _EmptyStateCache())
+
+
 @pytest.fixture(autouse=True)
 def _isolate_browser_launch(monkeypatch):
     """Keep every test from starting a real browser app.

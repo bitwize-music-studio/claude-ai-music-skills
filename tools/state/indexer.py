@@ -1390,6 +1390,7 @@ def parse_migration_file(path: Path) -> dict[str, Any] | None:
         text = path.read_text(encoding='utf-8')
     except (OSError, UnicodeDecodeError):
         return None
+    text = text.removeprefix('\ufeff')
     if not text.startswith('---'):
         return None
     parts = text.split('---', 2)
