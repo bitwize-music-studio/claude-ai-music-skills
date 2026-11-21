@@ -854,3 +854,77 @@ class TestCacheWriteFailureHonesty:
         ))
         assert result["success"] is True
         assert "rebuild_state" in result.get("warning", "")
+
+
+class TestRenameReportsWhatWasLeftBehind:
+    """A folder that exists but could not be moved is reported, not dropped (#674).
+
+    It used to be logged only, so the result read ``audio_moved: false`` exactly
+    like an album with no audio, and the masters stayed under the old slug.
+    """
+
+    @staticmethod
+    def _fail_moves_of(monkeypatch, *fragments: str) -> None:
+        real_move = _rename_mod.shutil.move
+
+        def move(src, dst, *args, **kwargs):
+            if any(f in str(src) for f in fragments):
+                raise PermissionError(13, "Permission denied", str(src))
+            return real_move(src, dst, *args, **kwargs)
+
+        monkeypatch.setattr(_rename_mod.shutil, "move", move)
+
+    def test_an_audio_folder_that_did_not_move_is_reported(self, cache_with_album, monkeypatch):
+        _state, _content, audio_root, _docs = cache_with_album
+        self._fail_moves_of(monkeypatch, str(audio_root))
+
+        result = json.loads(_run(_rename_mod.rename_album("original-album", "new-album")))
+
+        old_audio = audio_root / "artists" / "test-artist" / "albums" / "electronic" / "original-album"
+        assert result["success"] is True
+        assert result["content_moved"] is True
+        assert result["audio_moved"] is False
+        assert result["left_behind"] == {"audio": str(old_audio)}
+        assert any(str(old_audio) in w and "by hand" in w for w in result["warnings"])
+        assert (old_audio / "placeholder.wav").exists()
+
+    def test_a_documents_folder_that_did_not_move_is_reported(self, cache_with_album, monkeypatch):
+        _state, _content, _audio, documents_root = cache_with_album
+        self._fail_moves_of(monkeypatch, str(documents_root))
+
+        result = json.loads(_run(_rename_mod.rename_album("original-album", "new-album")))
+
+        assert result["documents_moved"] is False
+        assert set(result["left_behind"]) == {"documents"}
+        assert len(result["warnings"]) == 1
+
+    def test_no_audio_folder_is_not_a_warning(self, cache_with_album):
+        _state, _content, audio_root, _docs = cache_with_album
+        import shutil as _shutil
+        _shutil.rmtree(audio_root / "artists")
+
+        result = json.loads(_run(_rename_mod.rename_album("original-album", "new-album")))
+
+        assert result["audio_moved"] is False
+        assert "left_behind" not in result
+        assert "warnings" not in result
+
+    def test_a_clean_rename_has_no_warnings(self, cache_with_album):
+        result = json.loads(_run(_rename_mod.rename_album("original-album", "new-album")))
+
+        assert result["audio_moved"] is True and result["documents_moved"] is True
+        assert "left_behind" not in result
+        assert "warnings" not in result
+
+    def test_a_track_title_that_could_not_be_updated_is_reported(self, cache_with_album, monkeypatch):
+        def fail_write(path, text, *args, **kwargs):
+            raise PermissionError(13, "Permission denied", str(path))
+
+        monkeypatch.setattr(_rename_mod, "atomic_write_text", fail_write)
+
+        result = json.loads(_run(
+            _rename_mod.rename_track("original-album", "01-first-track", "01-renamed-track")
+        ))
+
+        assert result["success"] is True
+        assert any("title could not be updated" in w for w in result["warnings"])
