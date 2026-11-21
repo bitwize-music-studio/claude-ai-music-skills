@@ -28,9 +28,6 @@ from unittest.mock import patch
 
 import pytest
 
-pytest.importorskip("pypdf")
-pytest.importorskip("reportlab")
-
 from pypdf import PdfReader, PdfWriter  # noqa: E402
 from reportlab.lib.pagesizes import letter  # noqa: E402
 from reportlab.pdfgen import canvas  # noqa: E402

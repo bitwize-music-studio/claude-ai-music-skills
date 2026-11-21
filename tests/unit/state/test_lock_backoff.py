@@ -22,7 +22,16 @@ class TestAcquireLockWithTimeout:
         lock_file = tmp_path / "test.lock"
         lock_file.touch()
         with open(lock_file, "r+", encoding="utf-8") as fd:
+            start = time.monotonic()
             _acquire_lock_with_timeout(fd, timeout=2)
+            assert time.monotonic() - start < 1.0  # no backoff sleep
+            # Held now: a second handle is refused until it is released.
+            with open(lock_file, "r+", encoding="utf-8") as contender:
+                with pytest.raises(OSError):
+                    _flock_nb(contender)
+                _funlock(fd)
+                _flock_nb(contender)
+                _funlock(contender)
 
     def test_timeout_raises_when_lock_held(self, tmp_path: Path) -> None:
         lock_file = tmp_path / "test.lock"

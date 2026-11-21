@@ -18,6 +18,7 @@ import wave
 from pathlib import Path
 
 import pytest
+import soundfile  # noqa: F401  (in requirements.txt: audio_duration reads WAVs with it)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 if str(PROJECT_ROOT) not in sys.path:
@@ -445,7 +446,6 @@ class TestStopAndStatus:
 
 class TestAudioDuration:
     def test_reads_a_wav(self, tmp_path):
-        pytest.importorskip("soundfile")
         path = tmp_path / "tone.wav"
         with wave.open(str(path), "wb") as wav:
             wav.setnchannels(1)

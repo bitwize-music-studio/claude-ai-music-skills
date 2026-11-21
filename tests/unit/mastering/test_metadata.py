@@ -13,7 +13,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-mutagen = pytest.importorskip("mutagen")
+import mutagen  # noqa: E402
 
 
 def _write_wav(path: Path, duration: float = 1.0, rate: int = 44100) -> Path:

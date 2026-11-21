@@ -13,6 +13,7 @@ import sys
 import warnings
 from pathlib import Path
 
+import noisereduce  # noqa: F401  (in requirements.txt: a broken install fails here, never skips)
 import numpy as np
 import pytest
 import soundfile as sf
@@ -591,7 +592,6 @@ class TestReduceNoise:
 
     def test_reduces_noise_floor(self):
         """Noise reduction should reduce low-level noise."""
-        pytest.importorskip("noisereduce")
         data, rate = _generate_noise(amplitude=0.1, stereo=True)
         result = reduce_noise(data, rate, strength=0.8)
         assert np.std(result) < np.std(data)
@@ -603,13 +603,11 @@ class TestReduceNoise:
         assert np.array_equal(result, data)
 
     def test_mono_input(self):
-        pytest.importorskip("noisereduce")
         data, rate = _generate_noise(stereo=False)
         result = reduce_noise(data, rate, strength=0.3)
         assert result.shape == data.shape
 
     def test_output_is_finite(self):
-        pytest.importorskip("noisereduce")
         data, rate = _generate_noise()
         result = reduce_noise(data, rate, strength=0.5)
         assert np.all(np.isfinite(result))
