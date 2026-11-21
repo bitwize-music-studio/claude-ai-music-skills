@@ -20,6 +20,32 @@ from handlers.processing import _helpers
 
 logger = logging.getLogger(__name__)
 
+# The audio formats the promo tools pick up (batch_process_album and the
+# sampler glob each of these suffixes).
+_PROMO_AUDIO_EXTENSIONS = (".wav", ".mp3", ".flac", ".m4a")
+
+
+def _promo_audio_files(folder: Path) -> list[Path]:
+    """The audio files the promo tools would find in ``folder``, in name order."""
+    if not folder.is_dir():
+        return []
+    found = {f for ext in _PROMO_AUDIO_EXTENSIONS for f in folder.glob(f"*{ext}")}
+    return sorted(found)
+
+
+def _promo_audio_dir(audio_dir: Path) -> Path:
+    """The folder promo videos are cut from: ``mastered/`` when it holds audio.
+
+    Promo clips are made from the mastered album. An album not mastered yet
+    falls back to the source WAVs (``originals/``, or the album folder for
+    the legacy flat layout). Reading only the album folder found nothing
+    after migrate_audio_layout moved the WAVs into subfolders (#668).
+    """
+    mastered = audio_dir / "mastered"
+    if _promo_audio_files(mastered):
+        return mastered
+    return _find_wav_source_dir(audio_dir)
+
 
 async def generate_promo_videos(
     album_slug: str,
@@ -103,18 +129,21 @@ async def generate_promo_videos(
                 "error": "Invalid track_filename: path must not escape the album directory",
                 "track_filename": track_filename,
             })
-        # Single track
-        track_path = audio_dir / track_filename
-        if not track_path.exists():
-            # Also check originals/ and mastered/
-            track_path = audio_dir / "originals" / track_filename
-            if not track_path.exists():
-                track_path = audio_dir / "mastered" / track_filename
-            if not track_path.exists():
-                return _safe_json({
-                    "error": f"Track file not found: {track_filename}",
-                    "available_files": [f.name for f in _find_wav_source_dir(audio_dir).glob("*.wav")],
-                })
+        # Single track: the folder the batch reads first, then the others.
+        promo_dir = _promo_audio_dir(audio_dir)
+        candidates = [
+            promo_dir / track_filename,
+            audio_dir / track_filename,
+            audio_dir / "originals" / track_filename,
+            audio_dir / "mastered" / track_filename,
+        ]
+        found = next((c for c in candidates if c.exists()), None)
+        if found is None:
+            return _safe_json({
+                "error": f"Track file not found: {track_filename}",
+                "available_files": [f.name for f in promo_dir.glob("*.wav")],
+            })
+        track_path = found
 
         # Resolve title: prefer markdown title from state cache over filename
         title = None
@@ -175,10 +204,11 @@ async def generate_promo_videos(
             if content_dir_path.is_dir():
                 content_dir = content_dir_path
 
+        tracks_dir = _promo_audio_dir(audio_dir)
         batch_results = await loop.run_in_executor(
             None,
             lambda: batch_process_album(
-                album_dir=audio_dir,
+                album_dir=tracks_dir,
                 artwork_path=artwork,
                 output_dir=output_dir,
                 duration=duration,
@@ -212,6 +242,7 @@ async def generate_promo_videos(
                 "failed": len(failed),
                 "failed_tracks": failed,
                 "output_dir": str(output_dir),
+                "source_dir": str(tracks_dir),
             },
         })
 
@@ -293,11 +324,12 @@ async def generate_album_sampler(
     output_dir.mkdir(exist_ok=True)
     output_path = output_dir / "album_sampler.mp4"
 
+    tracks_dir = _promo_audio_dir(audio_dir)
     loop = asyncio.get_running_loop()
     success = await loop.run_in_executor(
         None,
         lambda: _gen_sampler(
-            tracks_dir=audio_dir,
+            tracks_dir=tracks_dir,
             artwork_path=artwork,
             output_path=output_path,
             clip_duration=clip_duration,
@@ -313,18 +345,15 @@ async def generate_album_sampler(
 
     if success and output_path.exists():
         file_size = output_path.stat().st_size / (1024 * 1024)
-        # Count audio files
-        audio_extensions = {".wav", ".mp3", ".flac", ".m4a"}
-        track_count = sum(
-            1 for f in _find_wav_source_dir(audio_dir).iterdir()
-            if f.suffix.lower() in audio_extensions
-        )
+        # Count the files the sampler was given, not another folder's.
+        track_count = len(_promo_audio_files(tracks_dir))
         expected_duration = track_count * clip_duration - max(0, track_count - 1) * crossfade
 
         return _safe_json({
             "success": True,
             "output_path": str(output_path),
             "tracks_included": track_count,
+            "source_dir": str(tracks_dir),
             "clip_duration": clip_duration,
             "crossfade": crossfade,
             "expected_duration_seconds": expected_duration,
