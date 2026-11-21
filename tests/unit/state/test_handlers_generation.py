@@ -461,6 +461,44 @@ class TestGetGenerationRequest:
         assert "lyrics_too_long" in codes
         assert "style_too_long" in codes
 
+    @pytest.mark.parametrize("extra, blocked", [(-1, False), (0, False), (1, True)])
+    def test_the_title_limit_is_exact(self, album, extra, blocked):
+        """A title one character past Suno's limit must not be sent and spend credits."""
+        title = "t" * (_gen_mod._MAX_TITLE + extra)
+        album.state["albums"]["test-album"]["tracks"]["01-first-track"]["title"] = title
+        result = _request()
+        assert result["request"]["title"] == title
+        assert ("title_too_long" in _codes(result, "blocking")) is blocked
+        assert result["supported"] is not blocked
+
+    @pytest.mark.parametrize("extra, blocked", [(-1, False), (0, False), (1, True)])
+    def test_the_lyrics_limit_is_exact(self, album, extra, blocked):
+        lyrics = "l" * (_gen_mod._MAX_LYRICS + extra)
+        album(lyrics=lyrics)
+        result = _request()
+        assert result["request"]["lyrics"] == lyrics
+        assert ("lyrics_too_long" in _codes(result, "blocking")) is blocked
+        assert result["supported"] is not blocked
+
+    @pytest.mark.parametrize("extra, blocked", [(-1, False), (0, False), (1, True)])
+    def test_the_spoken_script_limit_is_exact(self, album, extra, blocked):
+        script = "s" * (_gen_mod._MAX_LYRICS + extra)
+        _write_with(album, spoken=True, lyrics=f"[Intro]\n{script}\n[End]")
+        result = _request()
+        assert result["kind"] == "speech"
+        assert result["request"]["script"] == script
+        assert ("script_too_long" in _codes(result, "blocking")) is blocked
+        assert result["supported"] is not blocked
+
+    @pytest.mark.parametrize("extra, blocked", [(-1, False), (0, False), (1, True)])
+    def test_the_exclude_styles_limit_is_exact(self, album, extra, blocked):
+        negative = "n" * (_gen_mod._MAX_NEGATIVE_STYLE + extra)
+        album(exclude=negative)
+        result = _request()
+        assert result["request"]["negative_style"] == negative
+        assert ("negative_style_too_long" in _codes(result, "blocking")) is blocked
+        assert result["supported"] is not blocked
+
     def test_unknown_album(self, album):
         result = _request(album_slug="nope")
         assert result["found"] is False

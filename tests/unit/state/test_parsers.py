@@ -903,6 +903,33 @@ class TestFrontmatterEdgeCases:
         assert '_error' in result
         assert 'Invalid YAML' in result['_error']
 
+    @pytest.mark.parametrize("closing", ["---\r", "--- ", "---\t  "], ids=["crlf", "space", "tab"])
+    def test_closing_delimiter_with_trailing_whitespace(self, closing):
+        """A Windows line ending or trailing spaces after --- still close the block."""
+        text = f'---\ntitle: Paper Boats\nexplicit: true\n{closing}\n\n# Paper Boats\n'
+        assert parse_frontmatter(text) == {'title': 'Paper Boats', 'explicit': True}
+
+    def test_crlf_frontmatter(self):
+        text = '---\r\ntitle: Paper Boats\r\nrelease_date: 2026-02-01\r\n---\r\n\r\n# Paper Boats\r\n'
+        result = parse_frontmatter(text)
+        assert result['title'] == 'Paper Boats'
+        assert str(result['release_date']) == '2026-02-01'
+
+    def test_readme_with_trailing_space_after_closing_delimiter(self, tmp_path):
+        """A README whose closing --- has a trailing space keeps its frontmatter."""
+        readme = tmp_path / "README.md"
+        readme.write_text(
+            '---\ntitle: "Paper Boats"\nrelease_date: "2026-02-01"\nexplicit: true\n--- \n\n'
+            '# Paper Boats\n\n## Album Details\n\n| Attribute | Detail |\n'
+            '|-----------|--------|\n| **Status** | Concept |\n',
+            encoding='utf-8',
+        )
+        result = parse_album_readme(readme)
+        assert '_warning' not in result
+        assert result['title'] == 'Paper Boats'
+        assert result['release_date'] == '2026-02-01'
+        assert result['explicit'] is True
+
     def test_frontmatter_yaml_none(self):
         """When yaml module is None, returns _error."""
         import tools.state.parsers as parsers_mod

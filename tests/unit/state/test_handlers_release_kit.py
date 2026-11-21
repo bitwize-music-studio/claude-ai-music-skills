@@ -250,3 +250,56 @@ def test_a_code_that_isnt_one_is_left_blank_and_flagged(album):
     warnings = [c["message"] for c in result["checks"]["items"] if c["level"] == "warn"]
     assert [w.split(" isn't")[0] for w in warnings] == ["UPC 'TBD' in the album README",
                                                        "Track 1 (Harbor) ISRC 'pending'"]
+
+
+def _config(monkeypatch, release: dict) -> None:
+    import tools.shared.config as config_mod
+
+    monkeypatch.setattr(config_mod, "load_config", lambda *a, **k: {
+        "artist": {"name": "bitwize", "legal_name": "Jane Q. Writer"},
+        "release": release,
+    })
+
+
+def _messages(result: dict, level: str) -> list[str]:
+    return [c["message"] for c in result["checks"]["items"] if c["level"] == level]
+
+
+def test_an_unset_ai_disclosure_is_flagged_not_answered(album, monkeypatch):
+    """Unset is not "no AI": the form must say where to set it and the kit must fail."""
+    _config(monkeypatch, {})
+    result = _build(open_page=False)
+    assert _distrokid(album["audio"], 0)["AI disclosure"] == "[set release.ai_disclosure in config]"
+    assert _messages(result, "fail") == [
+        "Set release.ai_disclosure in config: your standard answer to DistroKid's AI "
+        "question ([] for none)",
+    ]
+
+
+@pytest.mark.parametrize("answer", [[], ""])
+def test_an_empty_ai_disclosure_means_no_ai(album, monkeypatch, answer):
+    _config(monkeypatch, {"ai_disclosure": answer})
+    result = _build(open_page=False)
+    assert _distrokid(album["audio"], 0)["AI disclosure"] == "None: no AI in this release"
+    assert result["checks"]["fail"] == 0, result["checks"]["items"]
+
+
+def test_an_unreadable_master_fails_the_kit(album):
+    (album["audio"] / "mastered" / "01-harbor.wav").write_bytes(b"not a wav file at all")
+    result = _build(open_page=False)
+    assert _messages(result, "fail") == [
+        "Track 1 (Harbor) has a master that can't be read as a WAV"]
+    # The unreadable file is still the track's master, not a stray.
+    assert _distrokid(album["audio"], 1)["Audio file"] == str(album["audio"] / "mastered" / "01-harbor.wav")
+
+
+def test_a_missing_master_fails_the_kit(album):
+    (album["audio"] / "mastered" / "01-harbor.wav").unlink()
+    result = _build(open_page=False)
+    assert _messages(result, "fail") == ["Track 1 (Harbor) has no mastered WAV"]
+
+
+def test_an_unreadable_cover_fails_the_kit(album):
+    (album["audio"] / "album.png").write_bytes(b"not a png")
+    result = _build(open_page=False)
+    assert _messages(result, "fail") == ["The cover can't be read as an image"]

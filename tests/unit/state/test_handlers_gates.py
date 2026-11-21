@@ -621,6 +621,13 @@ class TestGate4ExplicitFlagSet:
         assert gate["status"] == "PASS"
         assert "Yes" in gate["detail"]
 
+    @pytest.mark.parametrize("cell, shown", [("false", "No"), ("FALSE", "No"), ("true", "Yes")])
+    def test_table_true_false_words_pass(self, cell, shown):
+        """A true/false cell is as conscious a decision as Yes/No."""
+        gate = self._explicit_gate(_make_track_file(table=cell), cached_explicit=shown == "No")
+        assert gate["status"] == "PASS"
+        assert shown in gate["detail"]
+
     def test_frontmatter_bool_passes(self):
         # No table row; frontmatter explicit: false is a conscious decision.
         gate = self._explicit_gate(_make_track_file(fm_explicit="false"), cached_explicit=True)
@@ -813,6 +820,27 @@ class TestGate7HomographCheck:
         homo_gate = next(g for g in gates if g["gate"] == "Homograph Check")
         assert homo_gate["status"] == "SKIP"
 
+    def _homograph_gate(self, lyrics):
+        t_data = {"sources_verified": "N/A", "explicit": False}
+        blocking, _, gates = _gates_mod._check_pre_gen_gates_for_track(
+            t_data, _track_with("pop, synth, 120 BPM", lyrics), blocklist=[],
+        )
+        return blocking, next(g for g in gates if g["gate"] == "Homograph Check")
+
+    def test_a_tag_alone_is_not_sung(self):
+        """A homograph inside a section tag is never sung, so it is not flagged."""
+        blocking, gate = self._homograph_gate("[Lead Guitar Solo]\nWalking down the road tonight")
+        assert gate["status"] == "PASS"
+        assert blocking == 0
+
+    def test_a_tag_followed_by_a_lyric_is_still_checked(self):
+        """`[Spoken] I read it` starts with a tag but its words are sung."""
+        blocking, gate = self._homograph_gate("[Spoken] I read it\nWalking down the road tonight")
+        assert gate["status"] == "FAIL"
+        assert gate["severity"] == "BLOCKING"
+        assert gate["detail"] == "Unresolved homographs: read"
+        assert blocking == 1
+
 
 class TestGate8LyricLength:
     """Gate 8: Lyric Length."""
@@ -833,6 +861,21 @@ class TestGate8LyricLength:
         length_gate = next(g for g in gates if g["gate"] == "Lyric Length")
         assert length_gate["status"] == "FAIL"
         assert "limit" in length_gate["detail"].lower()
+
+    @pytest.mark.parametrize("words, status", [(9, "PASS"), (10, "PASS"), (11, "FAIL")])
+    def test_the_limit_itself_is_allowed(self, words, status):
+        """Section tags are not counted; a lyric of exactly the limit passes."""
+        t_data = {"sources_verified": "N/A", "explicit": False}
+        lyrics = "[Verse 1]\n" + " ".join(["word"] * words)
+        blocking, _, gates = _gates_mod._check_pre_gen_gates_for_track(
+            t_data, _track_with("pop, synth, 120 BPM", lyrics), blocklist=[], max_lyric_words=10,
+        )
+        length_gate = next(g for g in gates if g["gate"] == "Lyric Length")
+        assert length_gate["status"] == status
+        if status == "PASS":
+            assert length_gate["detail"] == f"{words} words (limit 10)"
+        else:
+            assert length_gate["detail"] == f"Lyrics are {words} words — limit is 10"
 
     def test_custom_limit(self):
         t_data = {"sources_verified": "N/A", "explicit": False}
@@ -969,6 +1012,16 @@ class TestPerformanceCuesGate:
         g = next(x for x in gates if x["gate"] == "Performance Cues")
         assert g["status"] == "WARN"
         assert warnings >= 1
+
+    def test_two_bare_tags_warn(self):
+        t_data = {"sources_verified": "N/A", "explicit": False}
+        lyrics = "[Verse 1]\nla la\n\n[Chorus]\nna na"
+        blocking, warnings, gates = _gates_mod._check_pre_gen_gates_for_track(
+            t_data, _track_with("pop, synth, 120 BPM", lyrics), blocklist=[],
+        )
+        g = next(x for x in gates if x["gate"] == "Performance Cues")
+        assert g["status"] == "WARN"
+        assert g["detail"].startswith("2 structure tags carry no Performance Cues")
 
     def test_tags_with_cues_pass(self):
         t_data = {"sources_verified": "N/A", "explicit": False}
