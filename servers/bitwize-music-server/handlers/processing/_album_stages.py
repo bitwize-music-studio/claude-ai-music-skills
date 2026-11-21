@@ -188,7 +188,12 @@ class MasterAlbumCtx:
 
     # ── stage 4 (mastering) ──────────────────────────────────────────────────
     output_dir: Path | None = None
+    # The masters of this run's sources, in track order: the album's tracks.
+    # Other WAVs in mastered/ are strays (stages["mastering"]["stray_wavs"]).
     mastered_files: list[Path] = field(default_factory=list)
+    # Sources master_track skipped (no measurable loudness), across ADM
+    # cycles: a master of one in mastered/ is left from an earlier run.
+    skipped_sources: set[str] = field(default_factory=set)
 
     # ── stage 5 (verification) ───────────────────────────────────────────────
     verify_results: list[dict[str, Any]] = field(default_factory=list)
@@ -581,22 +586,30 @@ async def _stage_anchor_selection(ctx: MasterAlbumCtx) -> str | None:
         frozen_anchor = ctx.frozen_signature.get("anchor") or {}
         frozen_targets = ctx.frozen_signature.get("delivery_targets") or {}
 
+        selected_index, frozen_reason = _frozen_anchor_index(ctx, frozen_anchor)
         ctx.anchor_result = {
-            "selected_index": frozen_anchor.get("index"),
+            "selected_index": selected_index,
             "method": "frozen_signature",
             "override_index": None,
             "override_reason": None,
             "scores": [],
         }
         ctx.stages["anchor_selection"] = {
-            "status": "pass" if ctx.anchor_result["selected_index"] is not None else "warn",
-            "selected_index": ctx.anchor_result["selected_index"],
+            "status": "pass" if selected_index is not None else "warn",
+            "selected_index": selected_index,
             "method": "frozen_signature",
             "override_index": None,
             "override_reason": None,
             "scores": [],
             "frozen_from": frozen_anchor.get("filename"),
         }
+        if frozen_reason:
+            ctx.stages["anchor_selection"]["reason"] = frozen_reason
+            ctx.warnings.append(
+                f"Anchor selection: the frozen anchor "
+                f"{frozen_anchor.get('filename')} is not among this run's "
+                f"sources; coherence checks run without an anchor."
+            )
 
         for k, sig_key in (
             ("target_lufs",        "target_lufs"),
@@ -669,12 +682,42 @@ async def _stage_anchor_selection(ctx: MasterAlbumCtx) -> str | None:
             "override_reason": ctx.anchor_result["override_reason"],
             "scores": ctx.anchor_result["scores"],
         }
+        if anchor_override is not None and ctx.anchor_result["method"] != "override":
+            # The README names an anchor this run cannot use (#668): say so
+            # rather than let composite scoring stand in for it unnoticed.
+            ctx.stages["anchor_selection"]["status"] = "warn"
+            ctx.warnings.append(
+                f"Anchor selection: README anchor_track {anchor_override} not "
+                f"used ({ctx.anchor_result['override_reason']})."
+            )
         if ctx.anchor_result["selected_index"] is None:
             ctx.warnings.append(
                 "Anchor selector: no eligible tracks (signature metrics missing). "
                 "Mastering proceeds without an anchor; coherence correction disabled."
             )
     return None
+
+
+def _frozen_anchor_index(
+    ctx: MasterAlbumCtx, frozen_anchor: dict[str, Any],
+) -> tuple[int | None, str | None]:
+    """The frozen anchor's 1-based position among this run's sources.
+
+    The signature stores the anchor's position in the sources it was written
+    from and its file name. The sources may have changed since (a renamed
+    track, a removed one), so the position can name another track today:
+    find the anchor by its file name (#668). Returns ``(None, reason)`` when
+    that file is not among the sources. A signature without a file name
+    keeps its stored position, as before.
+    """
+    frozen_index = frozen_anchor.get("index")
+    frozen_name = frozen_anchor.get("filename")
+    if not frozen_name:
+        return frozen_index, None
+    for i, result in enumerate(ctx.analysis_results, start=1):
+        if result.get("filename") == frozen_name:
+            return i, None
+    return None, "frozen_anchor_not_in_sources"
 
 
 async def _stage_pre_qc(ctx: MasterAlbumCtx) -> str | None:
@@ -761,7 +804,8 @@ async def _stage_mastering(ctx: MasterAlbumCtx) -> str | None:
                effective_ceiling, effective_highmid, effective_highs,
                effective_compress, effective_preset, source_dir, targets, loop,
                remaster_filenames, track_ceilings
-    Sets ctx:  output_dir, mastered_files
+    Sets ctx:  output_dir, mastered_files (the masters of wav_files only),
+               skipped_sources
     Returns: None on success, failure JSON if no tracks processed.
 
     Selective remaster: when ctx.remaster_filenames is a set, only those
@@ -832,6 +876,8 @@ async def _stage_mastering(ctx: MasterAlbumCtx) -> str | None:
             if result and not result.get("skipped"):
                 result["filename"] = fname
                 master_results.append(result)
+            else:
+                ctx.skipped_sources.add(fname)
     except Exception:
         if staging_dir.exists():
             _shutil.rmtree(staging_dir)
@@ -861,17 +907,39 @@ async def _stage_mastering(ctx: MasterAlbumCtx) -> str | None:
         os.replace(str(staged_file), str(output_dir / staged_file.name))
     staging_dir.rmdir()
 
+    # The album's tracks are this run's sources, not whatever sits in
+    # mastered/ (#668). A master no source matches (the old master of a
+    # renamed or removed track), or one whose source mastering skipped this
+    # time, is a stray: reported, and left out of verification, coherence,
+    # metadata, archival, LAYOUT.md and the playlist, which would otherwise
+    # hold it to this run's targets or ship it as a track.
+    track_names = {w.name for w in ctx.wav_files} - ctx.skipped_sources
+    ctx.mastered_files = sorted(
+        output_dir / name for name in track_names if (output_dir / name).is_file()
+    )
+    stray_wavs = sorted(
+        f.name for f in output_dir.iterdir()
+        if f.is_file() and f.suffix.lower() == ".wav" and f.name not in track_names
+    )
+
     ctx.stages["mastering"] = {
-        "status": "pass",
+        "status": "warn" if stray_wavs else "pass",
         "tracks_processed": len(master_results),
         "settings": ctx.settings,
         "output_dir": str(output_dir),
     }
+    if stray_wavs:
+        ctx.stages["mastering"]["stray_wavs"] = stray_wavs
+        message = (
+            f"Mastering: {len(stray_wavs)} WAV(s) in mastered/ match no track "
+            f"mastered in this run and were left out of verification, coherence, "
+            f"metadata, archival, LAYOUT.md and the playlist: "
+            f"{', '.join(stray_wavs)}. Move them out of mastered/ before release."
+        )
+        # One warning per album, however many ADM cycles re-run this stage.
+        if message not in ctx.warnings:
+            ctx.warnings.append(message)
     ctx.output_dir = output_dir
-    ctx.mastered_files = sorted([
-        f for f in output_dir.iterdir()
-        if f.suffix.lower() == ".wav" and "venv" not in str(f)
-    ])
     return None
 
 
@@ -2234,11 +2302,17 @@ def _playlist_entries(slug: str, wavs: list[Path]) -> tuple[str, list[PlaylistEn
     return str(album.get("title") or slug), entries
 
 
-def write_album_playlist(album_slug: str, audio_dir: Path) -> dict[str, Any]:
+def write_album_playlist(
+    album_slug: str, audio_dir: Path, wavs: list[Path] | None = None,
+) -> dict[str, Any]:
     """Write ``<album slug>.m3u8`` beside ``mastered/``, listing its WAVs in order.
 
-    Rebuilt from what is in ``mastered/`` on every call, so each tool that
-    writes there keeps it current. Titles come from the state cache and the
+    Rebuilt on every call, so each tool that writes ``mastered/`` keeps it
+    current. ``wavs`` is the album's tracks when the caller knows them:
+    master_album passes the masters of this run's sources, so a stray left
+    in ``mastered/`` is not played as a track, matching LAYOUT.md and the
+    metadata (#668). Without it, the playlist lists every WAV in
+    ``mastered/``. Titles come from the state cache and the
     artist from config, as for the metadata stage; a track without a title
     shows its file name. With nothing mastered, a playlist left from earlier
     is removed. Never raises: a failure comes back as ``status: "warn"``.
@@ -2246,7 +2320,10 @@ def write_album_playlist(album_slug: str, audio_dir: Path) -> dict[str, Any]:
     slug = _normalize_slug(album_slug)
     target = playlist_path(audio_dir, slug)
     try:
-        wavs = _mastered_wavs(audio_dir / "mastered")
+        if wavs is None:
+            wavs = _mastered_wavs(audio_dir / "mastered")
+        else:
+            wavs = sorted(w for w in wavs if not {"\n", "\r"} & set(w.name))
         if not wavs:
             target.unlink(missing_ok=True)
             return {"status": "skipped", "reason": "no mastered WAVs", "path": None}
@@ -2260,12 +2337,12 @@ def write_album_playlist(album_slug: str, audio_dir: Path) -> dict[str, Any]:
 async def _stage_playlist(ctx: MasterAlbumCtx) -> str | None:
     """Stage 6.8: Write the album's listening playlist beside ``mastered/``.
 
-    Reads ctx: album_slug, audio_dir, warnings
+    Reads ctx: album_slug, audio_dir, mastered_files, warnings
     Sets ctx:  stages["playlist"]
     Returns: None always (a failure is a warning, never a halt).
     """
     assert ctx.audio_dir is not None
-    stage = write_album_playlist(ctx.album_slug, ctx.audio_dir)
+    stage = write_album_playlist(ctx.album_slug, ctx.audio_dir, ctx.mastered_files)
     if stage["status"] == "warn":
         ctx.warnings.append(f"Playlist: {stage['error']}")
     ctx.stages["playlist"] = stage
