@@ -10271,6 +10271,40 @@ class TestReleaseReadinessGate:
             result = json.loads(_run(server.update_album_status("test-album", "Released")))
         assert result["success"] is True
 
+    def _readme_text(self, mock_cache):
+        album_path = mock_cache.get_state()["albums"]["test-album"]["path"]
+        return (Path(album_path) / "README.md").read_text(encoding="utf-8")
+
+    def test_released_blocked_when_the_audio_dir_cannot_be_resolved(self, tmp_path):
+        """An unresolvable audio dir is reported among the issues, not raised."""
+        mock_cache = self._make_release_env(tmp_path)
+        state = mock_cache.get_state()
+        state["albums"]["test-album"]["genre"] = "../outside"
+        state["albums"]["test-album"]["tracks"]["01-track"]["explicit"] = True
+        before = self._readme_text(mock_cache)
+        with patch.object(_shared_mod, "cache", mock_cache):
+            result = json.loads(_run(server.update_album_status("test-album", "Released")))
+        # The other checks still run and are reported with it.
+        assert result["error"] == "Cannot release album — 2 issue(s) found"
+        assert result["issues"][0].startswith("Could not resolve audio directory: ")
+        assert result["issues"][1] == "Album not marked explicit but 1 track(s) are: 01-track"
+        assert self._readme_text(mock_cache) == before
+        assert state["albums"]["test-album"]["status"] == "Complete"
+
+    def test_released_blocked_when_a_track_file_cannot_be_read(self, tmp_path):
+        mock_cache = self._make_release_env(tmp_path)
+        state = mock_cache.get_state()
+        track_path = Path(state["albums"]["test-album"]["tracks"]["01-track"]["path"])
+        track_path.write_bytes(b"# Track \xff\n\n## Streaming Lyrics\n\n```\nA real lyric\n```\n")
+        before = self._readme_text(mock_cache)
+        with patch.object(_shared_mod, "cache", mock_cache):
+            result = json.loads(_run(server.update_album_status("test-album", "Released")))
+        assert result["issues"] == [
+            "Streaming lyrics not ready for 1 track(s): 01-track: cannot read track file",
+        ]
+        assert self._readme_text(mock_cache) == before
+        assert state["albums"]["test-album"]["status"] == "Complete"
+
 
 @pytest.mark.unit
 class TestDocumentaryAlbumSourcePath:
@@ -11656,6 +11690,39 @@ class TestSourceVerificationGate:
             result = json.loads(_run(server.update_track_field(
                 "test-album", "01-test-track", "sources_verified",
                 "✅ Verified (2026-02-19)", force=True,
+            )))
+        assert result["success"] is True
+
+    _UNREADABLE_SOURCES = (
+        b"# Sources \xff\n\n| [Wikipedia](https://en.wikipedia.org/wiki/Test) | Reference |\n"
+    )
+
+    def test_unreadable_sources_md_does_not_count_as_verified(self, tmp_path):
+        """A SOURCES.md that can't be read holds no links the gate can see."""
+        mock_cache, track_file = self._make_cache_with_track_and_album(
+            tmp_path, _SAMPLE_TRACK_MD, album_has_sources=False
+        )
+        (tmp_path / "album" / "SOURCES.md").write_bytes(self._UNREADABLE_SOURCES)
+        before = track_file.read_text(encoding="utf-8")
+        with patch.object(_shared_mod, "cache", mock_cache):
+            result = json.loads(_run(server.update_track_field(
+                "test-album", "01-test-track", "sources_verified",
+                "✅ Verified (2026-02-19)"
+            )))
+        assert "no markdown links" in result["error"]
+        assert track_file.read_text(encoding="utf-8") == before
+
+    def test_unreadable_sources_md_falls_back_to_the_track_source_section(self, tmp_path):
+        track_with_source = _SAMPLE_TRACK_MD + "\n## Source\n\n[Wikipedia](https://en.wikipedia.org/wiki/Test)\n"
+        mock_cache, _ = self._make_cache_with_track_and_album(
+            tmp_path, track_with_source, album_has_sources=False
+        )
+        (tmp_path / "album" / "SOURCES.md").write_bytes(self._UNREADABLE_SOURCES)
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(server, "write_state", MagicMock()):
+            result = json.loads(_run(server.update_track_field(
+                "test-album", "01-test-track", "sources_verified",
+                "✅ Verified (2026-02-19)"
             )))
         assert result["success"] is True
 
@@ -15982,6 +16049,35 @@ class TestUpdateFrontmatterBlock:
         assert fm["explicit"] is True
         assert fm["suno_url"] == "https://suno.com/abc"
         assert fm["sheet_music"]["pdf"] == "url"
+
+    @pytest.mark.parametrize("frontmatter, error", [
+        ('title: "My Track\ngenres: [rock\n', "Cannot parse frontmatter YAML in"),
+        ("- just\n- a list\n", "is not a mapping (got list)"),
+        ("just a string\n", "is not a mapping (got str)"),
+    ], ids=["invalid-yaml", "list", "scalar"])
+    def test_unusable_frontmatter_is_refused_and_the_file_left_alone(
+        self, tmp_path, frontmatter, error,
+    ):
+        md = tmp_path / "track.md"
+        original = f"---\n{frontmatter}---\n\n# My Track\n"
+        md.write_text(original, encoding="utf-8")
+        ok, err = server._update_frontmatter_block(md, "sheet_music", {"pdf": "url"})
+        assert ok is False
+        assert error in err
+        assert str(md) in err
+        assert md.read_text(encoding="utf-8") == original
+
+    def test_a_failed_write_is_reported_and_the_file_left_alone(self, tmp_path, monkeypatch):
+        def fail(path, text):
+            raise OSError("disk full")
+
+        monkeypatch.setattr(_shared_mod, "atomic_write_text", fail)
+        md = tmp_path / "track.md"
+        original = '---\ntitle: "My Track"\n---\n\n# My Track\n'
+        md.write_text(original, encoding="utf-8")
+        ok, err = server._update_frontmatter_block(md, "sheet_music", {"pdf": "url"})
+        assert (ok, err) == (False, f"Cannot write {md}: disk full")
+        assert md.read_text(encoding="utf-8") == original
 
 
 # =============================================================================

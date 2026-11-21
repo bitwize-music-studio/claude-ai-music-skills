@@ -229,6 +229,39 @@ class TestParseMigrationFile:
         assert parsed is not None
         assert parsed['version'] == "0.77.0"
 
+    @pytest.mark.parametrize("content", [
+        b'---\nversion: "0.80.0"\nsummary: "caf\xe9"\n---\nbody\n',   # Latin-1, not UTF-8
+        b'---\nversion: "0.80.0"\nsummary: "never closed"\n',       # no closing ---
+        b'---\n- a list\n- not a mapping\n---\nbody\n',
+        b'---\njust a sentence\n---\nbody\n',
+        b'---\n---\nbody\n',                                          # empty frontmatter
+    ], ids=["not-utf8", "unclosed", "list", "scalar", "empty"])
+    def test_unusable_file_returns_none(self, tmp_path, content):
+        f = tmp_path / "0.80.0.md"
+        f.write_bytes(content)
+        assert parse_migration_file(f) is None
+
+    def test_unreadable_file_returns_none(self, tmp_path, monkeypatch):
+        f = tmp_path / "0.80.0.md"
+        f.write_text('---\nversion: "0.80.0"\n---\nbody\n', encoding="utf-8")
+        real_read_text = Path.read_text
+
+        def deny(self, *args, **kwargs):
+            if self == f:
+                raise PermissionError(13, "Permission denied", str(self))
+            return real_read_text(self, *args, **kwargs)
+
+        monkeypatch.setattr(Path, "read_text", deny)
+        assert parse_migration_file(f) is None
+
+    def test_a_broken_note_does_not_hide_the_others(self, tmp_path):
+        """The valid upgrade notes around an unusable one are still surfaced, in order."""
+        root = _make_plugin_root(tmp_path, "0.91.0", ["0.89.0", "0.91.0"])
+        (root / "migrations" / "0.90.0.md").write_bytes(b'---\n- not a mapping\n---\nbody\n')
+        result = get_pending_migrations({'last_migrated_version': "0.88.0"}, root)
+        assert [m['version'] for m in result['pending']] == ["0.89.0", "0.91.0"]
+        assert result['reason'] == "upgrade"
+
 
 # ---------------------------------------------------------------------------
 # get_pending_migrations

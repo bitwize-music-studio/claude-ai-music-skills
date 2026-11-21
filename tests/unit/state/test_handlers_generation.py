@@ -650,6 +650,27 @@ class TestLogGeneration:
     def test_unknown_track(self, album):
         assert _log(_two_clips(), track_slug="99-missing")["found"] is False
 
+    def test_a_failed_write_is_reported_and_the_file_is_left_alone(self, album, fixed_today, monkeypatch):
+        """The takes were paid for: a log row that could not be written must say so."""
+        def fail(path, text):
+            raise OSError("disk full")
+
+        monkeypatch.setattr(_gen_mod, "atomic_write_text", fail)
+        before = album.path.read_text(encoding="utf-8")
+        entry = album.state["albums"]["test-album"]["tracks"]["01-first-track"]
+        result = _log(_two_clips())
+        assert result == {"error": "Cannot write track file: disk full"}
+        assert album.path.read_text(encoding="utf-8") == before
+        assert "mtime" not in entry
+        _gen_mod.write_state.assert_not_called()
+
+    def test_a_failed_cache_refresh_still_logs_the_takes(self, album, fixed_today):
+        _gen_mod.write_state.side_effect = OSError("state.json is read-only")
+        result = _log(_two_clips())
+        assert result["success"] is True
+        assert [r["row"] for r in result["rows"]] == [1, 2]
+        assert f"[Listen](https://suno.com/song/{CLIP_B})" in album.path.read_text(encoding="utf-8")
+
 
 # ===========================================================================
 # parse_generation_log
@@ -1110,6 +1131,50 @@ class TestSetAlbumWorkspace:
     def test_readme_without_frontmatter_is_an_error(self, album):
         _readme(album, "# Test Album\n\nNo frontmatter here.\n")
         assert "frontmatter" in _set()["error"].lower()
+
+    def test_an_unreadable_readme_is_an_error(self, album):
+        path = _readme(album)
+        path.write_bytes(b"---\ntitle: \"Test \xff Album\"\n---\n")
+        result = _set()
+        assert result["error"].startswith(f"Cannot read {path}:")
+        assert path.read_bytes() == b"---\ntitle: \"Test \xff Album\"\n---\n"
+        assert "suno_workspace" not in album.state["albums"]["test-album"]
+        _gen_mod.write_state.assert_not_called()
+
+    @pytest.mark.parametrize("text, error", [
+        ("# Test Album\n\nNo frontmatter here.\n", "has no YAML frontmatter"),
+        # Already-broken YAML elsewhere in the frontmatter: the edit is refused, not written.
+        ('---\ntitle: "Test Album\ngenres: [electronic\n---\n\n# Test Album\n',
+         "The frontmatter would not parse after the change; nothing written"),
+        # A second block later on would win when parsed, so the new id would not hold.
+        ('---\nsuno_workspace:\n  id: ""\ntitle: "Test Album"\nsuno_workspace:\n  id: "old"\n---\n',
+         "The frontmatter would not parse after the change; nothing written"),
+    ], ids=["no-frontmatter", "invalid-yaml", "duplicate-block"])
+    def test_a_readme_that_cannot_take_the_block_is_not_written(self, album, text, error):
+        path = _readme(album, text)
+        result = _set()
+        assert error in result["error"]
+        assert path.read_text(encoding="utf-8") == text
+        assert "suno_workspace" not in album.state["albums"]["test-album"]
+        _gen_mod.write_state.assert_not_called()
+
+    def test_a_failed_write_is_reported_and_the_readme_is_left_alone(self, album, monkeypatch):
+        def fail(path, text):
+            raise OSError("disk full")
+
+        monkeypatch.setattr(_gen_mod, "atomic_write_text", fail)
+        path = _readme(album)
+        result = _set()
+        assert result == {"error": f"Cannot write {path}: disk full"}
+        assert path.read_text(encoding="utf-8") == README_WITH_BLOCK
+        assert "suno_workspace" not in album.state["albums"]["test-album"]
+        _gen_mod.write_state.assert_not_called()
+
+    def test_a_failed_cache_refresh_still_records_the_workspace(self, album):
+        path = _readme(album)
+        _gen_mod.write_state.side_effect = OSError("state.json is read-only")
+        assert _set()["updated"] is True
+        assert f'  id: "{WORKSPACE_ID}"' in path.read_text(encoding="utf-8")
 
     def test_unknown_album(self, album):
         assert _set("nope")["found"] is False

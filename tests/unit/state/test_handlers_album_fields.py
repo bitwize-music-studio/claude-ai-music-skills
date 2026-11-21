@@ -218,6 +218,32 @@ class TestUpdateAlbumField:
         album.readme.unlink()
         assert "README" in _field("tracks", "3")["error"]
 
+    def test_an_unreadable_readme_is_an_error(self, album):
+        broken = README.encode("utf-8").replace(b"Test Album", b"Test \xff Album", 1)
+        album.readme.write_bytes(broken)
+        result = _field("release-date", "2026-12-01")
+        assert result["error"].startswith(f"Cannot read {album.readme}:")
+        assert album.readme.read_bytes() == broken
+        assert album.state["albums"]["test-album"]["release_date"] is None
+        _fields_mod.write_state.assert_not_called()
+
+    def test_a_failed_write_is_reported_and_the_readme_left_alone(self, album, monkeypatch):
+        def fail(path, text):
+            raise OSError("disk full")
+
+        monkeypatch.setattr(_fields_mod, "atomic_write_text", fail)
+        result = _field("release-date", "2026-12-01")
+        assert result == {"error": f"Cannot write {album.readme}: disk full"}
+        assert album.readme.read_text(encoding="utf-8") == README
+        assert album.state["albums"]["test-album"]["release_date"] is None
+        _fields_mod.write_state.assert_not_called()
+
+    def test_a_failed_cache_refresh_still_reports_the_written_field(self, album):
+        _fields_mod.write_state.side_effect = OSError("state.json is read-only")
+        result = _field("release-date", "2026-12-01")
+        assert result["success"] is True
+        assert parse_album_readme(album.readme)["release_date"] == "2026-12-01"
+
 
 # ===========================================================================
 # sync_album_tracklist
@@ -337,6 +363,41 @@ class TestTrackStatusFollowUp:
         result = _set_status("02-second", "Final", force=True)
         assert result["success"] is True
         assert "readme_tracklist" not in result
+
+    def test_a_tracklist_row_that_cannot_be_written_does_not_fail_the_track_update(
+        self, album, monkeypatch,
+    ):
+        """The track file is written; the README is left as it was and no update is claimed."""
+        def fail(path, text):
+            raise OSError("disk full")
+
+        monkeypatch.setattr(_fields_mod, "atomic_write_text", fail)
+        result = _set_status("02-second", "Final", force=True)
+        assert result["success"] is True
+        assert "readme_tracklist" not in result
+        assert album.readme.read_text(encoding="utf-8") == README
+        assert "| **Status** | Final |" in Path(album.tracks["02-second"]["path"]).read_text(encoding="utf-8")
+        assert album.state["albums"]["test-album"]["readme_mtime"] == 1.0
+
+    def test_a_failed_album_follow_up_does_not_fail_the_track_update(self, album, monkeypatch):
+        async def boom(*args, **kwargs):
+            raise RuntimeError("follow-up exploded")
+
+        monkeypatch.setattr(_fields_mod, "after_track_status_change", boom)
+        result = _set_status("02-second", "Final", force=True)
+        assert result["success"] is True
+        assert result["value"] == "Final"
+        assert "readme_tracklist" not in result and "album_status" not in result
+        assert "| **Status** | Final |" in Path(album.tracks["02-second"]["path"]).read_text(encoding="utf-8")
+        assert album.tracks["02-second"]["status"] == "Final"
+
+    def test_a_failed_cache_refresh_after_the_row_update_still_reports_it(self, album):
+        _fields_mod.write_state.side_effect = OSError("state.json is read-only")
+        result = _set_status("02-second", "Final", force=True)
+        assert result["success"] is True
+        assert result["readme_tracklist"] == "updated"
+        rows = _tracklist(album.readme.read_text(encoding="utf-8"))
+        assert rows[3].endswith("| Final |")
 
 
 # ===========================================================================

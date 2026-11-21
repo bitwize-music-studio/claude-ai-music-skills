@@ -15,6 +15,7 @@ import asyncio
 import importlib
 import importlib.util
 import json
+import logging
 import sys
 import types
 from pathlib import Path
@@ -618,3 +619,165 @@ class TestPromoteIdeaEmptyDerivedSlug:
         # Either the lookup fails (title didn't round-trip) or the slug
         # derivation fails — both are acceptable, but never a silent success.
         assert "error" in result
+
+
+# ---------------------------------------------------------------------------
+# Follow-up failures after the album is created (#675)
+# ---------------------------------------------------------------------------
+
+
+_IDEA = {
+    "title": "Kleine Welt",
+    "genre": "electronic",
+    "concept": "A minimalist journey.",
+    "status": "Pending",
+}
+
+
+def _fail_writes_to(monkeypatch, name: str) -> None:
+    """Make the ideas handler's atomic writes to files called *name* fail."""
+    real = _ideas_mod.atomic_write_text
+
+    def write(path, text):
+        if Path(path).name == name:
+            raise OSError("disk full")
+        return real(path, text)
+
+    monkeypatch.setattr(_ideas_mod, "atomic_write_text", write)
+
+
+class TestPromoteIdeaFollowUpFailures:
+    """The album exists once created; a later step that fails is reported, never raised,
+    and leaves the file it could not change as it was."""
+
+    def test_readme_write_failure_reports_the_concept_not_injected(
+        self, content_root: Path, setup_handler, monkeypatch,
+    ):
+        setup_handler([dict(_IDEA)])
+        ideas_path = _write_ideas_md(
+            content_root, _standard_ideas_md("Kleine Welt", "electronic", "A minimalist journey."),
+        )
+        _fail_writes_to(monkeypatch, "README.md")
+
+        result = json.loads(_run(_ideas_mod.promote_idea("Kleine Welt")))
+
+        assert result["promoted"] is True
+        assert result["concept_injected"] is False
+        readme = (Path(result["album_path"]) / "README.md").read_text(encoding="utf-8")
+        assert "_Promoted from idea" not in readme
+        # The rest of the promotion still happens.
+        ideas = ideas_path.read_text(encoding="utf-8")
+        assert "**Status**: In Progress" in ideas
+        assert "**Promoted To**: kleine-welt" in ideas
+
+    def test_ideas_md_write_failure_is_logged_and_leaves_it_intact(
+        self, content_root: Path, setup_handler, monkeypatch, caplog,
+    ):
+        setup_handler([dict(_IDEA)])
+        original = _standard_ideas_md("Kleine Welt", "electronic", "A minimalist journey.")
+        ideas_path = _write_ideas_md(content_root, original)
+        _fail_writes_to(monkeypatch, "IDEAS.md")
+
+        with caplog.at_level(logging.WARNING, logger="handlers.ideas"):
+            result = json.loads(_run(_ideas_mod.promote_idea("Kleine Welt")))
+
+        assert result["promoted"] is True
+        assert result["concept_injected"] is True
+        assert ideas_path.read_text(encoding="utf-8") == original
+        assert "status update failed for 'Kleine Welt': Cannot write IDEAS.md: disk full" in caplog.text
+        assert "Promoted To back-link in IDEAS.md could not be written" in caplog.text
+
+    def test_missing_ideas_md_is_logged_not_recreated(
+        self, content_root: Path, setup_handler, caplog,
+    ):
+        """The cache still lists the idea but IDEAS.md is gone."""
+        setup_handler([dict(_IDEA)])
+
+        with caplog.at_level(logging.WARNING, logger="handlers.ideas"):
+            result = json.loads(_run(_ideas_mod.promote_idea("Kleine Welt")))
+
+        assert result["promoted"] is True
+        assert Path(result["album_path"]).is_dir()
+        assert not (content_root / "IDEAS.md").exists()
+        assert "status update failed for 'Kleine Welt': IDEAS.md not found" in caplog.text
+        assert "Promoted To back-link in IDEAS.md could not be written" in caplog.text
+
+    def test_unreadable_ideas_md_is_logged_and_left_intact(
+        self, content_root: Path, setup_handler, caplog,
+    ):
+        setup_handler([dict(_IDEA)])
+        broken = _standard_ideas_md("Kleine Welt", "electronic", "A caf\xe9 journey.").encode("latin-1")
+        ideas_path = content_root / "IDEAS.md"
+        ideas_path.write_bytes(broken)
+
+        with caplog.at_level(logging.WARNING, logger="handlers.ideas"):
+            result = json.loads(_run(_ideas_mod.promote_idea("Kleine Welt")))
+
+        assert result["promoted"] is True
+        assert ideas_path.read_bytes() == broken
+        assert "status update failed for 'Kleine Welt': Cannot read IDEAS.md" in caplog.text
+        assert "Promoted To back-link in IDEAS.md could not be written" in caplog.text
+
+    def test_cache_rebuild_failure_still_reports_the_promotion(
+        self, content_root: Path, setup_handler, caplog,
+    ):
+        cache = setup_handler([dict(_IDEA)])
+        ideas_path = _write_ideas_md(
+            content_root, _standard_ideas_md("Kleine Welt", "electronic", "A minimalist journey."),
+        )
+
+        calls = []
+
+        def rebuild_then_fail():
+            # create_album_structure's own rebuild succeeds; the follow-up ones fail.
+            calls.append(1)
+            if len(calls) > 1:
+                raise RuntimeError("state.json locked")
+            return cache.get_state()
+
+        cache.rebuild = rebuild_then_fail
+        with caplog.at_level(logging.WARNING, logger="handlers.ideas"):
+            result = json.loads(_run(_ideas_mod.promote_idea("Kleine Welt")))
+
+        assert result["promoted"] is True
+        assert "**Promoted To**: kleine-welt" in ideas_path.read_text(encoding="utf-8")
+        assert "promote_idea: cache rebuild failed: state.json locked" in caplog.text
+        assert len(calls) == 3  # album creation, the status update, the promotion
+
+
+class TestPromotionHelpersRefuseCleanly:
+    """The two IDEAS.md / README helpers return False and change nothing on failure."""
+
+    def test_inject_concept_missing_or_unreadable_readme(self, tmp_path: Path):
+        readme = tmp_path / "README.md"
+        assert _ideas_mod._inject_concept_into_readme(readme, "T", "C") is False
+        assert not readme.exists()
+        readme.write_bytes(b"# Caf\xe9\n")
+        assert _ideas_mod._inject_concept_into_readme(readme, "T", "C") is False
+        assert readme.read_bytes() == b"# Caf\xe9\n"
+
+    def test_inject_concept_write_failure(self, tmp_path: Path, monkeypatch):
+        readme = tmp_path / "README.md"
+        readme.write_text("# Album\n", encoding="utf-8")
+        _fail_writes_to(monkeypatch, "README.md")
+        assert _ideas_mod._inject_concept_into_readme(readme, "T", "C") is False
+        assert readme.read_text(encoding="utf-8") == "# Album\n"
+
+    def test_promoted_to_needs_the_idea_heading(
+        self, content_root: Path, setup_handler,
+    ):
+        setup_handler([dict(_IDEA)])
+        original = _standard_ideas_md("Other Idea", "electronic", "Something else.")
+        ideas_path = _write_ideas_md(content_root, original)
+        assert _ideas_mod._set_promoted_to_field("Kleine Welt", "kleine-welt") is False
+        assert ideas_path.read_text(encoding="utf-8") == original
+
+    def test_promoted_to_write_failure(
+        self, content_root: Path, setup_handler, monkeypatch,
+    ):
+        setup_handler([dict(_IDEA)])
+        original = _standard_ideas_md("Kleine Welt", "electronic", "A minimalist journey.")
+        ideas_path = _write_ideas_md(content_root, original)
+        _fail_writes_to(monkeypatch, "IDEAS.md")
+        assert _ideas_mod._set_promoted_to_field("Kleine Welt", "kleine-welt") is False
+        assert ideas_path.read_text(encoding="utf-8") == original
