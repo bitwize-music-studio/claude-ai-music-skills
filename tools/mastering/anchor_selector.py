@@ -269,8 +269,14 @@ def select_anchor(
     )
     top = ranked[0]
     method = "composite"
-    if len(ranked) >= 2 and abs(ranked[0]["score"] - ranked[1]["score"]) < TIE_BREAKER_EPSILON:
+    # Scores within TIE_BREAKER_EPSILON of the best are a tie, and the lowest
+    # track index among them wins, as the module docstring says. Ranking alone
+    # already does that for exact ties; a near tie (8.05 vs 8.0) used to be
+    # labelled a tie while the higher score still won (#674).
+    tied = [e for e in ranked if top["score"] - e["score"] < TIE_BREAKER_EPSILON]
+    if len(tied) >= 2:
         method = "tie_breaker"
+        top = min(tied, key=lambda e: e["index"])
 
     return {
         "selected_index": top["index"],

@@ -109,7 +109,7 @@ class TestCeilingPenalty:
         assert _ceiling_penalty_score(-1.5) == pytest.approx(0.5)
 
 
-from tools.mastering.anchor_selector import select_anchor
+from tools.mastering.anchor_selector import TIE_BREAKER_EPSILON, select_anchor
 
 
 def _preset(ideal_lra: float = 8.0) -> dict:
@@ -178,6 +178,35 @@ class TestSelectAnchorTieBreaker:
         result = select_anchor(tracks, _preset())
         assert result["method"] == "tie_breaker"
         assert result["selected_index"] == 1
+
+    def test_a_near_tie_goes_to_the_lowest_index(self):
+        """Within the epsilon, track 1 wins even though track 2 scores higher (#674)."""
+        t1 = _track(filename="01.wav", short_term_range=8.05)  # a hair off target
+        t2 = _track(filename="02.wav", short_term_range=8.0)   # on target
+        result = select_anchor([t1, t2], _preset())
+        s1, s2 = (s["score"] for s in result["scores"])
+        assert 0 < s2 - s1 < TIE_BREAKER_EPSILON
+        assert result["method"] == "tie_breaker"
+        assert result["selected_index"] == 1
+
+    def test_the_tie_is_measured_from_the_best_score(self):
+        """Every track within the epsilon of the best is in the tie, not just the runner-up."""
+        t1 = _track(filename="01.wav", short_term_range=8.1)
+        t2 = _track(filename="02.wav", short_term_range=8.05)
+        t3 = _track(filename="03.wav", short_term_range=8.0)
+        result = select_anchor([t1, t2, t3], _preset())
+        scores = [s["score"] for s in result["scores"]]
+        assert max(scores) - min(scores) < TIE_BREAKER_EPSILON
+        assert result["selected_index"] == 1
+
+    def test_just_outside_the_epsilon_the_best_score_wins(self):
+        t1 = _track(filename="01.wav", short_term_range=8.2)
+        t2 = _track(filename="02.wav", short_term_range=8.0)
+        result = select_anchor([t1, t2], _preset())
+        s1, s2 = (s["score"] for s in result["scores"])
+        assert s2 - s1 >= TIE_BREAKER_EPSILON
+        assert result["method"] == "composite"
+        assert result["selected_index"] == 2
 
     def test_scores_outside_epsilon_use_composite(self):
         t1 = _track(filename="01.wav", short_term_range=8.0)   # on-target LRA
