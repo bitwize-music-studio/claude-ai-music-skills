@@ -485,6 +485,8 @@ def _update_frontmatter_block(
     except (OSError, UnicodeDecodeError) as exc:
         return False, f"Cannot read {file_path}: {exc}"
 
+    # A UTF-8 byte order mark ahead of the "---" is not part of the file's text.
+    text = text.removeprefix("\ufeff")
     if not text.startswith("---"):
         return False, f"{file_path} has no YAML frontmatter"
 
@@ -604,8 +606,23 @@ def _check_text_length(text: str, tool_name: str) -> str | None:
 # Section tag pattern — matches [Verse 1], [Chorus], etc.
 _SECTION_TAG_RE = re.compile(r'^\[.*\]$')
 
-# Word tokeniser — extracts alphabetic words (with internal apostrophes)
-_WORD_TOKEN_RE = re.compile(r"[a-zA-Z']+")
+# Word tokeniser — extracts Latin-script words with internal apostrophes. The
+# accented letters run from U+00C0 to U+024F (Latin-1 Supplement and Latin
+# Extended-A/B), skipping the multiplication and division signs; the
+# typographic apostrophe U+2019 is part of a word like the straight one, so
+# "don't" typed either way stays one word and "café" is not cut to "caf".
+_WORD_TOKEN_RE = re.compile(r"[a-zA-Z\u00c0-\u00d6\u00d8-\u00f6\u00f8-\u024f'\u2019]+")
+
+
+def _clean_word_token(token: str) -> str:
+    """*token* with U+2019 folded to ' and apostrophes stripped from both ends.
+
+    Tokenizers use this so "don't" is the same word whichever apostrophe it
+    was typed with, and a leading or trailing apostrophe ('bout, fuckin') is
+    not part of it.
+    """
+    return token.replace("\u2019", "'").strip("'")
+
 
 # Stopwords: English function words + common song filler + ubiquitous song vocabulary.
 # These appear so often across tracks that flagging them is noise, not signal.

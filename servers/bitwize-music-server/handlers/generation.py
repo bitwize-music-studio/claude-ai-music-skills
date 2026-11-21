@@ -1368,8 +1368,11 @@ async def get_album_workspace(album_slug: str) -> str:
 
 
 def _frontmatter_bounds(lines: list[str]) -> int | None:
-    """Index of the closing ``---`` of a file's frontmatter, or None."""
-    if not lines or lines[0].strip() != "---":
+    """Index of the closing ``---`` of a file's frontmatter, or None.
+
+    A UTF-8 byte order mark ahead of the opening ``---`` is allowed, and kept.
+    """
+    if not lines or lines[0].removeprefix("\ufeff").strip() != "---":
         return None
     for i in range(1, len(lines)):
         if lines[i].strip() == "---":

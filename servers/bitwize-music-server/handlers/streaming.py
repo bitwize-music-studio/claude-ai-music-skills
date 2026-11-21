@@ -130,7 +130,9 @@ async def update_streaming_url(album_slug: str, platform: str, url: str) -> str:
     except (OSError, UnicodeDecodeError) as e:
         return _safe_json({"error": f"Cannot read README.md: {e}"})
 
-    # Parse and update frontmatter
+    # Parse and update frontmatter. A UTF-8 byte order mark ahead of the "---"
+    # is not part of the file's text.
+    text = text.removeprefix("\ufeff")
     if not text.startswith("---"):
         return _safe_json({"error": "README.md has no YAML frontmatter"})
 

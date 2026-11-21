@@ -188,6 +188,12 @@ class TestInvalidTrack:
     def test_a_block_that_is_only_an_opening_line(self):
         assert validate_track.validate(_write_event(_TRACK_PATH, "---\n")) != []
 
+    def test_an_unclosed_block_after_a_bom_is_reported(self):
+        """A UTF-8 byte order mark ahead of the "---" does not hide the block (#669)."""
+        issues = validate_track.validate(_write_event(_TRACK_PATH, "\ufeff" + self.UNCLOSED))
+        assert len(issues) == 1
+        assert "never closed" in issues[0]
+
 
 # ---------------------------------------------------------------------------
 # Scoping: the hook fires on every Write/Edit, so it must ignore non-tracks

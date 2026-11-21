@@ -15,6 +15,7 @@ from handlers._shared import (
     _SECTION_TAG_RE,
     _WORD_TOKEN_RE,
     _check_text_length,
+    _clean_word_token,
     _extract_code_block,
     _extract_markdown_section,
     _find_album_or_error,
@@ -243,7 +244,7 @@ def _tokenize_lyrics_with_sections(lyrics: str) -> list[dict[str, Any]]:
         # Tokenize the line
         words = []
         for token in _WORD_TOKEN_RE.findall(stripped.lower()):
-            clean = token.strip("'")
+            clean = _clean_word_token(token)
             if len(clean) > 1:
                 words.append(clean)
 
@@ -407,12 +408,17 @@ def _count_syllables_word(word: str) -> int:
     Rules:
     1. Count vowel groups (aeiouy; consecutive vowels = 1 group)
     2. Subtract trailing silent 'e' if count > 1
-    3. Handle consonant-'le' endings (bottle, apple — add 1)
-    4. Floor at 1
+    3. Subtract the silent 'e' of "-ed" and "-es" if count > 1 (walked,
+       loved, times, hopes), except where it is sounded: "-ed" after t/d
+       (wanted, faded), "-es" after s/x/z/ch/sh/g/c (kisses, boxes, pages,
+       places), and after a consonant + 'l' or 'r' (bottled, tables,
+       sacred, hundred, acres; not a doubled 'rr', as in "starred")
+    4. Handle consonant-'le' endings (bottle, apple — add 1)
+    5. Floor at 1
     """
     if not word:
         return 0
-    word = word.lower().strip("'")
+    word = _clean_word_token(word.lower())
     if not word:
         return 0
 
@@ -432,11 +438,50 @@ def _count_syllables_word(word: str) -> int:
     if word.endswith("e") and count > 1:
         count -= 1
 
+    # Silent 'e' of an "-ed" / "-es" ending (walked, times)
+    if count > 1 and len(word) > 3 and word.endswith(("ed", "es")):
+        before = word[-3]
+        sounded = (
+            before in vowels
+            or (before == "l" and word[-4] not in vowels)
+            or (before == "r" and word[-4] not in vowels and word[-4] != "r")
+            or (word.endswith("ed") and before in "td")
+            or (word.endswith("es") and (before in "sxzgc" or word.endswith(("ches", "shes"))))
+        )
+        if not sounded:
+            count -= 1
+
     # Consonant + 'le' endings (bottle, apple, little)
     if len(word) >= 3 and word.endswith("le") and word[-3] not in vowels:
         count += 1
 
     return max(count, 1)
+
+
+# Bare one-syllable words keyed by their vowel sound, where spelling alone
+# leaves a one-letter tail: "I" sounds like "eye", and "do"/"to"/"who" like
+# "too", not like "go".
+_RHYME_TAIL_BY_WORD = {
+    "i": "ie",
+    "do": "oo", "to": "oo", "two": "oo", "who": "oo",
+    "into": "oo", "onto": "oo", "unto": "oo", "undo": "oo", "redo": "oo",
+    # "yes" is no plural; stripping its 's' left "ye", the key of "eyes".
+    "yes": "ess",
+}
+
+
+def _line_end_word(line: str) -> str:
+    """The last word of *line*, lowercased.
+
+    Unlike the tokenized word list, this keeps the one-letter words "I" and
+    "a", which a line can end on ("It's only you and I"). Other single
+    letters are passed over, so a "(x2)" repeat marker is not a word.
+    """
+    for token in reversed(_WORD_TOKEN_RE.findall(line.lower())):
+        word = _clean_word_token(token)
+        if len(word) > 1 or word in ("i", "a"):
+            return word
+    return ""
 
 
 def _get_rhyme_tail(word: str) -> str:
@@ -447,7 +492,9 @@ def _get_rhyme_tail(word: str) -> str:
     rhyming end words land in the same group (#396):
 
     - A trailing plural / 3rd-person 's' is dropped ("eye"/"eyes",
-      "cry"/"cries") so inflection doesn't split a rhyme.
+      "cry"/"cries") so inflection doesn't split a rhyme. It is kept when
+      what would remain ends in a/i/o/u after a consonant ("this", "his",
+      "was", "thus"): those are not plurals, and the strip left a bare vowel.
     - The vowel nucleus is capped at two letters (a vowel plus an optional
       glide). Without this an irregular three-vowel spelling like "eye"
       keeps its whole "eye" cluster while "cries" yields only "ie"; capping
@@ -458,22 +505,36 @@ def _get_rhyme_tail(word: str) -> str:
     - A one-syllable consonant + 'y' word ("cry", "sky", "why") keys as
       "ie", the vowel sound of "lie" and "cries"; otherwise its tail would be
       the single letter "i", which never groups.
+    - A one-syllable consonant + 'e' or 'o' word keys by its sound: "me",
+      "she" -> "ee" (as "free"), "go", "so" -> "oe" (as "toe"); "do", "to",
+      "who" -> "oo" and "I" -> "ie". "the" keeps its own key.
+    - A longer word ending on a single vowel ("baby", "hero") reaches back
+      to the vowel before it ("abi", "ero"), so its tail is not one letter.
 
     Examples: "night" -> "ight", "away" -> "ai", "desire" -> "ire",
     "eyes" -> "ie", "cries" -> "ie", "cry" -> "ie", "times" -> "ime",
-    "rhymes" -> "ime".
+    "rhymes" -> "ime", "me" -> "ee", "baby" -> "abi", "this" -> "is".
     """
     if not word:
         return ""
-    word = word.lower().strip("'")
+    word = _clean_word_token(word.lower())
     if not word:
         return ""
-
-    # Strip trailing 's' for plural tolerance
-    if len(word) > 2 and word.endswith("s") and not word.endswith("ss"):
-        word = word[:-1]
+    if word in _RHYME_TAIL_BY_WORD:
+        return _RHYME_TAIL_BY_WORD[word]
 
     vowels = set("aeiouy")
+
+    # Strip trailing 's' for plural tolerance, unless what remains ends in
+    # a/i/o/u after a consonant ("this" -> "thi", "was" -> "wa"): those are
+    # not plurals, and the bare vowel left behind would key as one letter.
+    if (
+        len(word) > 2
+        and word.endswith("s")
+        and not word.endswith("ss")
+        and not (word[-2] in "aiou" and word[-3] not in vowels)
+    ):
+        word = word[:-1]
 
     # A one-syllable word spelled consonants + 'y' ("cry", "sky", "why",
     # "my") ends on the vowel sound of "lie" and "cries". The nucleus search below
@@ -487,6 +548,17 @@ def _get_rhyme_tail(word: str) -> str:
         and not any(c in vowels for c in word[:-1])
     ):
         return "ie"
+
+    # Likewise a one-syllable consonants + 'e' or 'o' word ("me", "she",
+    # "go", "so"): key it by the sound, as "free" and "toe" are keyed. "the"
+    # is left alone; it is mostly "thuh", and does not rhyme with "me".
+    if (
+        len(word) >= 2
+        and word[-1] in "eo"
+        and not any(c in vowels for c in word[:-1])
+        and word != "the"
+    ):
+        return "ee" if word[-1] == "e" else "oe"
 
     # Handle silent 'e' — if word ends with consonant + 'e', find the
     # vowel cluster before the 'e' but include 'e' in the returned tail
@@ -507,6 +579,16 @@ def _get_rhyme_tail(word: str) -> str:
 
     if last_vowel_pos < 0:
         return word  # No vowels — return whole word
+
+    # A word ending on a single vowel ("baby", "hero", "city") would key as
+    # that one letter. Reach back to the vowel cluster before it, again
+    # capped at two letters: "baby" -> "abi", "hero" -> "ero".
+    if last_vowel_pos == len(word) - 1:
+        i = last_vowel_pos - 1
+        while i >= 0 and word[i] not in vowels:
+            i -= 1
+        if i >= 0:
+            last_vowel_pos = i - 1 if i > 0 and word[i - 1] in vowels else i
 
     # Return from the nucleus to the end of the (plural-stripped) word,
     # folding vowel 'y' to 'i' so equivalent spellings share a key.
@@ -847,24 +929,31 @@ async def analyze_rhyme_scheme(text: str) -> str:
         line_text: dict[int, str] = {}  # line number -> its words, for telling repeats apart
         for entry in entries:
             if entry["words"]:
+                # The end word comes from the line itself: the word list drops
+                # one-letter words, and a line can end on "I" ("you and I").
+                end_word = _line_end_word(entry["raw_line"]) or entry["words"][-1]
                 end_words.append({
                     "line_number": entry["line_number"],
-                    "end_word": entry["words"][-1],
-                    "rhyme_tail": _get_rhyme_tail(entry["words"][-1]),
+                    "end_word": end_word,
+                    "rhyme_tail": _get_rhyme_tail(end_word),
                 })
                 line_text[entry["line_number"]] = " ".join(entry["words"])
 
         # Build rhyme groups
-        rhyme_labels: dict[str, str] = {}  # rhyme_tail -> label letter
+        rhyme_labels: dict[str, str] = {}  # group key -> label letter
         next_label = 0
         lines_data = []
 
         for ew in end_words:
             tail = ew["rhyme_tail"]
+            # Two different words that share a one-letter tail ("ma" / "spa")
+            # are too little to call a rhyme, so such a line is grouped on its
+            # word: only the same word again joins it.
+            key = tail if len(tail) >= 2 else "=" + ew["end_word"]
             # Find matching group
             assigned = False
-            for existing_tail, label in rhyme_labels.items():
-                if len(tail) >= 2 and len(existing_tail) >= 2 and tail == existing_tail:
+            for existing_key, label in rhyme_labels.items():
+                if key == existing_key:
                     lines_data.append({
                         "line_number": ew["line_number"],
                         "end_word": ew["end_word"],
@@ -877,7 +966,7 @@ async def analyze_rhyme_scheme(text: str) -> str:
             if not assigned:
                 label = chr(ord("A") + next_label) if next_label < 26 else f"Z{next_label}"
                 next_label += 1
-                rhyme_labels[tail] = label
+                rhyme_labels[key] = label
                 lines_data.append({
                     "line_number": ew["line_number"],
                     "end_word": ew["end_word"],

@@ -388,7 +388,7 @@ def generate_waveform_video(
 def get_title_from_markdown(track_md_path: Path) -> str | None:
     """Extract title from track markdown frontmatter."""
     try:
-        content = track_md_path.read_text(encoding='utf-8')
+        content = track_md_path.read_text(encoding='utf-8').removeprefix('\ufeff')
         if content.startswith('---'):
             # Parse YAML frontmatter
             parts = content.split('---', 2)
