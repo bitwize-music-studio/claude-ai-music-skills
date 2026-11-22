@@ -377,10 +377,66 @@ class TestEvaluateTakeCheck:
         assert _check(result, "ending")["status"] == "warn"
         assert result["summary"] == "2 things to check"
 
-    def test_duration_against_the_track_target(self, song):
-        text = song.path.read_text(encoding="utf-8")
-        assert "| **Target Duration** |" not in text  # the builder has no such row: no check
+    # #680 item 2: this test asserted there was no duration check at all, because the
+    # builder writes no Target Duration row. These hold a take against a real one.
+    @staticmethod
+    def _target(song, track="", album_target=""):
+        if track:
+            text = song.path.read_text(encoding="utf-8")
+            song.path.write_text(text.replace(
+                "| **Stems** | No |", f"| **Target Duration** | {track} |\n| **Stems** | No |",
+            ), encoding="utf-8")
+        if album_target:
+            (song.path.parent.parent / "README.md").write_text(
+                f"# Test Album\n\n## Suno Settings\n\n- **Target Duration**: {album_target}\n",
+                encoding="utf-8",
+            )
+
+    def test_no_target_no_duration_check(self, song):
         assert _check(_evaluate([_clean()], duration_s=200), "duration") is None
+
+    def test_duration_against_the_track_target(self, song):
+        self._target(song, track="3:15")
+        assert _check(_evaluate([_clean()], duration_s=200), "duration") == {
+            "check": "duration", "status": "ok", "detail": "3:20 (target 3:15)",
+        }
+        assert _check(_evaluate([_clean()], duration_s=125), "duration") == {
+            "check": "duration", "status": "warn", "detail": "2:05, target 3:15",
+        }
+        assert _plan()["targets"]["duration_s"] == 195
+
+    def test_a_range_is_held_to_its_midpoint(self, song):
+        self._target(song, track="3:30–4:30")
+        # 4:20 is in the range; held to its low end it was a warn "target 3:30".
+        assert _check(_evaluate([_clean()], duration_s=260), "duration") == {
+            "check": "duration", "status": "ok", "detail": "4:20 (target 3:30–4:30)",
+        }
+        assert _plan()["targets"]["duration_s"] == 240
+        assert _check(_evaluate([_clean()], duration_s=150), "duration")["status"] == "warn"
+        assert _check(_evaluate([_clean()], duration_s=330), "duration")["status"] == "warn"
+
+    def test_a_length_inside_a_wide_range_passes(self, song):
+        # Midpoint 3:30 with 20% is 2:48-4:12; 4:40 is still what the track asks for.
+        self._target(song, track="2:00-5:00")
+        assert _check(_evaluate([_clean()], duration_s=280), "duration")["status"] == "ok"
+
+    def test_the_album_target_when_the_track_has_none(self, song):
+        self._target(song, track="—", album_target="3:30–4:30")
+        assert _check(_evaluate([_clean()], duration_s=260), "duration") == {
+            "check": "duration", "status": "ok", "detail": "4:20 (album target 3:30–4:30)",
+        }
+        assert _check(_evaluate([_clean()], duration_s=100), "duration") == {
+            "check": "duration", "status": "warn", "detail": "1:40, album target 3:30–4:30",
+        }
+        assert _plan()["targets"]["duration_s"] == 240
+
+    def test_the_track_target_wins_over_the_album(self, song):
+        self._target(song, track="2:00", album_target="3:30–4:30")
+        assert _check(_evaluate([_clean()], duration_s=120), "duration")["detail"] == "2:00 (target 2:00)"
+
+    def test_the_album_templates_unset_target_is_no_target(self, song):
+        self._target(song, album_target="[3:30–5:00]")
+        assert _check(_evaluate([_clean()], duration_s=100), "duration") is None
 
     def test_instrumental_with_a_voice_is_flagged(self, song):
         song(instrumental_fm="true", instrumental_table="Yes",

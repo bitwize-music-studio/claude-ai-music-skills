@@ -28,7 +28,7 @@ from typing import Any
 
 from handlers import _shared
 from handlers._shared import _extract_markdown_section, _safe_json
-from handlers.gates import _KNOWN_MODELS, _parse_duration_seconds
+from handlers.gates import _KNOWN_MODELS
 from handlers.generation import (
     _TEMPLATE_EXCLUDE,
     _UNSET,
@@ -38,6 +38,11 @@ from handlers.generation import (
     _section_code,
     get_generation_request,
     parse_generation_log,
+)
+from handlers.text_analysis import (
+    _album_target_duration,
+    _duration_match,
+    _duration_seconds,
 )
 from tools.state.parsers import _extract_table_value
 
@@ -165,15 +170,40 @@ def _exclusions(text: str) -> list[str]:
     return [item.strip().lower() for item in bare.split(",") if item.strip()]
 
 
-def _targets(text: str, instrumental: bool) -> dict[str, Any]:
+def _target_duration(text: str, album: dict[str, Any]) -> dict[str, Any] | None:
+    """The length the take is held to: the track's Target Duration, else the album's.
+
+    ``{seconds, low, high, shown, album}``: a range is held to its midpoint, as the
+    lyric-writer's craft reference reads it, and ``low``/``high`` are its ends (both
+    ``seconds`` for a single time). None when neither sets one.
+    """
+    for cell, from_album in (
+        (_extract_table_value(text, "Target Duration"), False),
+        (_album_target_duration(album), True),
+    ):
+        match = _duration_match(cell)
+        seconds = _duration_seconds(cell)
+        if match is None or seconds is None:
+            continue
+        low = int(match.group(1)) * 60 + int(match.group(2))
+        high = int(match.group(3)) * 60 + int(match.group(4)) if match.group(3) else low
+        return {
+            "seconds": seconds, "low": min(low, high), "high": max(low, high),
+            "shown": re.sub(r"\s+", "", match.group(0)), "album": from_album,
+        }
+    return None
+
+
+def _targets(text: str, instrumental: bool, album: dict[str, Any]) -> dict[str, Any]:
     """What the track file asks for, in the terms the agent's answer can be held against."""
     settings = _extract_markdown_section(text, "Generation Settings") or ""
     gender = (_extract_table_value(settings, "Vocal Gender") or "").strip().lower()
+    duration = _target_duration(text, album)
     return {
         "bpm": asked_bpm(text, _section_code(text, "Style Box")),
         "vocal_gender": gender if gender in ("male", "female") and not instrumental else None,
         "exclude": _exclusions(text),
-        "duration_s": _parse_duration_seconds(_extract_table_value(text, "Target Duration")),
+        "duration_s": duration["seconds"] if duration else None,
     }
 
 
@@ -271,7 +301,8 @@ async def get_take_check_plan(album_slug: str, track_slug: str) -> str:
         questions ([{question, first, last}] — each covers lines first..last;
         an instrumental gets one question about its sound),
         targets ({bpm: [low, high] or null, vocal_gender, exclude, duration_s}
-        — what the track file asks for), and enabled (config
+        — what the track file asks for; duration_s is the track's Target
+        Duration, else the album's, a range's midpoint), and enabled (config
         generation.take_check, default true: whether /bitwize-music:generate
         runs the check on its own)
     """
@@ -295,7 +326,7 @@ async def get_take_check_plan(album_slug: str, track_slug: str) -> str:
         "default_takes": default_takes,
         "lines": lines,
         "questions": build_questions(lines, instrumental),
-        "targets": _targets(text, instrumental),
+        "targets": _targets(text, instrumental, ctx["album"]),
         "enabled": bool(generation.get("take_check", True)),
     })
 
@@ -631,7 +662,7 @@ async def evaluate_take_check(
     }
 
     # --- checks -----------------------------------------------------------------
-    targets = _targets(text, instrumental)
+    targets = _targets(text, instrumental, ctx["album"])
     logged = next(
         (row for row in parse_generation_log(text) if row["clip_id"] == clip_id), None,
     )
@@ -685,16 +716,22 @@ async def evaluate_take_check(
         checks.append(_check("problems", "warn", "; ".join(problems)))
     if fields.get("ends_cleanly") is False:
         checks.append(_check("ending", "warn", "does not end cleanly"))
-    target_s = targets["duration_s"]
+    target = _target_duration(text, ctx["album"])
     if not duration_s or duration_s <= 0:
         # Not given: use the length log_generation recorded for this take, if any.
         duration_s = float(logged["duration_s"]) if logged and logged["duration_s"] else 0.0
-    if target_s and duration_s and duration_s > 0:
-        within = abs(duration_s - target_s) <= target_s * _DURATION_TOLERANCE
+    if target and target["seconds"] and duration_s and duration_s > 0:
+        # Near the midpoint, or anywhere in the range the track asks for.
+        target_s = target["seconds"]
+        within = (
+            abs(duration_s - target_s) <= target_s * _DURATION_TOLERANCE
+            or target["low"] <= duration_s <= target["high"]
+        )
+        named = f"{'album target' if target['album'] else 'target'} {target['shown']}"
         checks.append(_check(
             "duration", "ok" if within else "warn",
-            f"{_fmt_duration(duration_s)} (target {_fmt_duration(target_s)})" if within
-            else f"{_fmt_duration(duration_s)}, target {_fmt_duration(target_s)}",
+            f"{_fmt_duration(duration_s)} ({named})" if within
+            else f"{_fmt_duration(duration_s)}, {named}",
         ))
     if isinstance(settings, dict) and settings:
         # Held against the request the track file makes today, the same mapping
