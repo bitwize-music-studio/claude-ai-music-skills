@@ -354,3 +354,62 @@ class TestValidateLastMigratedVersion:
     def test_wrong_type_rejected(self):
         errors = validate_state(_minimal_state(last_migrated_version=123))
         assert any('last_migrated_version' in e for e in errors)
+
+
+# ---------------------------------------------------------------------------
+# #676: malformed upgrade notes are surfaced, not dropped silently
+# ---------------------------------------------------------------------------
+
+class TestMalformedMigrationNotes:
+    @pytest.mark.parametrize("content,reason", [
+        (b"no frontmatter here\n", "has no YAML frontmatter"),
+        (b"---\nversion: [unclosed\n---\nbody\n", "not valid YAML"),
+        (b"---\n- not a mapping\n---\nbody\n", "not a mapping"),
+        (b"---\nversion: 0.90.0\n", "not closed"),
+        (b"\xff\xfe broken bytes", "cannot be read"),
+    ], ids=["no-frontmatter", "bad-yaml", "list", "unclosed", "undecodable"])
+    def test_pending_window_reports_file_and_reason(self, tmp_path, content, reason):
+        root = _make_plugin_root(tmp_path, "0.91.0", ["0.89.0", "0.91.0"])
+        (root / "migrations" / "0.90.0.md").write_bytes(content)
+
+        result = get_pending_migrations({'last_migrated_version': "0.88.0"}, root)
+
+        assert [m['version'] for m in result['pending']] == ["0.89.0", "0.91.0"]
+        assert len(result['malformed']) == 1
+        bad = result['malformed'][0]
+        assert bad['file'] == "0.90.0.md"
+        assert bad['path'] == str(root / "migrations" / "0.90.0.md")
+        assert reason in bad['reason']
+
+    def test_already_acknowledged_note_is_not_reported(self, tmp_path):
+        root = _make_plugin_root(tmp_path, "0.91.0", ["0.91.0"])
+        (root / "migrations" / "0.80.0.md").write_bytes(b"no frontmatter\n")
+        result = get_pending_migrations({'last_migrated_version': "0.90.0"}, root)
+        assert result['malformed'] == []
+
+    def test_note_with_a_non_version_name_is_always_reported(self, tmp_path):
+        root = _make_plugin_root(tmp_path, "0.91.0", ["0.91.0"])
+        (root / "migrations" / "notes.md").write_bytes(b"no frontmatter\n")
+        result = get_pending_migrations({'last_migrated_version': "0.91.0"}, root)
+        assert [m['file'] for m in result['malformed']] == ["notes.md"]
+        assert result['reason'] == "current"
+
+    def test_unknown_installed_version_still_reports(self, tmp_path):
+        root = _make_plugin_root(tmp_path, "0.91.0", [])
+        (root / ".claude-plugin" / "plugin.json").write_text("{not json")
+        (root / "migrations" / "0.90.0.md").write_bytes(b"no frontmatter\n")
+        result = get_pending_migrations({}, root)
+        assert result['reason'] == "unknown"
+        assert [m['file'] for m in result['malformed']] == ["0.90.0.md"]
+
+    def test_read_migration_file_reason_and_wrapper_agree(self, tmp_path):
+        from tools.state.indexer import read_migration_file
+
+        good = tmp_path / "0.90.0.md"
+        good.write_text('---\nversion: "0.90.0"\n---\nbody\n')
+        migration, reason = read_migration_file(good)
+        assert reason is None and migration == parse_migration_file(good)
+        bad = tmp_path / "0.91.0.md"
+        bad.write_text("plain text\n")
+        assert read_migration_file(bad) == (None, "has no YAML frontmatter (the file must start with ---)")
+        assert parse_migration_file(bad) is None
