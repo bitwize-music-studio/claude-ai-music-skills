@@ -1463,6 +1463,11 @@
           "title": "Album Slug",
           "type": "string"
         },
+        "genre": {
+          "default": "",
+          "title": "Genre",
+          "type": "string"
+        },
         "track_filename": {
           "title": "Track Filename",
           "type": "string"
