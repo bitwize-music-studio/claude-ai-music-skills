@@ -86,6 +86,8 @@ A track is `Generated` once it has takes. **When the user picks a keeper**, mark
 5. **Auto-advancement**: skills that complete a phase advance the album themselves:
    - `/bitwize-music:verify-sources` → when every track is verified, the album advances to `Sources Verified`
    - When the last track goes `Final`, `update_track_field` advances the album to `Complete` itself, and keeps the track's row in the README Tracklist current; `sync_album_tracklist` repairs the rest of that table from the track files
+   - `master_album` marks a track `Final` only when that run mastered it and it has a ✓ keeper; it lists the others with the reason and advances the album to `Complete` only when every track is `Final`
+   - `update_album_status` refuses `Complete` until every track is `Final`, and `Released` until `release_date` is set (`force=True` overrides, for recovery only)
 
 6. **Batch approval**: to mark all Generated tracks Final after QA, call `update_track_field(album_slug, track_slug, "status", "Final")` for each one, but only for tracks that have a ✓ keeper in their Generation Log.
 

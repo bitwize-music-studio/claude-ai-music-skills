@@ -233,6 +233,8 @@ master_album(album_slug, genre="country", cut_highmid=-2.0)
 
 This executes: analyze → pre-QC → master → verify → post-QC → update statuses. Stops on any failure and returns per-stage results. Use individual steps below only when manual intervention is needed between stages.
 
+**Statuses:** the last stage marks a track `Final` only when this run mastered it **and** its Generation Log has a take the user marked ✓. Tracks without a master or without a ✓ keeper keep their status and are listed in `stages.status_update.tracks_left` with the reason (the stage reports `warn`); tell the user which ones and why, and never mark a keeper for them. The album goes `Complete` only when every track is `Final`.
+
 **Note:** `master_album` applies one genre to all tracks. If Step 1.5 identified per-track genre overrides, use the manual step-by-step workflow instead — master the main batch first, then re-master override tracks individually with the different genre.
 
 ### Step 3: Choose Settings

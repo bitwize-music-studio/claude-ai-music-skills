@@ -145,11 +145,16 @@ def test_status_update_does_not_advance_album_when_signature_missing(
     """
     from handlers import _shared
 
-    # One Generated track so all_final would be True after status_update.
+    # One Generated track with a ✓ keeper, so all_final would be True after
+    # status_update (a track goes Final only with a master and a keeper —
+    # #679 item 2).
     _write_sine_wav(tmp_path / "01-track.wav", amplitude=0.3)
     track_md = tmp_path / "01-track.md"
     track_md.write_text(
-        "# Track 1\n\n| **Status** | Generated |\n",
+        "# Track 1\n\n| **Status** | Generated |\n\n## Generation Log\n\n"
+        "| # | Date | Model | Result | Notes | Rating |\n"
+        "|---|------|-------|--------|-------|--------|\n"
+        "| 1 | 2026-11-01 | v6 | [Listen](https://suno.com/song/x) | keeper | ✓ |\n",
         encoding="utf-8",
     )
     readme = tmp_path / "README.md"

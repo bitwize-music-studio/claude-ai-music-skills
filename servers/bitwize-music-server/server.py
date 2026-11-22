@@ -205,6 +205,15 @@ class StateCache:
         logger.info("Starting full state rebuild")
         config = read_config()
         if config is None:
+            # read_config gives None for a missing file and for one that exists
+            # but cannot be read or parsed — say which (#679 item 9).
+            if CONFIG_FILE.exists():
+                logger.error("Config at %s cannot be read or parsed", CONFIG_FILE)
+                return {"error": (
+                    f"Config at {CONFIG_FILE} exists but could not be read or "
+                    f"parsed as a YAML mapping of settings — fix the file "
+                    f"(see /bitwize-music:configure)"
+                )}
             logger.error("Config not found at %s", CONFIG_FILE)
             return {"error": f"Config not found at {CONFIG_FILE}"}
 

@@ -222,20 +222,21 @@ async def create_idea(
 
     logger.info("Created idea '%s' in IDEAS.md", title.strip())
 
-    # Rebuild ideas in cache
-    try:
-        _shared.cache.rebuild()
-    except Exception as e:
-        logger.warning("Idea created but cache rebuild failed: %s", e)
-
-    return _safe_json({
+    result: dict[str, Any] = {
         "created": True,
         "title": title.strip(),
         "genre": genre,
         "type": idea_type,
         "status": "Pending",
         "path": str(ideas_path),
-    })
+    }
+    # Rebuild ideas in cache; a failure (returned or raised) is reported (#679 item 9).
+    _rebuilt, rebuild_error = _shared.rebuild_cache()
+    if rebuild_error is not None:
+        logger.warning("Idea created but cache rebuild failed: %s", rebuild_error)
+        result["warnings"] = [_shared.rebuild_warning(
+            f"The idea was added to {ideas_path}", rebuild_error)]
+    return _safe_json(result)
 
 
 async def update_idea(title: str, field: str, value: str) -> str:
@@ -316,19 +317,20 @@ async def update_idea(title: str, field: str, value: str) -> str:
 
     logger.info("Updated idea '%s' field '%s' to '%s'", title.strip(), label, value)
 
-    # Rebuild ideas in cache
-    try:
-        _shared.cache.rebuild()
-    except Exception as e:
-        logger.warning("Idea updated but cache rebuild failed: %s", e)
-
-    return _safe_json({
+    result: dict[str, Any] = {
         "success": True,
         "title": title.strip(),
         "field": label,
         "old_value": old_value,
         "new_value": value,
-    })
+    }
+    # Rebuild ideas in cache; a failure (returned or raised) is reported (#679 item 9).
+    _rebuilt, rebuild_error = _shared.rebuild_cache()
+    if rebuild_error is not None:
+        logger.warning("Idea updated but cache rebuild failed: %s", rebuild_error)
+        result["warnings"] = [_shared.rebuild_warning(
+            f"IDEAS.md was updated ({label} → {value})", rebuild_error)]
+    return _safe_json(result)
 
 
 async def promote_idea(
@@ -350,8 +352,11 @@ async def promote_idea(
         documentary: If True, also creates RESEARCH.md and SOURCES.md.
 
     Returns:
-        JSON with ``{promoted: True, slug, genre, album_path, files, ...}`` on
-        success, or ``{error: ...}`` on failure.
+        JSON with ``{promoted: True, slug, genre, album_path, files, ...,
+        warnings: [...]}`` once the album exists — ``warnings`` names any
+        follow-up (IDEAS.md status, back-link, state rebuild) that did not
+        happen — or ``{error: ...}`` when no album was created. Never raises
+        for these failures.
     """
     # Lazy import to avoid any circular-import risk at module load time.
     from handlers.album_ops import create_album_structure
@@ -415,6 +420,22 @@ async def promote_idea(
             "slug": slug,
             "genre": genre,
         })
+    except Exception as exc:
+        # Anything else that escapes (a template copy failing part-way) is
+        # returned, not raised, with what was left on disk (#676).
+        logger.warning("promote_idea: create_album_structure failed: %s", exc)
+        return _safe_json({
+            "error": f"Creating the album failed: {type(exc).__name__}: {exc}",
+            "idea_title": canonical_title,
+            "slug": slug,
+            "genre": genre,
+            "promoted": False,
+            "warnings": [
+                "IDEAS.md was not changed (the idea is still Pending). The album "
+                "folder may be partly created — check the content folder for "
+                f"'{slug}' and remove it before promoting again.",
+            ],
+        })
     album_result = json.loads(album_result_json)
     if not album_result.get("created"):
         error_msg = album_result.get("error", "Failed to create album structure")
@@ -435,31 +456,53 @@ async def promote_idea(
         )
 
     # Update idea: status → In Progress, Promoted To → slug. Failures here are
-    # non-fatal (album already created); log but don't roll back. Use
-    # canonical_title so the IDEAS.md regex match succeeds regardless of the
-    # caller's casing (#328 review I2).
-    status_result = json.loads(
-        await update_idea(canonical_title, "status", "In Progress")
-    )
-    if status_result.get("error"):
+    # not rolled back (the album exists) but are returned in "warnings", not
+    # only logged (#676). Use canonical_title so the IDEAS.md regex match
+    # succeeds regardless of the caller's casing (#328 review I2).
+    warnings: list[str] = []
+    try:
+        status_result = json.loads(
+            await update_idea(canonical_title, "status", "In Progress")
+        )
+    except Exception as exc:
+        status_result = {"error": f"{type(exc).__name__}: {exc}"}
+    status_updated = not status_result.get("error")
+    if not status_updated:
         logger.warning(
             "Album created but status update failed for '%s': %s",
             canonical_title, status_result.get("error"),
         )
-    if not _set_promoted_to_field(canonical_title, slug):
-        # Non-fatal, but operators need to see this — the album is created
-        # and status is flipped, but the IDEAS.md back-link is missing so
-        # the two sides will drift apart (#328 review I3).
+        warnings.append(
+            f"The album was created, but the idea's status in IDEAS.md could not be "
+            f"set to In Progress ({status_result.get('error')}) — it still reads "
+            f"Pending. Set it with update_idea(\"{canonical_title}\", \"status\", "
+            f"\"In Progress\"); promoting again would fail on the existing album."
+        )
+    try:
+        backlink_written = _set_promoted_to_field(canonical_title, slug)
+    except Exception as exc:
+        logger.warning("promote_idea: back-link failed: %s", exc)
+        backlink_written = False
+    if not backlink_written:
+        # The album is created and status is flipped, but the IDEAS.md
+        # back-link is missing so the two sides will drift apart (#328 review I3).
         logger.warning(
             "Album '%s' created but Promoted To back-link in IDEAS.md could "
             "not be written for idea '%s'",
             slug, canonical_title,
         )
+        warnings.append(
+            f"The album was created, but the '**Promoted To**: {slug}' back-link "
+            f"could not be written under the idea in IDEAS.md — add it by hand."
+        )
 
-    try:
-        _shared.cache.rebuild()
-    except Exception as e:
-        logger.warning("promote_idea: cache rebuild failed: %s", e)
+    # The last rebuild indexes the album and the IDEAS.md changes together, so
+    # it supersedes any rebuild failure reported by the steps above.
+    _rebuilt, rebuild_error = _shared.rebuild_cache()
+    if rebuild_error is not None:
+        logger.warning("promote_idea: cache rebuild failed: %s", rebuild_error)
+        warnings.append(_shared.rebuild_warning(
+            f"The album '{slug}' was created", rebuild_error))
 
     return _safe_json({
         "promoted": True,
@@ -471,6 +514,10 @@ async def promote_idea(
         "tracks_path": album_result.get("tracks_path", ""),
         "files": album_result.get("files", []),
         "concept_injected": concept_injected,
+        "idea_status_updated": status_updated,
+        "backlink_written": backlink_written,
+        "indexed": rebuild_error is None,
+        "warnings": warnings,
     })
 
 

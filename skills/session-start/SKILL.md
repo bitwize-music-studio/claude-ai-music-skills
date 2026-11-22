@@ -109,18 +109,30 @@ migrations were processed — distinct from `plugin_version`, which only records
 the installed version for display) and returns the pending notes already
 parsed and sorted.
 
-1. **If `pending` is empty** (`reason: "current"`, or `reason: "unknown"` when the
-   installed version can't be read from plugin.json): No action needed.
+1. **If `pending` and `malformed` are both empty** (`reason: "current"`, or
+   `reason: "unknown"` when the installed version can't be read from
+   plugin.json): No action needed.
 2. **If `pending` is non-empty** (`reason: "upgrade"` or `"untracked"`): For each
    migration, process its `actions` in order:
    - `auto`: Execute silently (run `check` first — skip if it returns 0)
    - `action`: Show description, ask the user to confirm before executing
    - `info`: Display to the user
    - `manual`: Show the instruction to the user
-3. **After processing all notes**, call `acknowledge_migrations` (no argument
+3. **If `malformed` is non-empty**: those upgrade notes could not be parsed, so
+   their actions are not in `pending`. Show each one to the user, never skip it
+   silently:
+   ```
+   ⚠️ Upgrade note {file} could not be read: {reason}
+      Its upgrade actions were not run. Open {path} and follow it by hand,
+      and report the broken note to the plugin's maintainers.
+   ```
+   Ask the user before acknowledging while any are listed: acknowledging
+   stops them surfacing.
+4. **After processing all notes**, call `acknowledge_migrations` (no argument
    acknowledges everything up to the installed version) so the same notes do
    not surface again next session.
-4. Report: "Upgraded to Y" with a summary of the actions taken.
+5. Report: "Upgraded to Y" with a summary of the actions taken, and any
+   malformed notes.
 
 > `reason: "untracked"` means the state predates migration tracking; the full
 > backlog up to the installed version is surfaced once, then cleared by

@@ -432,6 +432,37 @@ class TestGate1SourcesVerified:
         source_gate = next(g for g in gates if g["gate"] == "Sources Verified")
         assert source_gate["status"] == "PASS"
 
+    @pytest.mark.parametrize("raw", [
+        "Not verified", "Unverified", "⏳ Pending", "[Pending]", "TBD",
+        "Partially verified", "⚠️ Needs re-check", "Verified, 2 still pending",
+    ])
+    def test_anything_but_verified_or_na_blocks(self, tmp_path, raw):
+        """#679 item 1: the value the real parser stores for the track blocks."""
+        from tools.state.parsers import parse_track_file
+
+        track = tmp_path / "01-t.md"
+        track.write_text(
+            "# T\n\n| Attribute | Detail |\n|---|---|\n"
+            f"| **Status** | In Progress |\n| **Sources Verified** | {raw} |\n"
+        )
+        t_data = {"sources_verified": parse_track_file(track)["sources_verified"],
+                  "explicit": False}
+        _, _, gates = _gates_mod._check_pre_gen_gates_for_track(
+            t_data, TRACK_FILE_COMPLETE, blocklist=[],
+        )
+        source_gate = next(g for g in gates if g["gate"] == "Sources Verified")
+        assert source_gate["status"] == "FAIL", raw
+        assert source_gate["severity"] == "BLOCKING"
+
+    @pytest.mark.parametrize("raw", ["✅ Verified", "**Verified** (2026-01-15)", "n/a"])
+    def test_decorated_verified_or_na_passes(self, raw):
+        t_data = {"sources_verified": raw, "explicit": False}
+        _, _, gates = _gates_mod._check_pre_gen_gates_for_track(
+            t_data, TRACK_FILE_COMPLETE, blocklist=[],
+        )
+        source_gate = next(g for g in gates if g["gate"] == "Sources Verified")
+        assert source_gate["status"] == "PASS", raw
+
 
 class TestGate2LyricsReviewed:
     """Gate 2: Lyrics Reviewed."""
@@ -737,51 +768,81 @@ class TestGate6ArtistNamesCleared:
         artist_gate = next(g for g in gates if g["gate"] == "Artist Names Cleared")
         assert artist_gate["status"] == "PASS"
 
-    def test_blocked_artist_in_style_fails(self):
-        """When a blocked artist name appears in the style prompt, gate fails."""
-        t_data = {"sources_verified": "N/A", "explicit": False}
+    @pytest.fixture
+    def real_blocklist(self, monkeypatch):
+        """The plugin's real artist blocklist, loaded fresh.
 
-        # Build a track file with an artist name in the style box
-        file_text = """\
-## Lyrics Box
+        The cache globals are monkeypatched so they are restored after the
+        test: these tests used to assign ``_artist_blocklist_patterns =
+        {"Drake": ...}`` and leave it, so later tests on the worker saw a gate
+        that knew only Drake (#679 item 8).
+        """
+        monkeypatch.setattr(_text_analysis_mod, "_artist_blocklist_cache", None)
+        monkeypatch.setattr(_text_analysis_mod, "_artist_blocklist_patterns", None)
+        monkeypatch.setattr(_text_analysis_mod, "_artist_blocklist_mtime", 0.0)
+        entries = _text_analysis_mod._load_artist_blocklist()
+        assert len(entries) > 50, "the real blocklist did not load"
+        return entries
 
-```
-[Verse 1]
-Hello world
-```
-
-## Style Box
-
-```
-in the style of Drake, upbeat hip-hop
-```
-"""
-        # Set up the blocklist pattern cache manually
-        blocklist = [{"name": "Drake", "alternative": "moody rap", "genre": "hip-hop"}]
-        _text_analysis_mod._artist_blocklist_patterns = {
-            "Drake": re.compile(r'\bDrake\b', re.IGNORECASE),
-        }
-
-        blocking, warnings, gates = _gates_mod._check_pre_gen_gates_for_track(
-            t_data, file_text, blocklist=blocklist,
+    @staticmethod
+    def _style_file(style):
+        return (
+            "## Lyrics Box\n\n```\n[Verse 1]\nHello world\n```\n\n"
+            f"## Style Box\n\n```\n{style}\n```\n"
         )
-        artist_gate = next(g for g in gates if g["gate"] == "Artist Names Cleared")
-        assert artist_gate["status"] == "FAIL"
-        assert "Drake" in artist_gate["detail"]
 
-    def test_no_blocked_artists_passes(self):
+    def _artist_gate(self, style, blocklist):
+        t_data = {"sources_verified": "N/A", "explicit": False}
+        _, _, gates = _gates_mod._check_pre_gen_gates_for_track(
+            t_data, self._style_file(style), blocklist=blocklist,
+        )
+        return next(g for g in gates if g["gate"] == "Artist Names Cleared")
+
+    def test_blocked_artist_in_style_fails(self, real_blocklist):
+        """When a blocked artist name appears in the style prompt, gate fails."""
+        gate = self._artist_gate("in the style of Drake, upbeat hip-hop", real_blocklist)
+        assert gate["status"] == "FAIL"
+        assert "Drake" in gate["detail"]
+
+    def test_no_blocked_artists_passes(self, real_blocklist):
         """When style prompt has no blocked names, gate passes."""
         t_data = {"sources_verified": "N/A", "explicit": False}
-        blocklist = [{"name": "Drake", "alternative": "moody rap", "genre": "hip-hop"}]
-        _text_analysis_mod._artist_blocklist_patterns = {
-            "Drake": re.compile(r'\bDrake\b', re.IGNORECASE),
-        }
-
         blocking, warnings, gates = _gates_mod._check_pre_gen_gates_for_track(
-            t_data, TRACK_FILE_COMPLETE, blocklist=blocklist,
+            t_data, TRACK_FILE_COMPLETE, blocklist=real_blocklist,
         )
         artist_gate = next(g for g in gates if g["gate"] == "Artist Names Cleared")
         assert artist_gate["status"] == "PASS"
+
+    def test_name_starting_with_punctuation_fails(self, real_blocklist):
+        """(G)I-DLE starts with '(' — \\b could never match it (#679 item 8)."""
+        assert any(e["name"] == "(G)I-DLE" for e in real_blocklist)
+        gate = self._artist_gate("in the style of (G)I-DLE, k-pop", real_blocklist)
+        assert gate["status"] == "FAIL"
+        assert "(G)I-DLE" in gate["detail"]
+
+    def test_every_real_entry_matches_its_own_name(self, real_blocklist):
+        """Each blocklist name is found in a sentence, whatever its first and last character."""
+        missed = [
+            e["name"] for e in real_blocklist
+            if not _text_analysis_mod._artist_pattern(e["name"]).search(
+                f"a song in the style of {e['name']}, with big drums")
+        ]
+        assert not missed, f"blocklist names the gate cannot find: {missed}"
+
+    def test_no_real_entry_matches_inside_a_longer_word(self, real_blocklist):
+        """A name glued to word characters on both sides is a different word."""
+        hits = [
+            e["name"] for e in real_blocklist
+            if _text_analysis_mod._artist_pattern(e["name"]).search(f"xx{e['name']}xx")
+        ]
+        assert not hits, f"blocklist names matched inside a longer word: {hits}"
+
+    def test_name_without_cached_pattern_still_blocks(self, monkeypatch):
+        """A blocklist entry with no compiled pattern is not skipped (fails closed)."""
+        monkeypatch.setattr(_text_analysis_mod, "_artist_blocklist_patterns", {})
+        blocklist = [{"name": "(G)I-DLE", "alternative": "girl-group k-pop", "genre": "k-pop"}]
+        gate = self._artist_gate("in the style of (G)I-DLE", blocklist)
+        assert gate["status"] == "FAIL"
 
     def test_no_style_content_skips(self):
         t_data = {"sources_verified": "N/A", "explicit": False}

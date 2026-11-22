@@ -32,7 +32,11 @@ from handlers._shared import (
 )
 from tools.shared.venv import venv_dir, venv_python
 from tools.state.indexer import write_state
-from tools.state.parsers import parse_track_file
+from tools.state.parsers import (
+    normalize_sources_verified,
+    parse_track_file,
+    sources_verified_cleared,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +80,10 @@ _GENERATION_SETTINGS_HEADING_RE = re.compile(r"(?m)^#{1,3}\s+Generation Settings
 def _detect_phase(album: dict[str, Any]) -> str:
     """Detect the current workflow phase for an album.
 
-    Matches the decision tree from the resume skill.
+    Follows the "Current Phase" table in skills/resume/SKILL.md (Step 4) and
+    its decision tree (#679 item 10): every track Generated or Final with any
+    still Generated is Review & Approve (listen, mark keepers ✓); every track
+    Final, or the album Complete, is Mastering; Released is Released.
     """
     status = album.get("status", STATUS_UNKNOWN)
     tracks = album.get("tracks", {})
@@ -84,10 +91,9 @@ def _detect_phase(album: dict[str, Any]) -> str:
     if status == ALBUM_RELEASED:
         return "Released"
     if status == ALBUM_COMPLETE:
-        return "Ready to Release"
+        return "Mastering"
 
     track_statuses = [t.get("status", STATUS_UNKNOWN) for t in tracks.values()]
-    sources = [t.get("sources_verified", "N/A") for t in tracks.values()]
 
     if status == ALBUM_CONCEPT or not track_statuses:
         return "Planning"
@@ -98,20 +104,24 @@ def _detect_phase(album: dict[str, Any]) -> str:
     generated = sum(1 for s in track_statuses if s == TRACK_GENERATED)
     final = sum(1 for s in track_statuses if s == TRACK_FINAL)
     total = len(track_statuses)
-    sources_pending = sum(1 for s in sources if s.lower() == "pending")
+    sources_pending = sum(
+        1 for t in tracks.values()
+        if not sources_verified_cleared(t.get("sources_verified", "N/A"))
+    )
 
     if sources_pending > 0:
-        return "Source Verification"
+        return "Verification"
     if not_started > 0 or in_progress > 0:
         return "Writing"
     if generated == 0 and final == 0:
         return "Ready to Write"
+    if final == total:
+        return "Mastering"
     if generated > 0 and (generated + final) < total:
         return "Generating"
-    if generated > 0 and final == 0:
-        return "Mastering"
-    if final == total:
-        return "Ready to Release"
+    # Every track Generated or Final, some still Generated.
+    if generated > 0:
+        return "Review & Approve"
 
     # Fallback phase name (not an album status constant — this is a workflow phase)
     return "In Progress"
@@ -167,10 +177,19 @@ async def find_album(name: str) -> str:
     # Auto-rebuild if state is empty or missing albums
     if not albums:
         logger.info("find_album: no albums in cache, attempting auto-rebuild")
-        rebuilt = _shared.cache.rebuild()
-        if "error" not in rebuilt:
+        rebuilt, rebuild_error = _shared.rebuild_cache()
+        if rebuilt is not None:
             state = rebuilt
             albums = state.get("albums", {})
+        else:
+            return _safe_json({
+                "found": False,
+                "error": (
+                    f"No albums in the state cache, and rebuilding it failed: "
+                    f"{rebuild_error}. Fix that, then run rebuild_state."
+                ),
+                "rebuilt": False,
+            })
         if not albums:
             return _safe_json({
                 "found": False,
@@ -402,10 +421,10 @@ async def rebuild_state() -> str:
     Returns:
         JSON with rebuild result summary
     """
-    state = _shared.cache.rebuild()
-
-    if "error" in state:
-        return _safe_json(state)
+    rebuilt, rebuild_error = _shared.rebuild_cache()
+    if rebuilt is None:
+        return _safe_json({"error": rebuild_error})
+    state = rebuilt
 
     album_count = len(state.get("albums", {}))
     track_count = sum(
@@ -602,7 +621,8 @@ async def get_pending_verifications(
                      skip the full albums_with_pending dict (default False)
 
     Returns:
-        JSON with tracks where sources_verified is 'Pending', grouped by album
+        JSON with tracks whose sources_verified is neither Verified nor N/A,
+        grouped by album
     """
     state = _shared.cache.get_state()
     albums = state.get("albums", {})
@@ -615,10 +635,16 @@ async def get_pending_verifications(
     pending = {}
     for slug, album in albums.items():
         tracks = album.get("tracks", {})
+        # Anything but Verified (any date) or N/A is still waiting for a human
+        # (#679 item 1): "Not verified", "TBD", "⏳ Pending" included.
         pending_tracks = [
-            {"slug": t_slug, "title": t.get("title", t_slug)}
+            {
+                "slug": t_slug,
+                "title": t.get("title", t_slug),
+                "sources_verified": t.get("sources_verified", "N/A"),
+            }
             for t_slug, t in tracks.items()
-            if t.get("sources_verified", "").lower() == "pending"
+            if not sources_verified_cleared(t.get("sources_verified", "N/A"))
         ]
         if pending_tracks:
             pending[slug] = {
@@ -980,6 +1006,7 @@ async def update_track_field(
     from handlers.status import (
         _CANONICAL_TRACK_STATUS,
         _VALID_TRACK_STATUSES,
+        _album_keeps_research,
         _validate_track_transition,
     )
     from handlers.text_analysis import _load_artist_blocklist
@@ -1026,6 +1053,31 @@ async def update_track_field(
         err = _validate_track_transition(current_status, value, force=force)
         if err:
             return _safe_json({"error": err})
+        # Not Started → In Progress skips source verification, which only a
+        # track with nothing to verify may do: on an album that keeps research
+        # (the documentary layout create_track checks), the track's own Sources
+        # Verified field must clear first (#679 item 6).
+        canonical_current = _CANONICAL_TRACK_STATUS.get(
+            str(current_status).lower().strip(), current_status)
+        canonical_target = _CANONICAL_TRACK_STATUS.get(value.lower().strip(), value)
+        sources_value = track_data.get("sources_verified", "N/A")
+        if (
+            not force
+            and canonical_current == TRACK_NOT_STARTED
+            and canonical_target == TRACK_IN_PROGRESS
+            and not sources_verified_cleared(sources_value)
+            and album.get("path")
+            and _album_keeps_research(Path(album["path"]))
+        ):
+            return _safe_json({
+                "error": (
+                    f"Cannot skip to 'In Progress' — this track's sources are not "
+                    f"verified (Sources Verified: {sources_value}) and the album keeps "
+                    f"research. Go through 'Sources Pending' → 'Sources Verified' "
+                    f"(/bitwize-music:verify-sources), set Sources Verified to N/A if "
+                    f"the track has no sources, or use force=True to override."
+                ),
+            })
 
     track_path = track_data.get("path", "")
     if not track_path:
@@ -1071,36 +1123,55 @@ async def update_track_field(
                              "To disable this check, set "
                              "generation.require_suno_link_for_final: false in config.",
                 })
+            # Only a take the user marked ✓ makes a track Final (plugin-rules
+            # "Gates and statuses"; #679 item 3). The config switch above waives
+            # the Suno link only; force=True is the one override.
+            # lazy: handlers.generation imports handlers.gates
+            from handlers.generation import parse_generation_log
 
-    # Source verification gate: check that actual source links exist
-    if field_key in ("sources-verified", "sources_verified") and not force:
-        val_lower = value.lower()
-        if "verified" in val_lower and "pending" not in val_lower:
-            has_links = False
-            # Check 1: SOURCES.md in album directory
-            album_path = album.get("path", "")
-            if album_path:
-                sources_path = Path(album_path) / "SOURCES.md"
-                if sources_path.exists():
-                    try:
-                        sources_text = sources_path.read_text(encoding="utf-8")
-                        if _MARKDOWN_LINK_RE.search(sources_text):
-                            has_links = True
-                    except (OSError, UnicodeDecodeError):
-                        pass
-            # Check 2: Track file Source section for inline links
-            if not has_links:
-                source_section = _extract_markdown_section(text, "Source")
-                if source_section and _MARKDOWN_LINK_RE.search(source_section):
-                    has_links = True
-            if not has_links:
+            if not any(take["approved"] for take in parse_generation_log(text)):
                 return _safe_json({
-                    "error": (
-                        "Cannot verify sources — no markdown links found in "
-                        "SOURCES.md or track Source section. Add [text](url) "
-                        "links before verifying, or use force=True to override."
-                    ),
+                    "error": "Cannot mark track as 'Final' — no keeper marked ✓ in "
+                             "its Generation Log. The user picks the keeper: listen "
+                             "to the takes (/bitwize-music:listen), mark the chosen "
+                             "row ✓ in the Rating column (/bitwize-music:generate "
+                             "logs takes), then set Final. Use force=True only to "
+                             "override.",
                 })
+
+    # Source verification gate: check that actual source links exist before a
+    # value that clears the track (Verified, any date) is written.
+    if (
+        field_key in ("sources-verified", "sources_verified")
+        and not force
+        and sources_verified_cleared(value)
+        and normalize_sources_verified(value) != "N/A"
+    ):
+        has_links = False
+        # Check 1: SOURCES.md in album directory
+        album_path = album.get("path", "")
+        if album_path:
+            sources_path = Path(album_path) / "SOURCES.md"
+            if sources_path.exists():
+                try:
+                    sources_text = sources_path.read_text(encoding="utf-8")
+                    if _MARKDOWN_LINK_RE.search(sources_text):
+                        has_links = True
+                except (OSError, UnicodeDecodeError):
+                    pass
+        # Check 2: Track file Source section for inline links
+        if not has_links:
+            source_section = _extract_markdown_section(text, "Source")
+            if source_section and _MARKDOWN_LINK_RE.search(source_section):
+                has_links = True
+        if not has_links:
+            return _safe_json({
+                "error": (
+                    "Cannot verify sources — no markdown links found in "
+                    "SOURCES.md or track Source section. Add [text](url) "
+                    "links before verifying, or use force=True to override."
+                ),
+            })
 
     # Find and replace the table row: | **Key** | old_value |
     pattern = re.compile(
@@ -1252,7 +1323,7 @@ async def get_album_progress(album_slug: str) -> str:
         "tracks_by_status": status_counts,
         "sources_pending": sum(
             1 for t in tracks.values()
-            if t.get("sources_verified", "").lower() == "pending"
+            if not sources_verified_cleared(t.get("sources_verified", "N/A"))
         ),
         "takes_pending_decision": pending,
         "suno_workspace": album.get("suno_workspace"),
