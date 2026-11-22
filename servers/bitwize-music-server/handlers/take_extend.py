@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import re
 from collections import Counter
 from typing import Any
@@ -43,7 +44,11 @@ logger = logging.getLogger(__name__)
 _EXTENSION_CREDITS = 10
 _MAX_MODE_FACTOR = 2
 _MIN_CONTINUE_AT = 0.4      # the least audio-extensions-create accepts
-_PAST_END_SLACK = 1.0       # the Generation Log holds a take's length in whole seconds
+# Suno reports a take's length to the hundredth (55.16 s, measured); log_generation
+# writes it rounded to the second, so a logged 0:56 is a take of 55.5 to 56.5 s.
+_LOG_ROUNDING = 0.5
+# A take_length_s further than this from the logged length is another take's.
+_LENGTH_MISMATCH = 1.0
 _MAX_LYRICS = 5000
 _TIME_RE = re.compile(r"(?:(\d{1,3}):)?(\d{1,4}(?:\.\d+)?)")
 _TAG_LINE_RE = re.compile(r"\[([^\]]*)\]")
@@ -147,6 +152,7 @@ async def get_extension_request(
     take: int = 0,
     continue_at: str = "",
     from_section: str = "",
+    take_length_s: float = 0.0,
 ) -> str:
     """Build the Suno request that carries a take on from a point in its audio.
 
@@ -173,15 +179,22 @@ async def get_extension_request(
         continue_at: Where in the take to carry on from: seconds ("46",
             "46.5"), minutes and seconds ("0:46"), or "end" for the take's
             whole length. Choose the end of a line — a continuation from
-            mid-phrase leaves an audible cut
+            mid-phrase leaves an audible cut. A time past the end of the take
+            is refused; one within the second the length is shown to is
+            carried on from the end instead (continue_at_clamped)
         from_section: The Lyrics Box section the continuation starts with
             ("Verse 2", "Bridge", "Chorus #2" for the second Chorus); empty
             sends no lyrics and Suno writes on by itself
+        take_length_s: The take's exact length in seconds (audio-retrieve ->
+            metadata.duration, e.g. 55.16). 0 uses the Generation Log's,
+            which is rounded to the second: the end is then taken half a
+            second early, so that it is inside the take (take_length_rounded)
 
     Returns:
         JSON with found, title, supported (false when a blocking problem means
         nothing should be sent), tool ("audio-extensions-create"), source
-        ({take, clip_id, url, keeper, version, duration_s}), continue_at_s and
+        ({take, clip_id, url, keeper, version, duration_s — take_length_s when
+        given, else the logged length}), continue_at_s and
         continue_at (m:ss), from_section (the section picked, or ""), sections
         (the Lyrics Box's section names in order, numbered where a name
         repeats), request (id, continue_at, and lyrics, style, negative_style,
@@ -206,13 +219,26 @@ async def get_extension_request(
     source, problem = _source_take(text, take)
     if problem:
         problems.append(problem)
-    duration_s: int | None = None
+    logged_s: int | None = None
+    exact_s = (
+        float(take_length_s)
+        if take_length_s and math.isfinite(take_length_s) and take_length_s > 0 else None
+    )
     if source:
-        duration_s = next(
+        logged_s = next(
             (row["duration_s"] for row in parse_generation_log(text) if row["row"] == source["take"]),
             None,
         )
-        source = {**source, "duration_s": duration_s}
+        if exact_s is not None and logged_s is not None and (
+            abs(exact_s - logged_s) > _LENGTH_MISMATCH
+        ):
+            problems.append(_problem(
+                "take_length_mismatch", "blocking",
+                f"take_length_s is {exact_s:g} s, but the Generation Log has row "
+                f"{source['take']} at {_fmt_duration(logged_s)} — read the length of that "
+                "take (audio-retrieve -> metadata.duration)",
+            ))
+        source = {**source, "duration_s": exact_s if exact_s is not None else logged_s}
         if source["version"]:
             problems.append(_problem(
                 "source_is_a_version", "blocking",
@@ -230,6 +256,27 @@ async def get_extension_request(
     problems += [p for p in built.get("problems", []) if p["code"].startswith(_CARRIED)]
 
     # --- where to carry on from -----------------------------------------------------
+    # end_s is the latest point surely inside the take: its exact length when known,
+    # else the logged length less the rounding. A time up to the length as shown
+    # (m:ss) is carried on from end_s; a later one is past the end.
+    end_s: float | None = None
+    shown_s: float | None = None
+    if exact_s is not None:
+        end_s, shown_s = exact_s, max(exact_s, float(round(exact_s)))
+    elif logged_s is not None:
+        end_s, shown_s = max(logged_s - _LOG_ROUNDING, 0.0), float(logged_s)
+    rounded = exact_s is None and logged_s is not None
+    length = f"{exact_s:g} s" if exact_s is not None else f"about {_fmt_duration(logged_s or 0)}"
+
+    def _rounded_note(at_s: float) -> dict[str, str]:
+        return _problem(
+            "take_length_rounded", "warning",
+            f"The Generation Log holds the take's length to the second "
+            f"({_fmt_duration(logged_s or 0)}), so this carries on from {at_s:g} s, which is "
+            "inside the take for sure. For its exact end, read the take with audio-retrieve "
+            "and pass metadata.duration as take_length_s",
+        )
+
     at: float | None = None
     wanted_at = continue_at.strip().lower()
     if not wanted_at:
@@ -239,20 +286,22 @@ async def get_extension_request(
             "to keep ends, at the end of a line",
         ))
     elif wanted_at == "end":
-        if duration_s is None:
+        if end_s is None:
             problems.append(_problem(
                 "take_length_unknown", "blocking",
                 "The Generation Log holds no length for this take — give the time to carry on "
                 "from instead of 'end'",
             ))
         else:
-            at = float(duration_s)
+            at = end_s
             problems.append(_problem(
                 "continue_from_end", "warning",
                 "Carrying on from the very end keeps the take's own ending — its last chord "
                 "or fade stays in the middle of the song. To replace the ending, carry on "
                 "from before it",
             ))
+            if rounded:
+                problems.append(_rounded_note(at))
     else:
         at = _seconds(wanted_at)
         if at is None:
@@ -260,20 +309,31 @@ async def get_extension_request(
                 "continue_at_unrecognized", "blocking",
                 f"'{continue_at.strip()}' is not a time — give seconds (46) or m:ss (0:46)",
             ))
-        elif at < _MIN_CONTINUE_AT:
-            at = None
-            problems.append(_problem(
-                "continue_at_too_early", "blocking",
-                f"Suno carries a take on from {_MIN_CONTINUE_AT} s at the earliest — to redo "
-                "it from the start, generate it again",
-            ))
-        elif duration_s is not None and at > duration_s + _PAST_END_SLACK:
-            problems.append(_problem(
-                "continue_at_past_end", "blocking",
-                f"{_fmt_duration(at)} is past the end of the take, which is "
-                f"{_fmt_duration(duration_s)} long",
-            ))
-            at = None
+        elif end_s is not None and shown_s is not None and at > end_s:
+            if at > shown_s:
+                problems.append(_problem(
+                    "continue_at_past_end", "blocking",
+                    f"{continue_at.strip()} is past the end of the take, which is {length} long",
+                ))
+                at = None
+            else:
+                problems.append(_problem(
+                    "continue_at_clamped", "warning",
+                    f"{continue_at.strip()} is at or past the end of the take, which is "
+                    f"{length} long — carrying on from {end_s:g} s, the end, instead. That "
+                    "keeps the take's own ending in the middle of the song; to replace it, "
+                    "carry on from before it",
+                ))
+                at = end_s
+                if rounded:
+                    problems.append(_rounded_note(at))
+    if at is not None and at < _MIN_CONTINUE_AT:
+        at = None
+        problems.append(_problem(
+            "continue_at_too_early", "blocking",
+            f"Suno carries a take on from {_MIN_CONTINUE_AT} s at the earliest — to redo "
+            "it from the start, generate it again",
+        ))
 
     # --- the words that follow --------------------------------------------------------
     instrumental, _ = _instrumental_state(text)

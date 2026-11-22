@@ -34,6 +34,7 @@ from tests.unit.state.test_handlers_generation import (  # noqa: F401  (album is
     album,
 )
 
+from handlers import generation as _gen_mod  # noqa: E402
 from handlers import take_extend as _extend_mod  # noqa: E402
 
 pytestmark = pytest.mark.unit
@@ -67,9 +68,10 @@ LOG = (
 )
 
 
-def _extend(take=0, continue_at="", from_section="", track_slug="01-first-track"):
+def _extend(take=0, continue_at="", from_section="", track_slug="01-first-track", take_length_s=0.0):
+    extra = {"take_length_s": take_length_s} if take_length_s else {}
     return json.loads(_run(_extend_mod.get_extension_request(
-        "test-album", track_slug, take, continue_at, from_section,
+        "test-album", track_slug, take, continue_at, from_section, **extra,
     )))
 
 
@@ -189,10 +191,75 @@ class TestContinueAt:
         assert _extend(continue_at="2:00", from_section="Verse 2")["supported"] is True
 
     def test_end_means_the_whole_take(self, song):
+        # #680 item 3: this asserted 55.0, the logged 0:55 taken as the exact length. A
+        # logged 0:55 is a take of 54.5 to 55.5 s, so 55.0 can be past its end.
         result = _extend(take=2, continue_at="end", from_section="Verse 2")
         assert result["supported"] is True
-        assert result["continue_at_s"] == 55.0
+        assert result["continue_at_s"] == 54.5
+        assert _codes(result, "warning") == ["continue_from_end", "take_length_rounded"]
+
+    def test_end_is_the_exact_length_when_it_is_given(self, song):
+        result = _extend(take=2, continue_at="end", from_section="Verse 2", take_length_s=55.16)
+        assert result["supported"] is True
+        assert result["request"]["continue_at"] == 55.16
+        assert result["source"]["duration_s"] == 55.16
         assert _codes(result, "warning") == ["continue_from_end"]
+
+
+class TestPastTheEnd:
+    """#680 item 3: Suno's lengths are fractional and the Generation Log rounds them."""
+
+    @pytest.fixture
+    def fractional(self, album, monkeypatch):  # noqa: F811
+        # Logged the way /generate logs a take: audio-wait's fractional length.
+        monkeypatch.setattr(_gen_mod, "_today", lambda: "2026-06-15")
+        album(lyrics=LYRICS)
+        logged = json.loads(_run(_gen_mod.log_generation(
+            "test-album", "01-first-track", "v6",
+            [{"clip_id": CLIP_A, "status": "complete", "duration_s": 55.6}],
+            "via MCP, 10 credits",
+        )))
+        assert logged["success"]
+        return album
+
+    def test_end_of_a_rounded_length_stays_inside_the_take(self, fractional):
+        # The log says 0:56 for a 55.6 s take: carrying on from 56.0 is past its end.
+        result = _extend(take=1, continue_at="end", from_section="Verse 2")
+        assert result["supported"] is True
+        assert result["request"]["continue_at"] <= 55.6
+        assert "take_length_rounded" in _codes(result, "warning")
+
+    def test_end_with_the_exact_length(self, fractional):
+        result = _extend(take=1, continue_at="end", from_section="Verse 2", take_length_s=55.6)
+        assert result["request"]["continue_at"] == 55.6
+        assert "take_length_rounded" not in _codes(result)
+
+    def test_a_time_past_the_shown_length_is_refused(self, fractional):
+        for given, length in (("56.5", 0.0), ("56.5", 55.6), ("0:57", 55.6)):
+            result = _extend(take=1, continue_at=given, from_section="Verse 2", take_length_s=length)
+            assert result["supported"] is False, (given, length)
+            assert _codes(result, "blocking") == ["continue_at_past_end"]
+            assert result["request"] == {}
+
+    def test_the_shown_length_is_clamped_to_the_end(self, fractional):
+        result = _extend(take=1, continue_at="0:56", from_section="Verse 2", take_length_s=55.6)
+        assert result["supported"] is True
+        assert result["request"]["continue_at"] == 55.6
+        assert "continue_at_clamped" in _codes(result, "warning")
+        assert "55.6 s" in result["problems"][0]["detail"]
+        rounded = _extend(take=1, continue_at="0:56", from_section="Verse 2")
+        assert rounded["request"]["continue_at"] == 55.5
+        assert _codes(rounded, "warning") == ["continue_at_clamped", "take_length_rounded"]
+
+    def test_a_time_inside_the_take_is_untouched(self, fractional):
+        result = _extend(take=1, continue_at="55.4", from_section="Verse 2", take_length_s=55.6)
+        assert result["request"]["continue_at"] == 55.4
+        assert _codes(result) == []
+
+    def test_a_length_that_is_not_this_takes_is_refused(self, fractional):
+        result = _extend(take=1, continue_at="end", from_section="Verse 2", take_length_s=97.17)
+        assert "take_length_mismatch" in _codes(result, "blocking")
+        assert result["request"] == {}
 
     def test_end_needs_a_known_length(self, song):
         song(lyrics=LYRICS, log_rows=(_row(1, CLIP_A),))

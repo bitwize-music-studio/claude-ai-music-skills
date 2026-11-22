@@ -51,7 +51,7 @@ Follow § Preflight in the reference doc: find `audio-create`, `audio-wait`, `au
 ## Step 3: Build the Edit
 
 - **In words**: `get_edit_request(album_slug, track_slug, take: N, instruction: "<the user's words>")`.
-- **From the track file**: call `get_edit_request(album_slug, track_slug, take: N)` once to learn the take's `source.clip_id`, then `audio-retrieve(id: <that clip id>)`, then `get_edit_request(album_slug, track_slug, take: N, take_lyrics: <metadata.lyrics>)`.
+- **From the track file**: call `get_edit_request(album_slug, track_slug, take: N)` once to learn the take's `source.clip_id`, then `audio-retrieve(id: <that clip id>)`, then `get_edit_request(album_slug, track_slug, take: N, take_lyrics: <metadata.lyrics>)`. If `metadata.concat_clip_ids` is set, the take is an extension joined into a whole song: do not pass its lyrics; handle it as `joined_take_lyrics` below.
 
 Leave `take` at 0 when the user named none: the tool picks the keeper, or the only take there is.
 
@@ -61,6 +61,7 @@ Leave `take` at 0 when the user named none: the tool picks the keeper, or the on
 | `take_ambiguous` | Ask which take, then call again with `take` |
 | `needs_instruction` on the first call of the track-file path | Expected; carry on with `audio-retrieve` |
 | `nothing_to_change` | The Lyrics Box already matches the take; ask what to change |
+| `joined_take_lyrics` | The take is an extension joined into a whole song (or an edit of one). Suno's lyrics for it hold the source's whole lyrics and the continuation's, lines no longer sung included, so they cannot be compared with the Lyrics Box. Ask the user what to change and build the edit in words; `/bitwize-music:check-take` shows what the take sings |
 | Any other blocking problem | Show it and stop |
 | `edit_rewrites_song` (a warning) | Say that Suno will re-sing the whole song, and ask whether to edit anyway or regenerate |
 
