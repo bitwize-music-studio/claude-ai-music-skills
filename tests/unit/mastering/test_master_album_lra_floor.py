@@ -30,12 +30,18 @@ def _make_qc_pass(filename: str) -> dict:
 
 
 def _make_verify_result(filename: str, short_term_range: float) -> dict:
-    """Return a minimal analyze_track result with the given LRA."""
+    """Return a minimal analyze_track result with the given LRA.
+
+    The floor reads ``lra`` (EBU R128) since #681 (item 9); this helper used
+    to feed the value only as ``short_term_range``. Both carry it here so the
+    tests keep their meaning.
+    """
     return {
         "filename": filename,
         "lufs": -14.0,
         "peak_db": -1.5,
         "short_term_range": short_term_range,
+        "lra": short_term_range,
     }
 
 

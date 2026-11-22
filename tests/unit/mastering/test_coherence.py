@@ -75,6 +75,8 @@ def _analysis(**overrides) -> dict:
         "filename": "01.wav",
         "lufs": -14.0,
         "short_term_range": 6.5,
+        # The LRA floor reads ``lra`` (EBU R128) since #681 (item 9).
+        "lra": 6.5,
         "stl_95": -10.5,
         "low_rms": -18.0,
         "vocal_rms": -16.0,
@@ -148,8 +150,8 @@ class TestClassifyOutliers:
         assert TOLERANCES["coherence_lra_floor_lu"] == pytest.approx(1.0)
         deltas = [_delta(index=1), _delta(index=2, is_anchor=True)]
         analyses = [
-            _analysis(filename="01.wav", short_term_range=lra),
-            _analysis(filename="02.wav", short_term_range=6.5),
+            _analysis(filename="01.wav", lra=lra),
+            _analysis(filename="02.wav", lra=6.5),
         ]
         result = classify_outliers(deltas, analyses, TOLERANCES, anchor_index_1based=2)
         floor = [v for v in result[0]["violations"] if v["metric"] == "lra_floor"]
@@ -176,8 +178,8 @@ class TestClassifyOutliers:
             _delta(index=2, is_anchor=True),
         ]
         analyses = [
-            _analysis(filename="01.wav", short_term_range=0.7),   # below floor
-            _analysis(filename="02.wav", short_term_range=6.5),
+            _analysis(filename="01.wav", lra=0.7),   # below floor
+            _analysis(filename="02.wav", lra=6.5),
         ]
         result = classify_outliers(deltas, analyses, TOLERANCES, anchor_index_1based=2)
         floor_violations = [

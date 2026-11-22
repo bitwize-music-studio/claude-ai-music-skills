@@ -1665,6 +1665,7 @@ async def measure_album_signature(
     # skip the preset step entirely so unknown-genre doesn't error a
     # signature-only measurement run).
     preset_dict: dict[str, Any] | None = None
+    anchor_ceiling: float | None = None
     if genre:
         from tools.mastering.config import build_effective_preset
         bundle = build_effective_preset(
@@ -1680,6 +1681,8 @@ async def measure_album_signature(
                 "available_genres": bundle["error"].get("available_genres", []),
             })
         preset_dict = bundle["preset_dict"]
+        # The anchor's limiter penalty is taken at the genre's ceiling (#681).
+        anchor_ceiling = bundle["targets"]["ceiling_db"]
 
     # Determine whether an anchor is requested and which override to use.
     # Precedence: explicit arg > README frontmatter > composite scoring > none.
@@ -1727,6 +1730,7 @@ async def measure_album_signature(
             analysis_results,
             anchor_preset,
             override_index=override_index,
+            ceiling_db=anchor_ceiling,
         )
         anchor_block: dict[str, Any] = {
             "selected_index":  anchor_result["selected_index"],
@@ -1769,7 +1773,7 @@ async def album_coherence_check(
     classifies each non-anchor track against per-genre tolerance bands:
       • LUFS delta (±0.5 LU, correctable in MVP)
       • STL-95 delta (±coherence_stl_95_lu, reported)
-      • LRA floor (short_term_range ≥ coherence_lra_floor_lu, reported)
+      • LRA floor (EBU R128 LRA ≥ coherence_lra_floor_lu, reported)
       • low-RMS delta (±coherence_low_rms_db, reported)
       • vocal-RMS delta (±coherence_vocal_rms_db, reported)
 
@@ -1839,6 +1843,7 @@ async def album_coherence_check(
     )
 
     preset_dict: dict[str, Any] | None = None
+    anchor_ceiling: float | None = None
     warnings: list[str] = []
     if genre:
         from tools.mastering.config import build_effective_preset
@@ -1855,6 +1860,8 @@ async def album_coherence_check(
                 "available_genres": bundle["error"].get("available_genres", []),
             })
         preset_dict = bundle["preset_dict"]
+        # The anchor's limiter penalty is taken at the genre's ceiling (#681).
+        anchor_ceiling = bundle["targets"]["ceiling_db"]
     else:
         warnings.append(
             "No genre supplied — using default coherence tolerances. "
@@ -1893,6 +1900,7 @@ async def album_coherence_check(
         analysis_results,
         preset_dict or {},
         override_index=override_index,
+        ceiling_db=anchor_ceiling,
     )
 
     anchor_block: dict[str, Any] = {

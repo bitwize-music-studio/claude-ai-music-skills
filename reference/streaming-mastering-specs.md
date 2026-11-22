@@ -65,7 +65,8 @@ anchor:
     stl_95: -14.8
     low_rms: -22.1
     vocal_rms: -17.6
-    short_term_range: 8.4
+    lra: 5.1              # EBU R128 loudness range (LU)
+    short_term_range: 22.4  # ungated max-min short-term loudness (report only)
     lufs: -14.0
     peak_db: -3.1
 album_median:           # album-wide medians across tracks
@@ -73,7 +74,8 @@ album_median:           # album-wide medians across tracks
   stl_95: -14.5
   low_rms: -22.0
   vocal_rms: -17.8
-  short_term_range: 8.2
+  lra: 5.0
+  short_term_range: 21.9
 delivery_targets:
   target_lufs: -14.0
   tp_ceiling_db: -1.0
@@ -90,6 +92,12 @@ pipeline:
   source_sample_rate: 44100
   upsampled_from_source: true
 ```
+
+### What the signature measures
+
+- `lra` is the EBU R128 loudness range (Tech 3342: 3 s short-term loudness, gated at -70 LUFS and 20 LU below the mean, 95th minus 10th percentile). A mastered pop song reads about 3.5-6 LU. The anchor's LRA match (`genre_ideal_lra_lu`) and the post-QC LRA floor (`coherence_lra_floor_lu`) read it. `short_term_range` (max minus min short-term loudness, ungated) is still reported, but it spans the intro and the fade and reads ~20 LU on almost any song, so nothing decides on it.
+- `vocal_rms` comes from the polished vocal stem (`polished/<track>/vocals.wav`) when its mix, `polished/<track>.wav`, is there too, shifted by the loudness difference between the file analyzed and that mix: after mastering it follows the master's gain. Without that mix it is the 1-4 kHz band of the file itself (`signature_meta.vocal_rms_source`).
+- The anchor's ceiling penalty is the limiting a source will get once mastering brings it to the target loudness: its peak plus the gain to the target, over the ceiling, with 3 dB of gain reduction as the full penalty (`ceiling_penalty_basis: limiting_at_target`). A loud Suno master turned down to -14 LUFS is not penalised for peaking near 0 dBFS; a quiet, peaky track that has to come up into the limiter is.
 
 ## Re-mastering behavior
 

@@ -667,8 +667,11 @@ async def _stage_anchor_selection(ctx: MasterAlbumCtx) -> str | None:
             anchor_override = raw_override
 
         anchor_preset = ctx.preset_dict or {}
+        # The limiter penalty is taken at this run's target and ceiling: the
+        # limiting each source will actually get (#681).
         ctx.anchor_result = select_anchor(
             ctx.analysis_results, anchor_preset, override_index=anchor_override,
+            target_lufs=ctx.effective_lufs, ceiling_db=ctx.effective_ceiling,
         )
         ctx.stages["anchor_selection"] = {
             "status": "pass" if ctx.anchor_result["selected_index"] is not None else "warn",
@@ -2068,14 +2071,16 @@ async def _stage_post_qc(ctx: MasterAlbumCtx) -> str | None:
     # signature's stored floor (#681); a genreless fresh run has none.
     lra_floor = _tolerance_source(ctx).get("coherence_lra_floor_lu")
     if lra_floor is not None:
+        # The EBU R128 loudness range, not short_term_range (#681): a track
+        # too short or too quiet to measure one is not held to the floor.
         lra_violations = [
             {
                 "filename": r["filename"],
-                "lra_lu": r.get("short_term_range", float("inf")),
+                "lra_lu": r["lra"],
                 "floor_lu": lra_floor,
             }
             for r in ctx.verify_results
-            if r.get("short_term_range", float("inf")) < lra_floor
+            if r.get("lra") is not None and r["lra"] < lra_floor
         ]
         if lra_violations:
             ctx.stages["post_qc"] = {
@@ -2611,7 +2616,7 @@ async def _stage_signature_persist(ctx: MasterAlbumCtx) -> str | None:
             anchor_track_sig = {
                 k: row.get(k)
                 for k in ("stl_95", "low_rms", "vocal_rms",
-                          "short_term_range", "lufs", "peak_db")
+                          "lra", "short_term_range", "lufs", "peak_db")
             }
 
         if ctx.frozen_signature is not None:

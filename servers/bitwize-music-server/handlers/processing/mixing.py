@@ -313,6 +313,16 @@ async def polish_audio(
 
 _ANALYZER_DEFAULT_PEAK_RATIO = 15.0
 
+# Sub-rumble detection (#681). Content below RUMBLE_MAX_HZ counts as rumble,
+# measured with bins no wider than RUMBLE_BIN_HZ so a C1 808 (32.7 Hz) or an
+# A0 (27.5 Hz) does not leak into the band. A flagged stem is recommended a
+# RUMBLE_HIGHPASS_HZ highpass, which the polish merge never lets lower a
+# preset's own highpass and which sits at or below every shipped one, so it
+# cannot raise a genre's choice either (trap's 25 Hz bass, for one).
+RUMBLE_MAX_HZ = 25.0
+RUMBLE_BIN_HZ = 1.5
+RUMBLE_HIGHPASS_HZ = 25
+
 # Per-stem issue tags that are NOT album-level mix problems, and so must
 # not roll up into a track's `issues` or `album_summary.common_issues`.
 # `none_detected` is the explicit all-clear. `skipped_empty` (#553) is a
@@ -635,14 +645,22 @@ def _build_analyzer(
                 result["issues"].append("clicks_detected")
                 result["recommendations"]["click_removal"] = True
 
-        # Sub-bass rumble (< 30 Hz)
-        sub_mask = freqs < 30
-        if total_energy > 0:
-            sub_ratio = float(np.sum(psd[sub_mask])) / total_energy
+        # Sub-bass rumble: energy below RUMBLE_MAX_HZ, measured with ~1.5 Hz
+        # bins. The 4096-point PSD above has 10.8-11.7 Hz bins, so "< 30 Hz"
+        # was its 0-23 Hz bins plus leakage, and a C1 808 (32.7 Hz) read as
+        # rumble (sub_ratio 0.177) and drew a 35 Hz highpass that cut its
+        # fundamental (#681). Real rumble (handling noise, HVAC, drift) sits
+        # below ~20 Hz; the lowest notes music uses (A0 27.5 Hz, C1 32.7 Hz)
+        # stay above the band.
+        fine_n = min(len(data), 1 << int(np.ceil(np.log2(rate / RUMBLE_BIN_HZ))))
+        fine_freqs, fine_psd = sig.welch(data[:, 0], rate, nperseg=fine_n)
+        fine_total = float(np.sum(fine_psd))
+        if fine_total > 0:
+            sub_ratio = float(np.sum(fine_psd[fine_freqs < RUMBLE_MAX_HZ])) / fine_total
             result["sub_ratio"] = sub_ratio
             if sub_ratio > 0.15:
                 result["issues"].append("sub_rumble")
-                result["recommendations"]["highpass_cutoff"] = 35
+                result["recommendations"]["highpass_cutoff"] = RUMBLE_HIGHPASS_HZ
 
         if not result["issues"]:
             result["issues"].append("none_detected")

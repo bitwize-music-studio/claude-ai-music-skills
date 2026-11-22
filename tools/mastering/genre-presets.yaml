@@ -79,9 +79,10 @@
 #   mono_fold_vocal_warn_db - Warn threshold for vocal-band (1–4 kHz) RMS delta (default 2.0 dB).
 #   mono_fold_correlation_warn - Warn threshold for stereo correlation coefficient (default 0.3).
 #   genre_ideal_lra_lu     - Target loudness-range (LU) used by the album-mastering
-#                            anchor selector (#290 phase 2). Tracks whose LRA is
-#                            close to this score higher on mix_quality. Default 8.0
-#                            matches balanced pop; dynamic genres override upward.
+#                            anchor selector (#290 phase 2). Tracks whose EBU R128
+#                            LRA (analyze_track's `lra`) is close to this score
+#                            higher on mix_quality. Default 8.0. Mastered pop reads
+#                            about 3.5-6 LU; dynamic genres override upward.
 #   spectral_reference_energy - 7-band reference curve (sub_bass / bass / low_mid /
 #                            mid / high_mid / high / air) as percentages of total
 #                            spectral energy, summing to 100. Anchor selector
@@ -91,9 +92,13 @@
 #   coherence_stl_95_lu    - Max |track.stl_95 - anchor.stl_95| (LU) before
 #                            the track is classified an STL-95 outlier by
 #                            album_coherence_check (#290 phase 3b). Default 0.5.
-#   coherence_lra_floor_lu - Minimum short_term_range (LU) allowed; tracks
-#                            below trip an LRA-floor violation regardless of
-#                            anchor. Default 1.0.
+#   coherence_lra_floor_lu - Minimum EBU R128 loudness range (LRA, LU) a master
+#                            may have; tracks below trip an LRA-floor violation
+#                            regardless of anchor. Default 1.0: a mastered song
+#                            reads ~3.5-5 LU and a brickwalled one ~2, so only a
+#                            track squashed flat trips it. (It read the ungated
+#                            short_term_range, ~20 LU on any song with a fade,
+#                            until #681.)
 #   coherence_low_rms_db   - Max |delta_low_rms| (dB) before low-RMS outlier.
 #                            Default 2.0.
 #   coherence_vocal_rms_db - Max |delta_vocal_rms| (dB) before vocal-RMS outlier.
@@ -178,7 +183,7 @@ defaults:
   # outlier tracks relative to the selected anchor. All thresholds are
   # absolute-value deltas from the anchor unless otherwise noted.
   coherence_stl_95_lu: 0.5         # ±LU around anchor's STL-95
-  coherence_lra_floor_lu: 1.0      # minimum short_term_range allowed (absolute)
+  coherence_lra_floor_lu: 1.0      # minimum EBU R128 LRA allowed (absolute)
   coherence_low_rms_db: 2.0        # ±dB around anchor's low_rms
   coherence_vocal_rms_db: 2.0      # ±dB around anchor's vocal_rms
 

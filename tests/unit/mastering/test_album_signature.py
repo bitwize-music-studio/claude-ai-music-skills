@@ -206,7 +206,8 @@ class TestComputeAnchorDeltas:
         expected_keys = {
             "index", "filename", "is_anchor",
             "delta_lufs", "delta_peak_db", "delta_stl_95",
-            "delta_short_term_range", "delta_low_rms", "delta_vocal_rms",
+            "delta_short_term_range", "delta_lra",  # lra: EBU R128 (#681)
+            "delta_low_rms", "delta_vocal_rms",
         }
         assert set(deltas[0].keys()) == expected_keys
 
