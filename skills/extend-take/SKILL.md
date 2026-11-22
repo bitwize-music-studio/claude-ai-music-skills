@@ -15,6 +15,7 @@ allowed-tools:
   - mcp__suno__audio-like
   - mcp__suno__audio-listen
   - mcp__suno__audio-listen-wait
+  - mcp__suno__audio-retrieve
   - mcp__suno__audio-unlike
   - mcp__suno__audio-wait
   - mcp__suno__voices-list
@@ -48,7 +49,7 @@ Find the album and track as `/bitwize-music:generate` does. Two things are neede
 
 ## Step 2: Check the Suno Server
 
-Follow § Preflight in the reference doc: find `audio-extensions-create`, `audio-full-song`, `audio-wait` and `account-usage`, load their current definitions, and read `account-usage`. `features` lacks `generate.extend` → say the plan does not include extensions and stop. Not connected → say an extension needs Suno's MCP server and stop; on suno.com it is the song's Extend button.
+Follow § Preflight in the reference doc: find `audio-extensions-create`, `audio-full-song`, `audio-wait`, `audio-retrieve` and `account-usage`, load their current definitions, and read `account-usage`. `features` lacks `generate.extend` → say the plan does not include extensions and stop. Not connected → say an extension needs Suno's MCP server and stop; on suno.com it is the song's Extend button.
 
 ## Step 3: Build the Request
 
@@ -64,6 +65,8 @@ Then `get_extension_request(album_slug, track_slug, take: N, continue_at: "<time
 | `section_not_found`, `section_ambiguous` | Show `sections` and ask which |
 | `no_section_named` (a warning) | Say Suno will write the words itself, show `sections`, and ask whether to name one |
 | `continue_from_end` (a warning) | Say the take's ending stays in the middle of the song; ask whether to carry on from before it instead |
+| `take_length_rounded` (a warning) | The Generation Log holds the take's length to the second, so the tool carried on half a second early to stay inside the take. For its exact end, read the take, free: `audio-retrieve(id: <source.clip_id>)`, and call again with `take_length_s: <metadata.duration>` |
+| `continue_at_clamped` (a warning) | The time given was at or just past the end of the take; say it is carried on from the end instead, which keeps its ending in the middle of the song |
 | Any other blocking problem | Show it and stop |
 | `voice` is set | Find its id with `voices-list`, as `/bitwize-music:generate` Step 4 does, and add it to the request as `voice_id` |
 | A key in `needs_grant` while `features` lacks `controls.advanced` | Remove it from the request and say so in the summary |

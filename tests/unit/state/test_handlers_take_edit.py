@@ -25,11 +25,14 @@ if str(PROJECT_ROOT) not in sys.path:
 from tests.unit.state.test_handlers_generation import (  # noqa: F401  (album is a fixture)
     CLIP_A,
     CLIP_B,
+    CLIP_C,
     LEGACY_KEEPER_ROW,
     _row,
     _run,
     album,
 )
+from tests.unit.state.test_handlers_take_extend import LYRICS as EXTEND_LYRICS
+from tests.unit.state.test_handlers_take_extend import VERSE_2_ON
 
 from handlers import take_edit as _edit_mod  # noqa: E402
 
@@ -211,6 +214,65 @@ class TestFromLyrics:
         result = _edit(take=1, instruction="drop the synth", take_lyrics="[Verse]\nSomething else")
         assert result["mode"] == "instruction"
         assert result["changes"] == []
+
+
+class TestJoinedTake:
+    """#680 item 1: an extended take joined into a whole song.
+
+    Its metadata.lyrics are the source's whole lyrics followed by the continuation's,
+    the lines after the cut that are no longer sung included (mcp-api-mapping.md,
+    measured). Held against an unchanged Lyrics Box they read as lines to cut.
+    """
+
+    JOINED_LYRICS = EXTEND_LYRICS + "\n\n" + VERSE_2_ON
+    # As /bitwize-music:extend-take logs the two joined songs (get_extension_request's log_notes).
+    LOG = (
+        _row(1, CLIP_A, notes="0:55, via MCP, 10 credits"),
+        _row(2, CLIP_B, notes="1:37, take 1 extended from 0:46, via MCP, 10 credits"),
+    )
+
+    @pytest.fixture
+    def joined(self, album):  # noqa: F811
+        album(lyrics=EXTEND_LYRICS, log_rows=self.LOG)
+        return album
+
+    def test_its_lyrics_are_not_diffed_against_the_lyrics_box(self, joined):
+        result = _edit(take=2, take_lyrics=self.JOINED_LYRICS)
+        assert result["supported"] is False
+        assert _codes(result, "blocking") == ["joined_take_lyrics"]
+        assert result["request"] == {}
+        assert result["changes"] == [] and result["places"] == 0
+        assert "Row 2 is an extended take" in result["problems"][0]["detail"]
+
+    def test_the_first_call_says_so_before_the_lyrics_are_read(self, joined):
+        result = _edit(take=2)
+        assert _codes(result, "blocking") == ["joined_take_lyrics"]
+        assert result["mode"] is None
+
+    def test_the_keeper_picked_by_default_is_checked_too(self, joined):
+        joined(lyrics=EXTEND_LYRICS, log_rows=(
+            self.LOG[0],
+            _row(2, CLIP_B, rating="✓", notes="1:37, take 1 extended from 0:46, via MCP, 10 credits"),
+        ))
+        assert _codes(_edit(take_lyrics=self.JOINED_LYRICS), "blocking") == ["joined_take_lyrics"]
+
+    def test_an_edit_of_a_joined_take_is_one_too(self, joined):
+        joined(lyrics=EXTEND_LYRICS, log_rows=(
+            *self.LOG,
+            _row(3, CLIP_C, notes="1:37, edit of take 2: tide for day, via MCP, 10 credits"),
+        ))
+        result = _edit(take=3, take_lyrics=self.JOINED_LYRICS)
+        assert _codes(result, "blocking") == ["joined_take_lyrics"]
+        assert "(an edit of row 2)" in result["problems"][0]["detail"]
+
+    def test_an_instruction_still_edits_it(self, joined):
+        result = _edit(take=2, instruction="change 'day' to 'tide' in the first verse")
+        assert result["supported"] is True
+        assert result["request"]["reference_audio_ids"] == [CLIP_B]
+
+    def test_the_take_it_was_extended_from_is_diffed_as_ever(self, joined):
+        result = _edit(take=1, take_lyrics=EXTEND_LYRICS)
+        assert _codes(result, "blocking") == ["nothing_to_change"]
 
 
 # ===========================================================================

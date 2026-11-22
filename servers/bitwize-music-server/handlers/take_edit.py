@@ -56,6 +56,11 @@ _ID_OR_LINK_RE = re.compile(
     r"https?://|suno\.com|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",
     re.IGNORECASE,
 )
+# Generation Log notes that say where a take came from. /bitwize-music:extend-take
+# logs a joined song as "take N extended from m:ss" (get_extension_request's
+# log_notes); /bitwize-music:edit-take logs an edit as "edit of take N: ...".
+_EXTENDED_NOTE_RE = re.compile(r"\btake (\d+) extended from\b", re.IGNORECASE)
+_EDIT_NOTE_RE = re.compile(r"\bedit of take (\d+)\b", re.IGNORECASE)
 
 
 # =============================================================================
@@ -172,6 +177,27 @@ def _source_take(
     )
 
 
+def _joined_row(text: str, take: int) -> int | None:
+    """The row of the joined song *take* is, or was edited from; None when it is neither.
+
+    A joined song's lyrics on Suno (``metadata.lyrics``) are the source's whole
+    lyrics followed by the continuation's, the lines after the cut that are no
+    longer sung included (measured), and an edit of one keeps them. Held against
+    the Lyrics Box, those lines would be asked to be cut.
+    """
+    notes = {row["row"]: row["notes"] for row in parse_generation_log(text)}
+    seen: set[int] = set()
+    while take in notes and take not in seen:
+        seen.add(take)
+        if _EXTENDED_NOTE_RE.search(notes[take]):
+            return take
+        edit = _EDIT_NOTE_RE.search(notes[take])
+        if not edit:
+            return None
+        take = int(edit.group(1))
+    return None
+
+
 # =============================================================================
 # get_edit_request
 # =============================================================================
@@ -202,7 +228,9 @@ async def get_edit_request(
       - take_lyrics: the lyrics the take was made with (audio-retrieve ->
         metadata.lyrics). The edit then brings the take in line with the
         track's Lyrics Box — the way to apply a pronunciation or wording fix
-        made in the track file.
+        made in the track file. Not for an extended take joined into a whole
+        song (or an edit of one): its metadata.lyrics hold lines it no longer
+        sings, so it is refused (joined_take_lyrics) — give an instruction.
 
     Or ask for a version of the take instead of a change to it:
       - version: "instrumental" takes the vocals off and keeps the rest. Log
@@ -282,6 +310,20 @@ async def get_edit_request(
             ))
         named = title.lower() in instruction.lower()
         description = instruction if named else f"In {title}, {instruction}"
+    elif source and (joined := _joined_row(text, source["take"])) is not None:
+        # No instruction: the edit would come from the take's lyrics, which for a joined
+        # song are not what it sings. Refused before the skill reads them.
+        mode = "lyrics" if take_lyrics.strip() else None
+        via = "" if joined == source["take"] else f" (an edit of row {joined})"
+        problems.append(_problem(
+            "joined_take_lyrics", "blocking",
+            f"Row {source['take']} is an extended take joined into a whole song{via}. Suno's "
+            "lyrics for it are the source's whole lyrics followed by the continuation's, "
+            "lines no longer sung included, so they cannot be held against the Lyrics Box — "
+            "an edit built from them would ask Suno to cut lines. Say what to change in "
+            "words instead (\"change '…' to '…'\"); /bitwize-music:check-take shows what "
+            "the take sings",
+        ))
     elif take_lyrics.strip():
         mode = "lyrics"
         changes = lyric_changes(take_lyrics, _section_code(text, "Lyrics Box") or "")
