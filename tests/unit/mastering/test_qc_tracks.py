@@ -565,7 +565,7 @@ class TestQcTrackIntegration:
 
     def test_nonexistent_file_raises(self, tmp_path):
         """Missing file should raise an exception."""
-        with pytest.raises(Exception):
+        with pytest.raises(sf.LibsndfileError, match="Error opening"):
             qc_track(str(tmp_path / "nonexistent.wav"))
 
     def test_each_check_has_required_fields(self, normal_wav):

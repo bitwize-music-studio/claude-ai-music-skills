@@ -1527,10 +1527,15 @@ class TestFileLocking:
     """Tests for _acquire_lock_with_timeout()."""
 
     def test_acquire_lock_success(self, tmp_path):
+        import tools.state.indexer as indexer
         lock_file = tmp_path / "test.lock"
         with open(lock_file, 'w', encoding="utf-8") as fd:
-            # Should not raise
             _acquire_lock_with_timeout(fd, timeout=1)
+            # The lock is really held: another handle cannot take it.
+            with open(lock_file, 'r+', encoding="utf-8") as contender:
+                with pytest.raises(OSError):
+                    indexer._flock_nb(contender)
+            indexer._funlock(fd)
 
     def test_lock_timeout(self, tmp_path, monkeypatch):
         """Simulate a lock that cannot be acquired within timeout."""

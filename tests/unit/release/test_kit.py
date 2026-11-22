@@ -150,6 +150,11 @@ class TestChecks:
         assert _messages(_facts(tracks=(_track(1, wav_format="unreadable"),)), FAIL) == [
             "Track 1 (Harbor) has a master that can't be read as a WAV"]
 
+    def test_a_failure_found_after_a_warning_still_comes_first(self):
+        """The small-cover warning is found before the missing legal name; the failure leads."""
+        facts = _facts(cover_size=(2508, 2508), legal_name="")
+        assert [c.level for c in build_kit(facts, TODAY).checks] == [FAIL, WARN, INFO]
+
     def test_a_stray_wav(self):
         assert _messages(_facts(stray_wavs=("99-demo.wav",)), FAIL) == [
             "mastered/99-demo.wav matches no track: move it out before uploading"]
@@ -168,6 +173,11 @@ class TestChecks:
         assert _messages(facts, FAIL) == []
         assert _messages(facts, WARN) == [
             "The cover is 2508×2508, under the 3000×3000 stores recommend"]
+
+    @pytest.mark.parametrize("side, warned", [(2999, True), (3000, False)])
+    def test_the_cover_size_boundary(self, side, warned):
+        warnings = _messages(_facts(cover_size=(side, side)), WARN)
+        assert bool(warnings) is warned
 
     def test_a_code_that_isnt_one_is_left_blank_with_a_warning(self):
         facts = _facts(upc_ignored="TBD", tracks=(_track(1, isrc_ignored="pending"),))
@@ -195,6 +205,9 @@ class TestChecks:
     ])
     def test_the_release_date(self, release_date, message):
         assert _messages(_facts(release_date=release_date), WARN) == [message]
+
+    def test_a_release_today_is_not_in_the_past(self):
+        assert _messages(_facts(release_date=TODAY.isoformat()), WARN) == []
 
     @pytest.mark.parametrize("title, message", [
         ("", "Track 1 title is empty"),

@@ -242,14 +242,16 @@ class TestBatchCliExitCode:
             ["generate_promo_video.py", "--batch", str(album),
              "--batch-artwork", str(art)],
         )
-        monkeypatch.setattr(gpv, "batch_process_album", lambda **kw: results)
+        calls: list[dict] = []
+        monkeypatch.setattr(gpv, "batch_process_album", lambda **kw: calls.append(kw) or results)
         # main() probes the environment (real ffmpeg binary, system font)
         # before batching; neutralize both so the exit-code contract is
         # tested on runners without them (Windows CI) and their absence
         # can't mask — or fake — the batch-result exit path.
         monkeypatch.setattr(gpv, "check_ffmpeg", lambda: True)
         monkeypatch.setattr(gpv, "find_font", lambda: str(tmp_path / "font.ttf"))
-        gpv.main()
+        assert gpv.main() is None
+        return album, art, calls
 
     def test_failure_exits_nonzero(self, tmp_path, monkeypatch):
         with pytest.raises(SystemExit) as exc_info:
@@ -260,9 +262,14 @@ class TestBatchCliExitCode:
             )
         assert exc_info.value.code == 1
 
-    def test_all_success_exits_zero(self, tmp_path, monkeypatch):
+    def test_all_success_exits_zero(self, tmp_path, monkeypatch, caplog):
         # main() returns normally (no SystemExit) when every track succeeds
-        self._run_main(
+        album, art, calls = self._run_main(
             tmp_path, monkeypatch,
             [("01-track.wav", "01-track_promo.mp4", True)],
         )
+        assert len(calls) == 1
+        assert calls[0]["album_dir"] == album
+        assert calls[0]["artwork_path"] == art
+        assert calls[0]["output_dir"] == album / "promo_videos"
+        assert "failed" not in caplog.text

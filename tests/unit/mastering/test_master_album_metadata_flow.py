@@ -17,7 +17,7 @@ SERVER_DIR = PROJECT_ROOT / "servers" / "bitwize-music-server"
 if str(SERVER_DIR) not in sys.path:
     sys.path.insert(0, str(SERVER_DIR))
 
-mutagen = pytest.importorskip("mutagen")
+import mutagen  # noqa: E402
 
 from handlers.processing import _album_stages as album_stages_mod  # noqa: E402
 

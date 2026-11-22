@@ -196,7 +196,7 @@ class TestAnalyzeTrackEdgeCases:
         assert np.isfinite(result['tinniness_ratio'])
 
     def test_nonexistent_file_raises(self, tmp_path):
-        with pytest.raises(Exception):
+        with pytest.raises(sf.LibsndfileError, match="Error opening"):
             analyze_track(str(tmp_path / "nonexistent.wav"))
 
 

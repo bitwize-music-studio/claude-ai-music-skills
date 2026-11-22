@@ -231,6 +231,21 @@ class TestSections:
         assert _codes(result, "blocking") == ["section_not_found"]
         assert "Verse 2" in result["problems"][0]["detail"]
 
+    @pytest.mark.parametrize("extra, blocked", [(-1, False), (0, False), (1, True)])
+    def test_the_lyrics_sent_are_held_to_suno_limit(self, song, extra, blocked):
+        """Only the words from the named section on are sent, and only they are measured."""
+        tag = "[Verse 2]\n"
+        verse_2_on = tag + "w" * (_extend_mod._MAX_LYRICS + extra - len(tag))
+        song(lyrics="[Verse 1]\nKettle on\n\n" + verse_2_on, log_rows=LOG)
+        result = _extend(take=1, continue_at="40", from_section="Verse 2")
+        assert result["from_section"] == "Verse 2"
+        assert ("lyrics_too_long" in _codes(result, "blocking")) is blocked
+        assert result["supported"] is not blocked
+        if blocked:
+            assert result["request"] == {}
+        else:
+            assert result["request"]["lyrics"] == verse_2_on
+
     def test_without_a_section_suno_writes_on_by_itself(self, song):
         result = _extend(take=1, continue_at="40")
         assert result["supported"] is True

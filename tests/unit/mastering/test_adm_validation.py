@@ -37,7 +37,6 @@ def _write_sine(path: Path, *, amplitude: float = 0.3,
 @requires_ffmpeg
 def test_check_aac_intersample_clips_clean_pass(tmp_path: Path) -> None:
     """Quiet sine (-12 dBTP) survives AAC encoding without clipping."""
-    pytest.importorskip("subprocess")
     from tools.mastering.adm_validation import check_aac_intersample_clips
     wav = _write_sine(tmp_path / "clean.wav", amplitude=0.25)  # ~-12 dBTP
     result = check_aac_intersample_clips(wav, ceiling_db=-1.0)

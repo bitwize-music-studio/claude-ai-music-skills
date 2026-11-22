@@ -30,6 +30,8 @@ import types
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 # ---------------------------------------------------------------------------
 # Ensure project root is on sys.path for imports
 # ---------------------------------------------------------------------------
@@ -396,6 +398,41 @@ class TestResetMastering:
         assert "error" in result
         assert "originals" in str(result)
         assert "mastered" in result["allowed"]
+
+    @pytest.mark.parametrize("protected", ["originals", "stems", "anything-else"])
+    def test_disallowed_subfolder_survives_a_real_reset(self, tmp_path, protected):
+        """With dry_run=False a protected folder is refused and left on disk."""
+        audio_dir = self._make_audio_with_subfolder(tmp_path, protected)
+        state = _state(tmp_path, {"test-album": {"genre": "electronic"}})
+
+        with patch.object(_shared_mod, "cache", MockStateCache(state)):
+            result = json.loads(_run(
+                _maintenance_mod.reset_mastering(
+                    "test-album", subfolders=[protected], dry_run=False,
+                )
+            ))
+
+        assert result["error"] == f"Disallowed subfolders: {[protected]}"
+        assert "results" not in result
+        assert (audio_dir / protected / "01-track.wav").is_file()
+
+    def test_one_disallowed_subfolder_refuses_the_whole_reset(self, tmp_path):
+        """Nothing is deleted, not even the allowed folder asked for with it."""
+        audio_dir = self._make_audio_with_subfolder(tmp_path, "mastered")
+        (audio_dir / "originals").mkdir()
+        (audio_dir / "originals" / "01-track.wav").write_bytes(b"\x00" * 2048)
+        state = _state(tmp_path, {"test-album": {"genre": "electronic"}})
+
+        with patch.object(_shared_mod, "cache", MockStateCache(state)):
+            result = json.loads(_run(
+                _maintenance_mod.reset_mastering(
+                    "test-album", subfolders=["mastered", "originals"], dry_run=False,
+                )
+            ))
+
+        assert result["error"] == "Disallowed subfolders: ['originals']"
+        assert (audio_dir / "originals" / "01-track.wav").is_file()
+        assert (audio_dir / "mastered" / "01-track.wav").is_file()
 
     def test_absent_subfolder_reported_not_found(self, tmp_path):
         # Only mastered/ exists; asking for polished/ too reports not_found.
