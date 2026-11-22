@@ -94,6 +94,7 @@ def apply_pull_down_db(
     *,
     gain_db: float,
     output_bits: int,
+    subtype: str | None = None,
 ) -> None:
     """Apply a scalar gain to *path* in-place.
 
@@ -105,6 +106,8 @@ def apply_pull_down_db(
         path:         WAV file path.
         gain_db:      Gain to apply, in dB. Must be <= 0.
         output_bits:  16 or 24. Selects PCM_16 vs. PCM_24 output subtype.
+        subtype:      Explicit soundfile subtype, overriding ``output_bits``
+                      (``"FLOAT"`` for the staged archival float, #681).
 
     Raises:
         CeilingGuardError: File missing, gain_db > 0, or write error.
@@ -117,7 +120,8 @@ def apply_pull_down_db(
     if not path.is_file():
         raise CeilingGuardError(f"Pull-down target not found: {path}")
 
-    subtype = "PCM_24" if output_bits >= 24 else "PCM_16"
+    if subtype is None:
+        subtype = "PCM_24" if output_bits >= 24 else "PCM_16"
     scale = 10.0 ** (gain_db / 20.0)
 
     try:

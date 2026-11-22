@@ -16,6 +16,21 @@ This document is the authoritative reference for how `master_album` delivers aud
 | `archival_enabled` | `false` (opt-in) | ↑ |
 | `adm_aac_encoder` | `aac` (ffmpeg native) | ↑ |
 
+### Precedence
+
+The delivery format comes from this block. The shipped genre presets leave
+`output_bits` / `output_sample_rate` at 0 ("not set"), so `delivery_bit_depth: 16`
+and `delivery_sample_rate: 44100` hold for every genre; only a non-zero
+`output_bits` / `output_sample_rate` you add for one genre in
+`{overrides}/mastering-presets.yaml` wins over it. `target_lufs` follows the
+genre preset. An opus-safe genre (trap, punk, metal, industrial, edm, dnb,
+dubstep, hardstyle) can only tighten `true_peak_ceiling`, to
+`min(true_peak_ceiling, -1.5)`.
+
+Every path that writes into `mastered/` delivers this format and ceiling:
+`master_album` (including its auto-recovery), `master_audio`,
+`fix_dynamic_track` and `master_with_reference`.
+
 ### Why 24/96 specifically
 
 - Apple Music **Hi-Res Lossless** badge: ≥24-bit AND **>48 kHz** (strict `>`). 48 kHz doesn't qualify.
@@ -84,6 +99,8 @@ pipeline:
 | `Released` | **must exist** | **frozen** | Skip anchor scoring. Master new/regenerated tracks against the anchor + targets in the signature. |
 | `Released` | missing | — | **Halt + escalate.** Signature was deleted or never written. Cannot safely re-master. |
 
+In frozen mode the signature's `delivery_targets` and `tolerances` are the ones used: the coherence check and correction classify against the stored tolerance bands, and post-QC holds tracks to the stored `coherence_lra_floor_lu`, not to the genre preset's current values.
+
 ### Manual overrides
 
 - `freeze_signature=True` — force frozen mode regardless of status. Useful for bonus tracks added during release prep. Errors if no signature file exists.
@@ -92,7 +109,7 @@ pipeline:
 
 ### Archival stage mirrors `mastered/`
 
-When `archival_enabled: true`, the 32-bit float pre-downconvert master is written to `archival/`. The archival stage now mirrors `mastered/` — entries whose basename is no longer in `mastered/` are pruned. This keeps the archival set in sync across re-masters where tracks are dropped or renamed. The `prune_archival` MCP tool is still available for time-versioned cleanup (keep N newest by mtime) — that's a separate concept.
+When `archival_enabled: true`, the 32-bit float pre-downconvert master is written to `archival/`: the master at the delivery sample rate, captured before dither and the conversion to `delivery_bit_depth`, with any ceiling-guard pull-down applied to it as well. The archival stage now mirrors `mastered/` — entries whose basename is no longer in `mastered/` are pruned. This keeps the archival set in sync across re-masters where tracks are dropped or renamed. The `prune_archival` MCP tool is still available for time-versioned cleanup (keep N newest by mtime) — that's a separate concept.
 
 ## AAC encoder selection (future ADM validation step)
 

@@ -229,7 +229,7 @@ python3 reference_master.py --reference pro_master.wav --output-dir matched/
 The script will:
 1. Analyze the frequency response and loudness of your reference
 2. Apply EQ and dynamics to match your tracks to that reference
-3. Output 16-bit WAV files to the output directory
+3. Hold peaks to the true-peak ceiling (`mastering.true_peak_ceiling`, -1.0 dBTP by default) with the plugin's look-ahead limiter, then write WAV files at `mastering.delivery_bit_depth` / `delivery_sample_rate` (24-bit / 96 kHz by default) to the output directory
 
 ### Getting Reference Tracks
 

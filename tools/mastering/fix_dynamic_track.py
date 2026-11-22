@@ -16,7 +16,7 @@ _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
-from tools.mastering.master_tracks import apply_eq, soft_clip
+from tools.mastering.master_tracks import apply_eq, soft_clip, write_delivery
 from tools.shared.logging_config import setup_logging
 
 logger = logging.getLogger(__name__)
@@ -124,6 +124,57 @@ def fix_dynamic(data: Any, rate: int, target_lufs: float = -14.0,
     return best_data, metrics
 
 
+def fix_dynamic_to_file(
+    src: Path | str,
+    dst: Path | str,
+    *,
+    target_lufs: float,
+    ceiling_db: float,
+    output_bits: Any,
+    output_sample_rate: Any,
+    eq_settings: list[tuple[float, float, float]] | None = None,
+    fade_out: float | None = None,
+    archival_path: Path | str | None = None,
+) -> dict[str, Any]:
+    """Run ``fix_dynamic`` on ``src`` and write ``dst`` in the delivery format.
+
+    The one path that writes a dynamic-range fix into ``mastered/`` (#681):
+    ``master_album``'s auto-recovery and the ``fix_dynamic_track`` tool both
+    use it, so a fixed track comes out at the album's bit depth, sample rate,
+    loudness target and true-peak ceiling like every other master, instead of
+    16-bit at the source rate and -14 LUFS.
+
+    ``fade_out`` (seconds) is applied before the loudness work, as in
+    ``master_track``. Returns ``fix_dynamic``'s metrics plus
+    ``sample_rate``, ``output_bits`` and ``true_peak_db`` of the written file.
+    """
+    data, rate = sf.read(str(src))
+    if len(data.shape) == 1:
+        data = np.column_stack([data, data])
+    if fade_out:
+        # Looked up at call time, like the handlers always did, so a spy on
+        # master_tracks.apply_fade_out sees the call.
+        from tools.mastering import master_tracks as _master_tracks
+        data = _master_tracks.apply_fade_out(data, rate, duration=fade_out)
+    data, metrics = fix_dynamic(
+        data, rate,
+        target_lufs=target_lufs,
+        eq_settings=eq_settings,
+        ceiling_db=ceiling_db,
+    )
+    written = write_delivery(
+        data, rate, dst,
+        ceiling_db=ceiling_db,
+        output_bits=output_bits,
+        output_sample_rate=output_sample_rate,
+        archival_path=archival_path,
+    )
+    metrics["sample_rate"] = written["sample_rate"]
+    metrics["output_bits"] = written["output_bits"]
+    metrics["true_peak_db"] = written["final_peak_db"]
+    return metrics
+
+
 def gentle_compress(data: Any, threshold_db: float = -10, ratio: float = 3.0,
                     attack_ms: float = 10, release_ms: float = 100,
                     rate: int = 44100) -> Any:
@@ -187,21 +238,24 @@ def main() -> None:
     # Ensure output directory exists
     Path(output_file).parent.mkdir(exist_ok=True)
 
-    # Read
-    data, rate = sf.read(input_file)
-    if len(data.shape) == 1:
-        data = np.column_stack([data, data])
+    # Delivery targets from the mastering: block of config.yaml (#681) —
+    # the same format, loudness and ceiling master_album writes.
+    from tools.mastering.config import load_mastering_config
+    delivery = load_mastering_config()
 
-    print(f"  Original LUFS: {pyln.Meter(rate).integrated_loudness(data):.1f}")
+    metrics = fix_dynamic_to_file(
+        input_file, output_file,
+        target_lufs=float(delivery["target_lufs"]),
+        ceiling_db=float(delivery["true_peak_ceiling"]),
+        output_bits=delivery["delivery_bit_depth"],
+        output_sample_rate=delivery["delivery_sample_rate"],
+    )
 
-    data, metrics = fix_dynamic(data, rate)
-
+    print(f"  Original LUFS: {metrics['original_lufs']:.1f}")
     print(f"  Final LUFS: {metrics['final_lufs']:.1f}")
-    print(f"  Final Peak: {metrics['final_peak_db']:.1f} dBTP")
-
-    # Write
-    sf.write(output_file, data, rate, subtype='PCM_16')
-    logger.info("Written to: %s", output_file)
+    print(f"  Final Peak: {metrics['true_peak_db']:.1f} dBTP")
+    logger.info("Written to: %s (%d-bit, %d Hz)", output_file,
+                metrics["output_bits"], metrics["sample_rate"])
 
 if __name__ == '__main__':
     main()

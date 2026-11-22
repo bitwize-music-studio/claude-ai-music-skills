@@ -991,6 +991,12 @@ artwork:
 #   - This block controls *delivery-target* parameters (bit depth,
 #     sample rate, loudness, archival).
 #
+# The shipped genre presets never override delivery_bit_depth or
+# delivery_sample_rate: whatever you set here is what every master_album,
+# master_audio, fix_dynamic_track and master_with_reference run writes.
+# Only a per-genre output_bits / output_sample_rate you add yourself in
+# {overrides}/mastering-presets.yaml wins over this block.
+#
 # The mastering pipeline enforces streaming-safe targets by default:
 #   - 24-bit WAV at 96 kHz (Apple Hi-Res Lossless + Tidal Max eligibility)
 #   - -14 LUFS integrated loudness (Spotify / Apple / Tidal / YouTube)
@@ -1058,17 +1064,18 @@ artwork:
 #   # AAC/Opus codecs generate intersample peaks above 0 dBFS, and a
 #   # -1.0 ceiling leaves enough headroom to stay under the codec gate.
 #   #
-#   # Per-genre opus-safe overrides (-1.5 dBTP for EDM/metal/trap) are
-#   # reserved for a later phase; set this value globally for now if
-#   # you want the tighter ceiling across all genres.
+#   # Opus-safe genres (trap, punk, metal, industrial, edm, dnb, dubstep,
+#   # hardstyle) tighten this to -1.5 dBTP. They never loosen it: a
+#   # ceiling of -2.0 here stays -2.0 on those genres too.
 #   #
 #   # true_peak_ceiling: -1.0
 #
 #   # ---------------------------
 #   # archival_enabled [optional, default: false]
 #   # ---------------------------
-#   # When true, master_album also writes a 32-bit float / 96 kHz
-#   # pre-downconvert master to
+#   # When true, master_album also writes a 32-bit float master at the
+#   # delivery sample rate, captured before dither and the bit-depth
+#   # downconvert, to
 #   # {audio_root}/artists/[artist]/albums/[genre]/[album]/archival/.
 #   # Intent: re-master without re-polishing stems (spec changes,
 #   # re-release with different targets). Adds ~1-2 GB per 12-track album.

@@ -288,7 +288,8 @@ class TestMasterWithReference:
     @staticmethod
     def _matchering_stand_in():
         """matchering is heavy and optional: write the output the way it would."""
-        def _master(target, reference, output):
+        def _master(target, reference, output, **delivery):
+            # The handler now passes the album's delivery targets (#681).
             _silence(Path(output), 1.0)
 
         module = types.ModuleType("tools.mastering.reference_master")
