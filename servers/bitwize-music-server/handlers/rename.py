@@ -168,6 +168,10 @@ async def rename_album(old_slug: str, new_slug: str, new_title: str = "") -> str
     content_moved = False
     audio_moved = False
     documents_moved = False
+    # A folder that exists but could not be moved is reported, never dropped
+    # silently: it reads the same as "no folder" otherwise (#674).
+    left_behind: dict[str, str] = {}
+    move_warnings: list[str] = []
 
     try:
         shutil.move(str(content_dir_old), str(content_dir_new))
@@ -187,6 +191,11 @@ async def rename_album(old_slug: str, new_slug: str, new_title: str = "") -> str
             audio_moved = True
         except OSError as e:
             logger.warning("Content dir renamed but audio dir failed: %s", e)
+            left_behind["audio"] = str(audio_dir_old)
+            move_warnings.append(
+                f"The audio folder could not be moved and is still at {audio_dir_old} "
+                f"({e}). Move it to {audio_dir_new} by hand."
+            )
 
     # Rename documents directory if it exists
     if docs_dir_old.is_dir():
@@ -195,6 +204,11 @@ async def rename_album(old_slug: str, new_slug: str, new_title: str = "") -> str
             documents_moved = True
         except OSError as e:
             logger.warning("Content dir renamed but documents dir failed: %s", e)
+            left_behind["documents"] = str(docs_dir_old)
+            move_warnings.append(
+                f"The documents folder could not be moved and is still at {docs_dir_old} "
+                f"({e}). Move it to {docs_dir_new} by hand."
+            )
 
     # Update README.md title (H1 heading) if it exists
     readme_path = content_dir_new / "README.md"
@@ -208,6 +222,10 @@ async def rename_album(old_slug: str, new_slug: str, new_title: str = "") -> str
                 atomic_write_text(readme_path, updated_text)
         except OSError as e:
             logger.warning("Directories moved but README title update failed: %s", e)
+            move_warnings.append(
+                f"The album was renamed, but its README title could not be updated ({e}). "
+                f"Set the heading to '# {title}' by hand."
+            )
 
     # Update state cache
     tracks_updated = 0
@@ -277,6 +295,10 @@ async def rename_album(old_slug: str, new_slug: str, new_title: str = "") -> str
         "documents_moved": documents_moved,
         "tracks_updated": tracks_updated,
     }
+    if left_behind:
+        result["left_behind"] = left_behind
+    if move_warnings:
+        result["warnings"] = move_warnings
     if collision_resolved:
         result["collision_resolved"] = True
         result["note"] = (
@@ -358,6 +380,8 @@ async def rename_track(
     # Derive title
     title = new_title.strip() if new_title else _derive_title_from_slug(normalized_new)
 
+    title_warning = ""
+
     # Rename file
     try:
         shutil.move(str(old_path), str(new_path))
@@ -385,6 +409,10 @@ async def rename_track(
             logger.warning("Title field not found in track metadata table for %s", matched_slug)
     except OSError as e:
         logger.warning("File renamed but title update failed: %s", e)
+        title_warning = (
+            f"The track was renamed, but its title could not be updated ({e}). "
+            f"Set the Title row and heading to '{title}' by hand."
+        )
 
     # Update state cache — use the same state object that _find_album_or_error
     # returned references into; do NOT re-fetch via cache.get_state() which
@@ -428,6 +456,8 @@ async def rename_track(
         "old_path": str(old_path),
         "new_path": str(new_path),
     }
+    if title_warning:
+        result["warnings"] = [title_warning]
     if cache_rebuilt:
         result["cache_rebuilt"] = True
     elif cache_warning:
