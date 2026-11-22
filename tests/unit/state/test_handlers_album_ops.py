@@ -350,6 +350,23 @@ class TestValidateAlbumStructure:
         warns = [c for c in result["checks"] if c["status"] == "WARN"]
         assert len(warns) >= 1
 
+    @pytest.mark.parametrize("value", ["Not verified", "TBD", "⏳ Pending"])
+    def test_tracks_check_any_unverified_value_warns(self, value):
+        """#679 item 1: not only the word "Pending" — anything but Verified or N/A."""
+        state = _fresh_state()
+        for track in state["albums"]["test-album"]["tracks"].values():
+            track["sources_verified"] = "N/A"
+        state["albums"]["test-album"]["tracks"]["01-first-track"]["sources_verified"] = value
+        _shared_mod.cache = MockStateCache(state)
+        with patch("pathlib.Path.is_dir", return_value=True), \
+             patch("pathlib.Path.exists", return_value=True), \
+             patch("pathlib.Path.glob", return_value=[]):
+            result = json.loads(_run(
+                _album_ops_mod.validate_album_structure("test-album", checks="tracks")
+            ))
+        details = [c["message"] for c in result["checks"] if c["status"] == "WARN"]
+        assert any("01-first-track" in d and f"Sources not verified ({value})" in d for d in details), details
+
     def test_audio_check_skip_no_directory(self):
         """When no audio directory exists, audio checks are skipped."""
         with patch("pathlib.Path.is_dir", return_value=False):

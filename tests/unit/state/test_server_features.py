@@ -12,6 +12,7 @@ Usage:
 """
 
 import asyncio
+import contextlib
 import copy
 import importlib
 import importlib.util
@@ -82,6 +83,28 @@ from handlers import text_analysis as _text_analysis_mod
 from handlers import _shared as _shared_mod
 from handlers import status as _status_mod
 from handlers import gates as _gates_mod
+from handlers import generation as _generation_mod
+
+
+@contextlib.contextmanager
+def _patch_write_state(mock=None):
+    """Patch write_state where the handlers look it up (#679 item 11).
+
+    No handler calls ``server.write_state``: core, album_fields and generation
+    bind ``tools.state.indexer.write_state`` when imported, and status,
+    streaming, rename and the mastering stages import it from the indexer as
+    they run, so ``patch.object(server, "write_state")`` intercepted none of
+    them. This patches every name they use, with one mock.
+    """
+    import tools.state.indexer as indexer_mod
+    from handlers import album_fields, core, generation
+
+    mock = MagicMock() if mock is None else mock
+    with patch.object(indexer_mod, "write_state", mock), \
+         patch.object(core, "write_state", mock), \
+         patch.object(album_fields, "write_state", mock), \
+         patch.object(generation, "write_state", mock):
+        yield mock
 
 
 # ---------------------------------------------------------------------------
@@ -407,10 +430,10 @@ _TRACK_WITH_GENERATION_LOG_APPROVED = """\
 
 ## Generation Log
 
-| # | Date | Suno Link | Rating | Notes |
-|---|------|-----------|--------|-------|
-| 1 | 2026-03-01 | [link](https://suno.com/1) | | Wrong tempo |
-| 2 | 2026-03-02 | [link](https://suno.com/2) | ✓ | Perfect |
+| # | Date | Model | Result | Notes | Rating |
+|---|------|-------|--------|-------|--------|
+| 1 | 2026-03-01 | v6 | [Listen](https://suno.com/song/8a7d6c5b-4e3f-4a2b-9c1d-0e9f8a7b6c5d) | Wrong tempo | — |
+| 2 | 2026-03-02 | v6 | [Listen](https://suno.com/song/3f0e9a52-1c2b-4c1d-9a1e-2b5f7a1c9d00) | Perfect | ✓ |
 """
 
 # Track file with a Generation Log section WITHOUT a checkmark
@@ -426,10 +449,10 @@ _TRACK_WITH_GENERATION_LOG_UNAPPROVED = """\
 
 ## Generation Log
 
-| # | Date | Suno Link | Rating | Notes |
-|---|------|-----------|--------|-------|
-| 1 | 2026-03-01 | [link](https://suno.com/1) | | Wrong tempo |
-| 2 | 2026-03-02 | [link](https://suno.com/2) | | Still not right |
+| # | Date | Model | Result | Notes | Rating |
+|---|------|-------|--------|-------|--------|
+| 1 | 2026-03-01 | v6 | [Listen](https://suno.com/song/8a7d6c5b-4e3f-4a2b-9c1d-0e9f8a7b6c5d) | Wrong tempo | — |
+| 2 | 2026-03-02 | v6 | [Listen](https://suno.com/song/3f0e9a52-1c2b-4c1d-9a1e-2b5f7a1c9d00) | Still not right | — |
 """
 
 
@@ -595,88 +618,35 @@ class TestInstrumentalGateSkipping:
 
 @pytest.mark.unit
 class TestInstrumentalFieldSync:
-    """Tests for detecting instrumental field mismatches.
+    """The `instrumental` flag lives in two places — frontmatter `instrumental:`
+    and the Track Details `| **Instrumental** |` row — and must agree.
 
-    The `instrumental` field can appear in two places:
-    - YAML frontmatter: `instrumental: true/false`
-    - Track Details table: `| **Instrumental** | Yes/No |`
-
-    When both are present, they must agree. A mismatch should be detected
-    and flagged as a blocking issue in pre-generation context.
+    #679 item 11: these tests used to check a copy of the parsing written in
+    the test file, and claimed the pre-generation gates block a mismatch,
+    which they did not. They now test the production code: generation's
+    ``_instrumental_state`` (what get_generation_request uses) and the real
+    pre-generation gates, which now block a mismatch as the
+    pre-generation-check skill says.
     """
 
-    def _parse_instrumental_from_file(self, file_text):
-        """Extract instrumental values from both frontmatter and table.
+    def test_mismatch_frontmatter_true_table_no(self):
+        instrumental, problem = _generation_mod._instrumental_state(
+            _INSTRUMENTAL_MISMATCH_FM_TRUE_TABLE_NO)
+        assert instrumental is False
+        assert problem is not None
+        assert problem["code"] == "instrumental_mismatch"
+        assert problem["severity"] == "blocking"
 
-        Returns (frontmatter_value, table_value) where each is True/False/None.
-        """
-        from tools.state.parsers import parse_frontmatter
+    def test_mismatch_frontmatter_false_table_yes(self):
+        _, problem = _generation_mod._instrumental_state(
+            _INSTRUMENTAL_MISMATCH_FM_FALSE_TABLE_YES)
+        assert problem is not None
+        assert problem["code"] == "instrumental_mismatch"
 
-        fm = parse_frontmatter(file_text)
-        fm_instrumental = fm.get("instrumental")
+    def test_no_mismatch_both_agree_yes(self):
+        assert _generation_mod._instrumental_state(_INSTRUMENTAL_BOTH_AGREE_YES) == (True, None)
 
-        # Parse table value using the same pattern as _extract_table_value
-        import re
-        pattern = re.compile(
-            r'^\|\s*\*\*Instrumental\*\*\s*\|\s*(.*?)\s*\|',
-            re.MULTILINE,
-        )
-        match = pattern.search(file_text)
-        table_instrumental = None
-        if match:
-            raw = match.group(1).strip()
-            if raw.lower() in ("yes", "true"):
-                table_instrumental = True
-            elif raw.lower() in ("no", "false"):
-                table_instrumental = False
-
-        return fm_instrumental, table_instrumental
-
-    def _check_instrumental_mismatch(self, fm_value, table_value):
-        """Check if frontmatter and table instrumental values conflict.
-
-        Returns True if there is a mismatch, False if they agree or only
-        one is present.
-        """
-        if fm_value is None or table_value is None:
-            return False  # No mismatch if one is absent
-        return fm_value != table_value
-
-    def test_mismatch_frontmatter_true_table_no(self, tmp_path):
-        """Detect mismatch: frontmatter instrumental=true, table=No."""
-        track_file = tmp_path / "track.md"
-        track_file.write_text(_INSTRUMENTAL_MISMATCH_FM_TRUE_TABLE_NO)
-        text = track_file.read_text()
-
-        fm_val, table_val = self._parse_instrumental_from_file(text)
-        assert fm_val is True
-        assert table_val is False
-        assert self._check_instrumental_mismatch(fm_val, table_val) is True
-
-    def test_mismatch_frontmatter_false_table_yes(self, tmp_path):
-        """Detect mismatch: frontmatter instrumental=false, table=Yes."""
-        track_file = tmp_path / "track.md"
-        track_file.write_text(_INSTRUMENTAL_MISMATCH_FM_FALSE_TABLE_YES)
-        text = track_file.read_text()
-
-        fm_val, table_val = self._parse_instrumental_from_file(text)
-        assert fm_val is False
-        assert table_val is True
-        assert self._check_instrumental_mismatch(fm_val, table_val) is True
-
-    def test_no_mismatch_both_agree_yes(self, tmp_path):
-        """No mismatch: frontmatter instrumental=true, table=Yes."""
-        track_file = tmp_path / "track.md"
-        track_file.write_text(_INSTRUMENTAL_BOTH_AGREE_YES)
-        text = track_file.read_text()
-
-        fm_val, table_val = self._parse_instrumental_from_file(text)
-        assert fm_val is True
-        assert table_val is True
-        assert self._check_instrumental_mismatch(fm_val, table_val) is False
-
-    def test_no_mismatch_only_frontmatter(self, tmp_path):
-        """No mismatch: only frontmatter has instrumental (table absent)."""
+    def test_no_mismatch_only_frontmatter(self):
         content = """\
 ---
 title: "Test"
@@ -691,32 +661,27 @@ instrumental: true
 |-----------|--------|
 | **Status** | In Progress |
 """
-        track_file = tmp_path / "track.md"
-        track_file.write_text(content)
-        text = track_file.read_text()
+        assert _generation_mod._instrumental_state(content) == (True, None)
 
-        fm_val, table_val = self._parse_instrumental_from_file(text)
-        assert fm_val is True
-        assert table_val is None
-        assert self._check_instrumental_mismatch(fm_val, table_val) is False
+    @pytest.mark.parametrize("text", [
+        _INSTRUMENTAL_MISMATCH_FM_TRUE_TABLE_NO, _INSTRUMENTAL_MISMATCH_FM_FALSE_TABLE_YES,
+    ], ids=["fm-true-table-no", "fm-false-table-yes"])
+    def test_mismatch_is_blocking_in_pre_gen_gates(self, text):
+        """The real gates block a mismatch, and run the lyrics gates rather
+        than skip them as for an instrumental (no gate fails open)."""
+        t_data = {"sources_verified": "N/A", "explicit": False}
+        blocking, _, gates = _gates_mod._check_pre_gen_gates_for_track(t_data, text, [])
+        by_name = {g["gate"]: g for g in gates}
+        assert by_name["Instrumental Flags Agree"]["status"] == "FAIL"
+        assert by_name["Instrumental Flags Agree"]["severity"] == "BLOCKING"
+        assert by_name["Lyrics Reviewed"]["status"] != "SKIP"
+        assert blocking >= 1
 
-    def test_mismatch_is_blocking_in_pre_gen_context(self):
-        """An instrumental field mismatch should be treated as blocking.
-
-        In pre-generation context, a mismatch between frontmatter and table
-        means the track's configuration is ambiguous — it should block
-        generation until resolved.
-        """
-        # Verify mismatch is detected as blocking
-        mismatch = self._check_instrumental_mismatch(True, False)
-        assert mismatch is True, "Mismatch must be detected as blocking"
-
-        mismatch2 = self._check_instrumental_mismatch(False, True)
-        assert mismatch2 is True, "Reverse mismatch must also be blocking"
-
-        # Verify agreement is not blocking
-        no_mismatch = self._check_instrumental_mismatch(True, True)
-        assert no_mismatch is False
+    def test_agreeing_flags_add_no_gate(self):
+        t_data = {"sources_verified": "N/A", "explicit": False}
+        _, _, gates = _gates_mod._check_pre_gen_gates_for_track(
+            t_data, _INSTRUMENTAL_BOTH_AGREE_YES, [])
+        assert "Instrumental Flags Agree" not in {g["gate"] for g in gates}
 
 
 # =============================================================================
@@ -734,67 +699,42 @@ class TestRegenerationWorkflow:
     - Status stays Generated during regeneration (no backward transition)
     """
 
-    def _extract_generation_log(self, file_text):
-        """Extract Generation Log table and check for approved entries.
+    # #679 item 11: these tests used their own Generation Log parser and a
+    # column order the template never had. They now read the template's table
+    # with production ``parse_generation_log`` (Rating is the last column).
 
-        Returns (has_log, entries, has_approved) where:
-        - has_log: whether a Generation Log section exists
-        - entries: list of parsed log rows
-        - has_approved: whether any entry has a checkmark in Rating
-        """
-        from handlers._shared import _extract_markdown_section
-
-        section = _extract_markdown_section(file_text, "Generation Log")
-        if not section:
-            return False, [], False
-
-        entries = []
-        has_approved = False
-        for line in section.split("\n"):
-            if not line.startswith("|") or "---" in line or "#" in line:
-                continue
-            parts = [p.strip() for p in line.split("|")]
-            if len(parts) >= 6:
-                # Parts: ['', '#', 'Date', 'Suno Link', 'Rating', 'Notes', '']
-                try:
-                    num = parts[1].strip()
-                    if not num.isdigit():
-                        continue
-                    rating = parts[4].strip()
-                    entries.append({
-                        "num": int(num),
-                        "date": parts[2].strip(),
-                        "rating": rating,
-                        "notes": parts[5].strip() if len(parts) > 5 else "",
-                    })
-                    if "\u2713" in rating or "check" in rating.lower():
-                        has_approved = True
-                except (IndexError, ValueError):
-                    continue
-
-        return True, entries, has_approved
-
-    def test_detect_unapproved_generated_track(self, tmp_path):
+    def test_detect_unapproved_generated_track(self):
         """Generated track without checkmark in Rating is detected as unapproved."""
-        track_file = tmp_path / "track.md"
-        track_file.write_text(_TRACK_WITH_GENERATION_LOG_UNAPPROVED)
-        text = track_file.read_text()
+        takes = _generation_mod.parse_generation_log(_TRACK_WITH_GENERATION_LOG_UNAPPROVED)
+        assert [t["row"] for t in takes] == [1, 2]
+        assert not any(t["approved"] for t in takes)
 
-        has_log, entries, has_approved = self._extract_generation_log(text)
-        assert has_log is True
-        assert len(entries) == 2
-        assert has_approved is False
-
-    def test_detect_approved_generated_track(self, tmp_path):
+    def test_detect_approved_generated_track(self):
         """Generated track WITH checkmark in Rating is detected as approved."""
-        track_file = tmp_path / "track.md"
-        track_file.write_text(_TRACK_WITH_GENERATION_LOG_APPROVED)
-        text = track_file.read_text()
+        takes = _generation_mod.parse_generation_log(_TRACK_WITH_GENERATION_LOG_APPROVED)
+        assert [t["row"] for t in takes] == [1, 2]
+        assert [t["approved"] for t in takes] == [False, True]
+        assert takes[1]["clip_id"] == "3f0e9a52-1c2b-4c1d-9a1e-2b5f7a1c9d00"
 
-        has_log, entries, has_approved = self._extract_generation_log(text)
-        assert has_log is True
-        assert len(entries) == 2
-        assert has_approved is True
+    @pytest.mark.parametrize("fixture,allowed", [
+        (_TRACK_WITH_GENERATION_LOG_APPROVED, True),
+        (_TRACK_WITH_GENERATION_LOG_UNAPPROVED, False),
+    ], ids=["approved", "unapproved"])
+    def test_final_follows_the_keeper(self, tmp_path, fixture, allowed):
+        """Generated → Final goes through only with a ✓ keeper (#679 item 3)."""
+        track_file = tmp_path / "01-track.md"
+        track_file.write_text(fixture)
+        state = _fresh_state()
+        state["albums"]["test-album"]["tracks"]["01-track"] = {
+            "path": str(track_file), "title": "Track", "status": "Generated",
+            "explicit": False, "has_suno_link": True, "sources_verified": "N/A",
+            "mtime": 1.0,
+        }
+        with patch.object(_shared_mod, "cache", MockStateCache(state)), \
+             _patch_write_state():
+            result = json.loads(_run(server.update_track_field(
+                "test-album", "01-track", "status", "Final")))
+        assert bool(result.get("success")) is allowed, result
 
     def test_status_stays_generated_during_regen_no_backward(self, tmp_path):
         """Status cannot go backward from Generated to In Progress.
@@ -829,7 +769,7 @@ class TestRegenerationWorkflow:
         )
         assert err is None
 
-    def test_no_generation_log_means_not_approved(self, tmp_path):
+    def test_no_generation_log_means_not_approved(self):
         """Track without Generation Log section is not approved."""
         content = """\
 # Track Without Log
@@ -840,13 +780,7 @@ class TestRegenerationWorkflow:
 |-----------|--------|
 | **Status** | Generated |
 """
-        track_file = tmp_path / "track.md"
-        track_file.write_text(content)
-        text = track_file.read_text()
-
-        has_log, entries, has_approved = self._extract_generation_log(text)
-        assert has_log is False
-        assert has_approved is False
+        assert _generation_mod.parse_generation_log(content) == []
 
 
 # =============================================================================
@@ -866,14 +800,22 @@ class TestAlbumAutoAdvancement:
     """
 
     def _make_cache_with_album(self, tmp_path, album_status, track_statuses,
-                               has_sources_md=False):
-        """Create a mock cache with specific album/track statuses."""
+                               has_sources_md=False, sources=None, research_file=None):
+        """Create a mock cache with specific album/track statuses.
+
+        Each track's ``sources_verified`` comes from *sources* ({slug: value}),
+        else N/A. It used to be derived from the track's status, which hid that
+        the album gate read the status instead of the field (#679 item 6).
+        """
         readme_path = tmp_path / "README.md"
         readme_path.write_text(_SAMPLE_ALBUM_README.replace(
             "| **Status** | In Progress |", f"| **Status** | {album_status} |"
         ))
         if has_sources_md:
             (tmp_path / "SOURCES.md").write_text("# Sources\n")
+        if research_file:
+            (tmp_path / research_file).write_text("# Research\n")
+        sources = sources or {}
 
         state = _fresh_state()
         state["albums"]["test-album"]["path"] = str(tmp_path)
@@ -885,9 +827,7 @@ class TestAlbumAutoAdvancement:
                 "status": status,
                 "explicit": False,
                 "has_suno_link": status in ("Generated", "Final"),
-                "sources_verified": "Verified" if status not in (
-                    "Not Started", "Sources Pending"
-                ) else "Pending",
+                "sources_verified": sources.get(slug, "N/A"),
                 "mtime": 1234567890.0,
             }
             for slug, status in track_statuses.items()
@@ -901,15 +841,43 @@ class TestAlbumAutoAdvancement:
             {
                 "01-track": "Sources Verified",
                 "02-track": "Sources Verified",
-            }
+            },
+            sources={"01-track": "Verified (2026-01-01)", "02-track": "✅ Verified"},
         )
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(server, "write_state"):
+             _patch_write_state():
             result = json.loads(_run(server.update_album_status(
                 "test-album", "Sources Verified"
             )))
         assert result["success"] is True
         assert result["new_status"] == "Sources Verified"
+
+    def test_verified_track_still_at_sources_pending_does_not_block(self, tmp_path):
+        """#679 item 6: verify-sources sets the field; the track's status may
+        still say Sources Pending. The album advances anyway."""
+        mock_cache, _ = self._make_cache_with_album(
+            tmp_path, "Research Complete",
+            {"01-track": "Sources Pending", "02-track": "Sources Verified"},
+            sources={"01-track": "Verified (2026-01-01)", "02-track": "Verified (2026-01-01)"},
+        )
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             _patch_write_state():
+            result = json.loads(_run(server.update_album_status(
+                "test-album", "Sources Verified")))
+        assert result["success"] is True
+
+    def test_in_progress_track_with_pending_sources_blocks(self, tmp_path):
+        """#679 item 6: an In Progress track whose sources are pending blocks."""
+        mock_cache, _ = self._make_cache_with_album(
+            tmp_path, "Research Complete",
+            {"01-track": "In Progress", "02-track": "Sources Verified"},
+            sources={"01-track": "❌ Pending", "02-track": "Verified (2026-01-01)"},
+        )
+        with patch.object(_shared_mod, "cache", mock_cache):
+            result = json.loads(_run(server.update_album_status(
+                "test-album", "Sources Verified")))
+        assert "still unverified" in result["error"]
+        assert "01-track" in result["error"]
 
     def test_research_complete_to_sources_verified_blocked_pending(self, tmp_path):
         """Album does NOT advance when some tracks still pending verification."""
@@ -920,8 +888,9 @@ class TestAlbumAutoAdvancement:
                 "02-track": "Sources Pending",
             }
         )
-        # Manually set sources_verified to match statuses
+        # The field decides (#679 item 6): 01 verified, 02 pending.
         tracks = mock_cache._state["albums"]["test-album"]["tracks"]
+        tracks["01-track"]["sources_verified"] = "Verified (2026-01-01)"
         tracks["02-track"]["sources_verified"] = "Pending"
         tracks["02-track"]["status"] = "Sources Pending"
 
@@ -944,7 +913,7 @@ class TestAlbumAutoAdvancement:
             has_sources_md=False,  # No SOURCES.md = non-documentary
         )
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(server, "write_state"):
+             _patch_write_state():
             result = json.loads(_run(server.update_album_status(
                 "test-album", "In Progress"
             )))
@@ -967,8 +936,40 @@ class TestAlbumAutoAdvancement:
         assert "error" in result
         assert "SOURCES.md" in result["error"]
 
+    def test_album_with_only_research_md_is_documentary(self, tmp_path):
+        """#679 item 6: RESEARCH.md alone makes an album documentary, the same
+        test create_track uses (_album_keeps_research); it used to count only
+        SOURCES.md."""
+        mock_cache, readme = self._make_cache_with_album(
+            tmp_path, "Concept", {"01-track": "In Progress"}, research_file="RESEARCH.md",
+        )
+        with patch.object(_shared_mod, "cache", mock_cache):
+            result = json.loads(_run(server.update_album_status(
+                "test-album", "In Progress")))
+        assert "error" in result
+        assert "keeps research" in result["error"]
+        assert "| **Status** | Concept |" in readme.read_text()
+
     def test_batch_approve_all_final_advances_to_complete(self, tmp_path):
-        """When all tracks are Generated or Final, album can advance to Complete."""
+        """When all tracks are Final, album can advance to Complete."""
+        mock_cache, _ = self._make_cache_with_album(
+            tmp_path, "In Progress",
+            {
+                "01-track": "Final",
+                "02-track": "Final",
+                "03-track": "Final",
+            }
+        )
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             _patch_write_state():
+            result = json.loads(_run(server.update_album_status(
+                "test-album", "Complete"
+            )))
+        assert result["success"] is True
+
+    def test_complete_blocked_while_a_track_is_generated(self, tmp_path):
+        """#679 item 4: this test was named "all final" with a Generated track
+        and passed; Complete means every track Final (status-tracking.md)."""
         mock_cache, _ = self._make_cache_with_album(
             tmp_path, "In Progress",
             {
@@ -978,11 +979,12 @@ class TestAlbumAutoAdvancement:
             }
         )
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(server, "write_state"):
+             _patch_write_state():
             result = json.loads(_run(server.update_album_status(
                 "test-album", "Complete"
             )))
-        assert result["success"] is True
+        assert "not Final" in result["error"]
+        assert "03-track" in result["error"]
 
     def test_complete_blocked_when_track_below_generated(self, tmp_path):
         """Album cannot advance to Complete when any track is below Generated."""
@@ -998,7 +1000,7 @@ class TestAlbumAutoAdvancement:
                 "test-album", "Complete"
             )))
         assert "error" in result
-        assert "below 'Generated'" in result["error"]
+        assert "not Final" in result["error"]  # #679 item 4
 
     def test_album_transition_validation_direct(self):
         """Test _validate_album_transition directly for transition rules."""
@@ -1034,17 +1036,21 @@ class TestAlbumAutoAdvancement:
         assert err is not None
         assert "all tracks are still" in err
 
-    def test_consistency_check_complete_needs_generated_or_final(self):
-        """Album Complete requires all tracks at Generated or Final."""
-        album = {
-            "tracks": {
-                "01-track": {"status": "Final"},
-                "02-track": {"status": "In Progress"},
+    def test_consistency_check_complete_needs_all_final(self):
+        """Album Complete requires all tracks Final (#679 item 4: was
+        "Generated or Final")."""
+        for other in ("In Progress", "Generated"):
+            album = {
+                "tracks": {
+                    "01-track": {"status": "Final"},
+                    "02-track": {"status": other},
+                }
             }
-        }
-        err = _status_mod._check_album_track_consistency(album, "Complete")
-        assert err is not None
-        assert "below 'Generated'" in err
+            err = _status_mod._check_album_track_consistency(album, "Complete")
+            assert err is not None, other
+            assert "not Final" in err
+        album = {"tracks": {"01-track": {"status": "Final"}, "02-track": {"status": "Final"}}}
+        assert _status_mod._check_album_track_consistency(album, "Complete") is None
 
     def test_consistency_check_released_needs_all_final(self):
         """Album Released requires all tracks at Final."""
@@ -1110,6 +1116,8 @@ class TestExplicitFlagSync:
         state["albums"]["test-album"]["path"] = str(tmp_path)
         state["albums"]["test-album"]["status"] = "Complete"
         state["albums"]["test-album"]["explicit"] = album_explicit
+        # Released requires a release_date (#679 item 7)
+        state["albums"]["test-album"]["release_date"] = "2026-03-01"
         state["config"]["audio_root"] = str(tmp_path / "audio")
 
         tracks = {}
@@ -1169,7 +1177,7 @@ class TestExplicitFlagSync:
             track_explicit_flags={"01-track": True, "02-track": True},
         )
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(server, "write_state"):
+             _patch_write_state():
             result = json.loads(_run(server.update_album_status(
                 "test-album", "Released"
             )))
@@ -1183,7 +1191,7 @@ class TestExplicitFlagSync:
             track_explicit_flags={"01-track": False, "02-track": False},
         )
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(server, "write_state"):
+             _patch_write_state():
             result = json.loads(_run(server.update_album_status(
                 "test-album", "Released"
             )))
@@ -1197,7 +1205,7 @@ class TestExplicitFlagSync:
             track_explicit_flags={"01-track": False, "02-track": False},
         )
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(server, "write_state"):
+             _patch_write_state():
             result = json.loads(_run(server.update_album_status(
                 "test-album", "Released"
             )))
@@ -1211,7 +1219,7 @@ class TestExplicitFlagSync:
             track_explicit_flags={"01-track": True},
         )
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(server, "write_state"):
+             _patch_write_state():
             result = json.loads(_run(server.update_album_status(
                 "test-album", "Released", force=True
             )))

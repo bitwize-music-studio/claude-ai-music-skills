@@ -1,5 +1,12 @@
 """Unit tests for _stage_status_update — master_album track/album status promotion.
 
+#679 item 2 changed the rule below: a track goes Final only when this run
+mastered it AND its Generation Log has a ✓ keeper. Every other track keeps its
+status and is listed in ``tracks_left`` with the reason; the stage then reports
+``warn``. The album goes Complete only when every track ends up Final. The
+fixtures here therefore give each track a master and a keeper unless a test
+says otherwise. The history of the #335 fix follows.
+
 Covers the #335 brittleness fix: previously the stage only promoted tracks from
 ``Generated → Final`` and skipped (with an error) any other starting status —
 including ``Not Started``, ``In Progress``, ``Sources Pending``, ``Sources
@@ -92,8 +99,24 @@ class MockCache:
         return self._state
 
 
-def _write_track_file(tracks_dir: Path, slug: str, title: str, status: str) -> Path:
-    """Write a minimal track README whose **Status** row matches the given status."""
+_KEEPER_LOG = """
+## Generation Log
+
+| # | Date | Model | Result | Notes | Rating |
+|---|------|-------|--------|-------|--------|
+| 1 | 2026-11-01 | v6 | [Listen](https://suno.com/song/8a7d6c5b-4e3f-4a2b-9c1d-0e9f8a7b6c5d) | 3:12, via MCP, 10 credits | — |
+| 2 | 2026-11-01 | v6 | [Listen](https://suno.com/song/3f0e9a52-1c2b-4c1d-9a1e-2b5f7a1c9d00) | 3:09, via MCP, 10 credits | {rating} |
+"""
+
+
+def _write_track_file(
+    tracks_dir: Path, slug: str, title: str, status: str, keeper: bool = True,
+) -> Path:
+    """Write a minimal track README whose **Status** row matches the given status.
+
+    With ``keeper`` its Generation Log has a take marked ✓ (the template's
+    six-column table, Rating last); without, no take is marked.
+    """
     tracks_dir.mkdir(parents=True, exist_ok=True)
     path = tracks_dir / f"{slug}.md"
     path.write_text(
@@ -107,7 +130,7 @@ title: "{title}"
 
 | **Title** | {title} |
 | **Status** | {status} |
-""",
+""" + _KEEPER_LOG.format(rating="✓" if keeper else "—"),
         encoding="utf-8",
     )
     return path
@@ -122,6 +145,7 @@ def _build_state(
     album_title: str,
     album_status: str,
     tracks: list[tuple[str, str, str]],  # [(slug, title, status), ...]
+    without_keeper: frozenset[str] = frozenset(),
 ) -> tuple[dict, Path, Path, Path]:
     """Create on-disk content + audio layouts, return state dict + audio_dir."""
     album_content = content_root / "artists" / artist / "albums" / genre / album_slug
@@ -143,7 +167,7 @@ def _build_state(
 
     track_map: dict = {}
     for slug, title, status in tracks:
-        path = _write_track_file(tracks_dir, slug, title, status)
+        path = _write_track_file(tracks_dir, slug, title, status, keeper=slug not in without_keeper)
         track_map[slug] = {
             "title": title,
             "status": status,
@@ -229,8 +253,14 @@ def _setup(
     album_status: str,
     tracks: list[tuple[str, str, str]],
     create_signature: bool = True,
+    unmastered: frozenset[str] = frozenset(),
+    without_keeper: frozenset[str] = frozenset(),
 ):
-    """Wire up filesystem, cache, ctx, and (by default) the signature file."""
+    """Wire up filesystem, cache, ctx, and (by default) the signature file.
+
+    Every track gets a master from this run (in ``ctx.mastered_files``) and a
+    ✓ keeper, except the slugs in ``unmastered`` / ``without_keeper``.
+    """
     content_root, audio_root = filesystem
     state, _album_content, _tracks_dir, audio_dir = _build_state(
         content_root=content_root, audio_root=audio_root,
@@ -238,28 +268,42 @@ def _setup(
         album_slug="test-album", album_title="Test Album",
         album_status=album_status,
         tracks=tracks,
+        without_keeper=without_keeper,
     )
     install_cache(state)
     if create_signature:
         (audio_dir / SIGNATURE_FILENAME).write_text("# stub\n", encoding="utf-8")
     ctx = _make_ctx("test-album", audio_dir)
+    mastered_dir = audio_dir / "mastered"
+    mastered_dir.mkdir(exist_ok=True)
+    for slug, _title, _status in tracks:
+        if slug in unmastered:
+            continue
+        wav = mastered_dir / f"{slug}.wav"
+        wav.write_bytes(b"RIFF")
+        ctx.mastered_files.append(wav)
     return state, ctx, audio_dir
 
 
 # ===========================================================================
-# Non-terminal statuses should be promoted to Final (the #335 core fix)
+# A track goes Final only with a master from this run AND a ✓ keeper
+# (#679 item 2 — replaces #335's "every non-terminal status goes Final")
 # ===========================================================================
 
 
 class TestPromotesNonTerminalStatuses:
-    @pytest.mark.parametrize("starting_status", [
+    _STATUSES = [
         "Not Started",
         "Sources Pending",
         "Sources Verified",
         "In Progress",
         "Generated",
-    ])
-    def test_promotes_track_to_final(self, filesystem, _install_cache, starting_status):
+    ]
+
+    @pytest.mark.parametrize("starting_status", _STATUSES)
+    def test_master_and_keeper_promote_track_to_final(
+        self, filesystem, _install_cache, starting_status,
+    ):
         state, ctx, _audio_dir = _setup(
             filesystem, _install_cache, album_status="In Progress",
             tracks=[("01-track-one", "Track One", starting_status)],
@@ -272,6 +316,27 @@ class TestPromotesNonTerminalStatuses:
             f"Expected promotion from '{starting_status}' to 'Final'"
         )
         assert ctx.stages["status_update"]["tracks_updated"] == 1
+
+    @pytest.mark.parametrize("starting_status", _STATUSES)
+    def test_status_kept_without_a_keeper(self, filesystem, _install_cache, starting_status):
+        """#679 item 2: the stage changed this — no ✓ keeper, no Final."""
+        state, ctx, _audio_dir = _setup(
+            filesystem, _install_cache, album_status="In Progress",
+            tracks=[("01-track-one", "Track One", starting_status)],
+            without_keeper=frozenset({"01-track-one"}),
+        )
+
+        _run(_stage_status_update(ctx))
+
+        track_info = state["albums"]["test-album"]["tracks"]["01-track-one"]
+        assert track_info["status"] == starting_status
+        stage = ctx.stages["status_update"]
+        assert stage["tracks_updated"] == 0
+        assert stage["tracks_left"] == [{
+            "track": "01-track-one", "status": starting_status,
+            "reason": "no ✓ keeper in the Generation Log",
+        }]
+        assert stage["status"] == "warn"
 
     def test_updates_status_row_in_track_file(
         self, filesystem, _install_cache,
@@ -417,7 +482,7 @@ class TestAlbumStatusTransition:
             filesystem, _install_cache, album_status="In Progress",
             tracks=[
                 ("01-a", "A", "Generated"),
-                ("02-b", "B", "Not Started"),  # non-terminal now promotable
+                ("02-b", "B", "Not Started"),  # mastered + ✓ keeper → Final (#679 item 2)
             ],
         )
 
@@ -486,3 +551,133 @@ class TestStatusWritesAreAtomic:
         assert album_readme in written, f"README not atomically written: {written}"
         # And the writes actually landed
         assert "**Status** | Final |" in Path(track_path).read_text(encoding="utf-8")
+
+
+# ===========================================================================
+# #679 item 2 — master + ✓ keeper, else the status stays
+# ===========================================================================
+
+
+class TestFinalNeedsMasterAndKeeper:
+    def _file_status(self, state, slug):
+        path = Path(state["albums"]["test-album"]["tracks"][slug]["path"])
+        return path.read_text(encoding="utf-8")
+
+    def test_no_master_leaves_status(self, filesystem, _install_cache):
+        state, ctx, _audio_dir = _setup(
+            filesystem, _install_cache, album_status="In Progress",
+            tracks=[("01-a", "A", "Generated")],
+            unmastered=frozenset({"01-a"}),
+        )
+
+        _run(_stage_status_update(ctx))
+
+        assert state["albums"]["test-album"]["tracks"]["01-a"]["status"] == "Generated"
+        assert "**Status** | Generated |" in self._file_status(state, "01-a")
+        stage = ctx.stages["status_update"]
+        assert stage["tracks_left"] == [
+            {"track": "01-a", "status": "Generated", "reason": "no master from this run"},
+        ]
+        assert stage["status"] == "warn"
+        assert any("01-a (no master from this run)" in w for w in ctx.warnings)
+
+    def test_master_without_keeper_leaves_status(self, filesystem, _install_cache):
+        state, ctx, _audio_dir = _setup(
+            filesystem, _install_cache, album_status="In Progress",
+            tracks=[("01-a", "A", "Generated")],
+            without_keeper=frozenset({"01-a"}),
+        )
+
+        _run(_stage_status_update(ctx))
+
+        assert state["albums"]["test-album"]["tracks"]["01-a"]["status"] == "Generated"
+        assert "**Status** | Generated |" in self._file_status(state, "01-a")
+        assert ctx.stages["status_update"]["tracks_left"][0]["reason"] == (
+            "no ✓ keeper in the Generation Log")
+
+    def test_master_and_keeper_go_final(self, filesystem, _install_cache):
+        state, ctx, _audio_dir = _setup(
+            filesystem, _install_cache, album_status="In Progress",
+            tracks=[("01-a", "A", "Generated")],
+        )
+
+        _run(_stage_status_update(ctx))
+
+        assert state["albums"]["test-album"]["tracks"]["01-a"]["status"] == "Final"
+        assert "**Status** | Final |" in self._file_status(state, "01-a")
+        assert ctx.stages["status_update"]["tracks_left"] == []
+        assert ctx.stages["status_update"]["status"] == "pass"
+
+    def test_master_matched_by_track_number(self, filesystem, _install_cache):
+        """A hand-named master ("01 - A.wav") counts for track 01-a."""
+        state, ctx, audio_dir = _setup(
+            filesystem, _install_cache, album_status="In Progress",
+            tracks=[("01-a", "A", "Generated")],
+            unmastered=frozenset({"01-a"}),
+        )
+        wav = audio_dir / "mastered" / "01 - A.wav"
+        wav.write_bytes(b"RIFF")
+        ctx.mastered_files.append(wav)
+
+        _run(_stage_status_update(ctx))
+
+        assert state["albums"]["test-album"]["tracks"]["01-a"]["status"] == "Final"
+
+    def test_version_row_is_not_the_keeper(self, filesystem, _install_cache):
+        """A ✓ on an 'instrumental version of take N' row keeps a version, not the track."""
+        state, ctx, _audio_dir = _setup(
+            filesystem, _install_cache, album_status="In Progress",
+            tracks=[("01-a", "A", "Generated")],
+            without_keeper=frozenset({"01-a"}),
+        )
+        path = Path(state["albums"]["test-album"]["tracks"]["01-a"]["path"])
+        path.write_text(path.read_text(encoding="utf-8") + (
+            "| 3 | 2026-11-02 | v6 | [Listen](https://suno.com/song/"
+            "aaaaaaaa-1111-4222-8333-444444444444) | instrumental version of take 2 | ✓ |\n"
+        ), encoding="utf-8")
+
+        _run(_stage_status_update(ctx))
+
+        assert state["albums"]["test-album"]["tracks"]["01-a"]["status"] == "Generated"
+
+    def test_album_complete_only_when_every_track_qualifies(self, filesystem, _install_cache):
+        """The repro from #679: masters for 01 and 03 only, 02 still being
+        written, 01 without a keeper → only 03 goes Final, album not Complete."""
+        state, ctx, _audio_dir = _setup(
+            filesystem, _install_cache, album_status="In Progress",
+            tracks=[
+                ("01-a", "A", "Generated"),
+                ("02-b", "B", "In Progress"),
+                ("03-c", "C", "Generated"),
+            ],
+            unmastered=frozenset({"02-b"}),
+            without_keeper=frozenset({"01-a", "02-b"}),
+        )
+
+        _run(_stage_status_update(ctx))
+
+        tracks = state["albums"]["test-album"]["tracks"]
+        assert {s: t["status"] for s, t in tracks.items()} == {
+            "01-a": "Generated", "02-b": "In Progress", "03-c": "Final",
+        }
+        assert state["albums"]["test-album"]["status"] == "In Progress"
+        readme = Path(state["albums"]["test-album"]["path"]) / "README.md"
+        assert "**Status** | In Progress |" in readme.read_text(encoding="utf-8")
+        stage = ctx.stages["status_update"]
+        assert stage["album_status"] is None
+        assert stage["status"] == "warn"
+        assert {t["track"]: t["reason"] for t in stage["tracks_left"]} == {
+            "01-a": "no ✓ keeper in the Generation Log",
+            "02-b": "no master from this run",
+        }
+
+    def test_album_complete_when_all_qualify(self, filesystem, _install_cache):
+        state, ctx, _audio_dir = _setup(
+            filesystem, _install_cache, album_status="In Progress",
+            tracks=[("01-a", "A", "Generated"), ("02-b", "B", "Final")],
+        )
+
+        _run(_stage_status_update(ctx))
+
+        assert state["albums"]["test-album"]["status"] == "Complete"
+        assert ctx.stages["status_update"]["album_status"] == "Complete"

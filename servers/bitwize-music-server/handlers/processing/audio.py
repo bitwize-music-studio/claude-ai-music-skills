@@ -679,6 +679,10 @@ async def master_album(
 ) -> str:
     """End-to-end mastering pipeline: analyze, QC, master, verify, update status.
 
+    The status stage marks a track Final only when this run mastered it and
+    its Generation Log has a ✓ keeper; others are listed in
+    ``stages.status_update.tracks_left`` with the reason (#679 item 2).
+
     Runs in three phases, stopping on failure. See _album_stages.py for
     per-stage implementation. Stage order mirrors the #290 pipeline spec.
 
