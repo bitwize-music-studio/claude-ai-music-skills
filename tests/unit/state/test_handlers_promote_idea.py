@@ -686,6 +686,12 @@ class TestPromoteIdeaFollowUpFailures:
         assert ideas_path.read_text(encoding="utf-8") == original
         assert "status update failed for 'Kleine Welt': Cannot write IDEAS.md: disk full" in caplog.text
         assert "Promoted To back-link in IDEAS.md could not be written" in caplog.text
+        # #676: both follow-up failures are in the result, not only the log.
+        assert result["idea_status_updated"] is False
+        assert result["backlink_written"] is False
+        assert len(result["warnings"]) == 2
+        assert "still reads Pending" in result["warnings"][0]
+        assert "Promoted To" in result["warnings"][1]
 
     def test_missing_ideas_md_is_logged_not_recreated(
         self, content_root: Path, setup_handler, caplog,
@@ -741,8 +747,13 @@ class TestPromoteIdeaFollowUpFailures:
 
         assert result["promoted"] is True
         assert "**Promoted To**: kleine-welt" in ideas_path.read_text(encoding="utf-8")
-        assert "promote_idea: cache rebuild failed: state.json locked" in caplog.text
+        assert "promote_idea: cache rebuild failed: RuntimeError: state.json locked" in caplog.text
         assert len(calls) == 3  # album creation, the status update, the promotion
+        # #676: the failure reaches the result, not only the log.
+        assert result["indexed"] is False
+        assert len(result["warnings"]) == 1
+        assert "state.json locked" in result["warnings"][0]
+        assert "rebuild_state" in result["warnings"][0]
 
 
 class TestPromotionHelpersRefuseCleanly:
@@ -780,4 +791,57 @@ class TestPromotionHelpersRefuseCleanly:
         ideas_path = _write_ideas_md(content_root, original)
         _fail_writes_to(monkeypatch, "IDEAS.md")
         assert _ideas_mod._set_promoted_to_field("Kleine Welt", "kleine-welt") is False
+        assert ideas_path.read_text(encoding="utf-8") == original
+
+
+class TestPromoteIdeaRebuildFailure:
+    """#676: a failed state rebuild inside create_album_structure must not make
+    promote_idea raise and leave a half-made album with IDEAS.md still Pending."""
+
+    @pytest.mark.parametrize("failure", ["raises", "returns_error"])
+    def test_rebuild_failure_is_reported_and_promotion_finishes(
+        self, content_root: Path, setup_handler, failure,
+    ):
+        cache = setup_handler([dict(_IDEA)])
+        ideas_path = _write_ideas_md(
+            content_root, _standard_ideas_md("Kleine Welt", "electronic", "A minimalist journey."),
+        )
+
+        def broken_rebuild():
+            if failure == "raises":
+                raise OSError("state.json is read-only")
+            return {"error": "Config at ~/.bitwize-music/config.yaml exists but could not be read"}
+
+        cache.rebuild = broken_rebuild
+
+        result = json.loads(_run(_ideas_mod.promote_idea("Kleine Welt")))
+
+        assert result["promoted"] is True
+        album_dir = Path(result["album_path"])
+        assert album_dir.is_dir()
+        ideas = ideas_path.read_text(encoding="utf-8")
+        assert "**Status**: In Progress" in ideas
+        assert "**Promoted To**: kleine-welt" in ideas
+        assert result["indexed"] is False
+        assert result["warnings"], result
+        assert all("rebuild_state" in w for w in result["warnings"])
+
+    def test_create_album_structure_crash_is_returned_not_raised(
+        self, content_root: Path, setup_handler, monkeypatch,
+    ):
+        setup_handler([dict(_IDEA)])
+        original = _standard_ideas_md("Kleine Welt", "electronic", "A minimalist journey.")
+        ideas_path = _write_ideas_md(content_root, original)
+        from handlers import album_ops as _album_ops_mod
+
+        async def crash(*_args, **_kwargs):
+            raise OSError("template copy failed")
+
+        monkeypatch.setattr(_album_ops_mod, "create_album_structure", crash)
+
+        result = json.loads(_run(_ideas_mod.promote_idea("Kleine Welt")))
+
+        assert result["promoted"] is False
+        assert "template copy failed" in result["error"]
+        assert result["warnings"]
         assert ideas_path.read_text(encoding="utf-8") == original

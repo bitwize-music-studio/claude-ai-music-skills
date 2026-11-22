@@ -9,6 +9,7 @@ Usage:
 """
 
 import asyncio
+import contextlib
 import copy
 import importlib
 import importlib.util
@@ -16,7 +17,7 @@ import json
 import sys
 import types
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
@@ -113,6 +114,27 @@ from handlers.processing import _helpers as _processing_helpers
 from handlers import _shared as _shared_mod
 
 
+@contextlib.contextmanager
+def _patch_write_state(mock=None):
+    """Patch write_state where the handlers look it up (#679 item 11).
+
+    No handler calls ``server.write_state``: core, album_fields and generation
+    bind ``tools.state.indexer.write_state`` when imported, and status,
+    streaming, rename and the mastering stages import it from the indexer as
+    they run, so ``patch.object(server, "write_state")`` intercepted none of
+    them. This patches every name they use, with one mock.
+    """
+    import tools.state.indexer as indexer_mod
+    from handlers import album_fields, core, generation
+
+    mock = MagicMock() if mock is None else mock
+    with patch.object(indexer_mod, "write_state", mock), \
+         patch.object(core, "write_state", mock), \
+         patch.object(album_fields, "write_state", mock), \
+         patch.object(generation, "write_state", mock):
+        yield mock
+
+
 # ---------------------------------------------------------------------------
 # Shared helpers (duplicated from test_server.py to keep files independent)
 # ---------------------------------------------------------------------------
@@ -168,6 +190,16 @@ SAMPLE_STATE = {
         "plugin_version": "0.50.0",
     },
 }
+
+
+# A Generation Log with take 2 marked ✓ — the status stage needs a keeper
+# before it marks a mastered track Final (#679 item 2).
+_KEEPER_LOG = (
+    "\n## Generation Log\n\n| # | Date | Model | Result | Notes | Rating |\n"
+    "|---|------|-------|--------|-------|--------|\n"
+    "| 1 | 2026-11-01 | v6 | [Listen](https://suno.com/song/x) | first | — |\n"
+    "| 2 | 2026-11-01 | v6 | [Listen](https://suno.com/song/y) | keeper | ✓ |\n"
+)
 
 
 def _run(coro):
@@ -583,7 +615,7 @@ class TestMasterAlbumPipeline:
              patch("tools.mastering.master_tracks.master_track", side_effect=mock_master), \
              patch("tools.mastering.analyze_tracks.analyze_track", side_effect=mock_analyze), \
              patch("tools.mastering.qc_tracks.qc_track", side_effect=mock_qc), \
-             patch.object(server, "write_state"):
+             _patch_write_state():
             _run(server.master_album("test-album"))
 
         assert len(qc_calls) >= 1, "qc_track must be invoked at least once (pre-QC)"
@@ -759,13 +791,17 @@ class TestMasterAlbumPipeline:
 
         content_dir = tmp_path / "content" / "artists" / "test-artist" / "albums" / "electronic" / "test-album" / "tracks"
         content_dir.mkdir(parents=True)
+        # Only this album's two tracks, each with a ✓ keeper: the status stage
+        # marks a mastered track Final only when the user picked a keeper
+        # (#679 item 2), and every stage must pass here.
+        state["albums"]["test-album"]["tracks"] = {}
         for i in range(2):
             slug = f"{i+1:02d}-track-{i+1}"
             track_file = content_dir / f"{slug}.md"
             track_file.write_text(
                 f"# Track {i+1}\n\n"
                 f"| **Status** | Generated |\n"
-                f"| **Explicit** | No |\n",
+                f"| **Explicit** | No |\n" + _KEEPER_LOG,
                 encoding="utf-8",
             )
             state["albums"]["test-album"]["tracks"][slug] = {
@@ -809,7 +845,7 @@ class TestMasterAlbumPipeline:
              patch("tools.mastering.master_tracks.master_track", side_effect=mock_master), \
              patch("tools.mastering.analyze_tracks.analyze_track", side_effect=mock_analyze), \
              patch("tools.mastering.qc_tracks.qc_track", side_effect=mock_qc), \
-             patch.object(server, "write_state"):
+             _patch_write_state():
             result = json.loads(_run(server.master_album("test-album")))
 
         assert result["stage_reached"] == "complete"
@@ -845,7 +881,7 @@ class TestMasterAlbumPipeline:
         content_dir.mkdir(parents=True)
         track_file = content_dir / "01-track-1.md"
         track_file.write_text(
-            "# Track 1\n\n| **Status** | Generated |\n| **Explicit** | No |\n",
+            "# Track 1\n\n| **Status** | Generated |\n| **Explicit** | No |\n" + _KEEPER_LOG,
             encoding="utf-8",
         )
         state["albums"]["test-album"]["tracks"] = {
@@ -886,7 +922,7 @@ class TestMasterAlbumPipeline:
                    side_effect=lambda f: self._mock_analyze(Path(f).name, lufs=-14.0)), \
              patch("tools.mastering.qc_tracks.qc_track",
                    side_effect=lambda f, c=None, g=None: self._mock_qc_result(Path(f).name)), \
-             patch.object(server, "write_state"), \
+             _patch_write_state(), \
              patch.object(server, "parse_track_file", return_value={"status": "Final"}):
             result = json.loads(_run(server.master_album("test-album")))
 
@@ -904,7 +940,7 @@ class TestMasterAlbumPipeline:
         content_dir.mkdir(parents=True)
         track_file = content_dir / "01-track-1.md"
         track_file.write_text(
-            "# Track 1\n\n| **Status** | Generated |\n| **Explicit** | No |\n",
+            "# Track 1\n\n| **Status** | Generated |\n| **Explicit** | No |\n" + _KEEPER_LOG,
             encoding="utf-8",
         )
         state["albums"]["test-album"]["tracks"] = {
@@ -944,7 +980,7 @@ class TestMasterAlbumPipeline:
                    side_effect=lambda f: self._mock_analyze(Path(f).name, lufs=-14.0)), \
              patch("tools.mastering.qc_tracks.qc_track",
                    side_effect=lambda f, c=None, g=None: self._mock_qc_result(Path(f).name)), \
-             patch.object(server, "write_state"), \
+             _patch_write_state(), \
              patch.object(server, "parse_track_file", return_value={"status": "Final"}):
             result = json.loads(_run(server.master_album("test-album")))
 
@@ -977,7 +1013,7 @@ class TestMasterAlbumPipeline:
                    side_effect=lambda f: self._mock_analyze(Path(f).name, lufs=-14.0)), \
              patch("tools.mastering.qc_tracks.qc_track",
                    side_effect=lambda f, c=None, g=None: self._mock_qc_result(Path(f).name)), \
-             patch.object(server, "write_state"):
+             _patch_write_state():
             result = json.loads(_run(server.master_album("test-album", genre="rock")))
 
         assert result["settings"]["genre"] == "rock"
@@ -1015,7 +1051,7 @@ class TestMasterAlbumPipeline:
              patch("tools.mastering.analyze_tracks.analyze_track",
                    side_effect=lambda f: self._mock_analyze(Path(f).name, lufs=-14.0)), \
              patch("tools.mastering.qc_tracks.qc_track", side_effect=mock_qc), \
-             patch.object(server, "write_state"):
+             _patch_write_state():
             result = json.loads(_run(server.master_album("test-album")))
 
         assert result["stage_reached"] == "complete"
@@ -1053,7 +1089,7 @@ class TestMasterAlbumPipeline:
              patch("tools.mastering.analyze_tracks.analyze_track", side_effect=mock_analyze), \
              patch("tools.mastering.qc_tracks.qc_track",
                    side_effect=lambda f, c=None, g=None: self._mock_qc_result(Path(f).name)), \
-             patch.object(server, "write_state"):
+             _patch_write_state():
             result = json.loads(_run(server.master_album("test-album")))
 
         tinny_warns = [w for w in result["warnings"] if "tinny" in w.lower()]
@@ -1152,7 +1188,7 @@ class TestMasterAlbumPipeline:
                    side_effect=lambda f: self._mock_analyze(Path(f).name, lufs=-14.0)), \
              patch("tools.mastering.qc_tracks.qc_track",
                    side_effect=lambda f, c=None, g=None: self._mock_qc_result(Path(f).name)), \
-             patch.object(server, "write_state"):
+             _patch_write_state():
             result = json.loads(_run(server.master_album("test-album")))
 
         assert result["stage_reached"] == "complete"
@@ -1189,7 +1225,7 @@ class TestMasterAlbumPipeline:
                    side_effect=lambda f: self._mock_analyze(Path(f).name, lufs=-13.0)), \
              patch("tools.mastering.qc_tracks.qc_track",
                    side_effect=lambda f, c=None, g=None: self._mock_qc_result(Path(f).name)), \
-             patch.object(server, "write_state"):
+             _patch_write_state():
             result = json.loads(_run(server.master_album("test-album", genre="country")))
 
         assert result["settings"]["genre"] == "country"
@@ -1444,7 +1480,7 @@ class TestMasterAlbumPipeline:
                    side_effect=lambda f: self._mock_analyze(Path(f).name, lufs=-14.0)), \
              patch("tools.mastering.qc_tracks.qc_track",
                    side_effect=lambda f, c=None, g=None: self._mock_qc_result(Path(f).name)), \
-             patch.object(server, "write_state"):
+             _patch_write_state():
             json.loads(_run(server.master_album("test-album")))
 
         assert len(captured_kwargs) == 1
@@ -1503,7 +1539,7 @@ class TestMasterAlbumPipeline:
                    side_effect=lambda f: self._mock_analyze(Path(f).name, lufs=-14.0)), \
              patch("tools.mastering.qc_tracks.qc_track",
                    side_effect=lambda f, c=None, g=None: self._mock_qc_result(Path(f).name)), \
-             patch.object(server, "write_state"):
+             _patch_write_state():
             json.loads(_run(server.master_album("test-album")))
 
         assert captured == self.EXPECTED_FADES
@@ -1936,7 +1972,7 @@ class TestMasterAlbumStaging:
                    side_effect=lambda f: self._mock_analyze(Path(f).name, lufs=-14.0)), \
              patch("tools.mastering.qc_tracks.qc_track",
                    side_effect=lambda f, c=None, g=None: self._mock_qc_result(Path(f).name)), \
-             patch.object(server, "write_state"):
+             _patch_write_state():
             result = json.loads(_run(server.master_album("test-album")))
 
         assert result["stage_reached"] == "complete"
@@ -1979,7 +2015,7 @@ class TestMasterAlbumStaging:
                    side_effect=lambda f: self._mock_analyze(Path(f).name, lufs=-14.0)), \
              patch("tools.mastering.qc_tracks.qc_track",
                    side_effect=lambda f, c=None, g=None: self._mock_qc_result(Path(f).name)), \
-             patch.object(server, "write_state"):
+             _patch_write_state():
             result = json.loads(_run(server.master_album("test-album")))
 
         assert result["stage_reached"] == "complete"
@@ -2090,7 +2126,7 @@ class TestMasterAlbumMasteringSamplesStage:
                    side_effect=lambda f: self._mock_analyze(Path(f).name)), \
              patch("tools.mastering.qc_tracks.qc_track",
                    side_effect=lambda f, c=None, g=None: self._mock_qc(Path(f).name)), \
-             patch.object(server, "write_state"):
+             _patch_write_state():
             result = json.loads(_run(server.master_album("test-album")))
 
         assert result["failed_stage"] is None
@@ -2126,7 +2162,7 @@ class TestMasterAlbumMasteringSamplesStage:
                    side_effect=lambda f: self._mock_analyze(Path(f).name)), \
              patch("tools.mastering.qc_tracks.qc_track",
                    side_effect=lambda f, c=None, g=None: self._mock_qc(Path(f).name)), \
-             patch.object(server, "write_state"):
+             _patch_write_state():
             result = json.loads(_run(server.master_album("test-album")))
 
         assert result["failed_stage"] == "mastering_samples"

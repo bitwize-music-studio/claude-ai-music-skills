@@ -1,7 +1,9 @@
 """Tests for skill definitions: frontmatter, model refs, prerequisites, sections."""
 
 import json
+import os
 import re
+import sys
 from pathlib import Path
 
 import pytest
@@ -131,14 +133,24 @@ def _cache_dir_for_this_version() -> Path | None:
     return None
 
 
-@pytest.fixture(scope="module")
-def cached_skills() -> set:
-    """Skill names registered in the plugin cache entry for this version.
+# Set to 1 where the plugin has just been installed (CI's plugin-install smoke
+# job): the "no cache" skip then fails instead (#676).
+REQUIRE_PLUGIN_CACHE_ENV = "BITWIZE_REQUIRE_PLUGIN_CACHE"
+
+
+def _cached_skill_names() -> set:
+    """Skill names in the plugin cache entry for this version.
 
     Skips when there is no cache entry for this exact version — the only
-    honest "nothing to compare" state. See TestSkillRegistrationIntegrity.
+    honest "nothing to compare" state — unless BITWIZE_REQUIRE_PLUGIN_CACHE=1,
+    where the plugin was just installed and a missing cache fails (#676).
     """
     cache_dir = _cache_dir_for_this_version()
+    if cache_dir is None and os.environ.get(REQUIRE_PLUGIN_CACHE_ENV) == "1":
+        pytest.fail(
+            f"{REQUIRE_PLUGIN_CACHE_ENV}=1 but there is no plugin cache entry for "
+            f"v{_plugin_version()} under ~/.claude/plugins/cache/bitwize-music"
+        )
     if cache_dir is None:
         pytest.skip(
             f"No plugin cache entry for v{_plugin_version()} "
@@ -146,6 +158,39 @@ def cached_skills() -> set:
             f"— nothing to compare against"
         )
     return {p.parent.name for p in (cache_dir / "skills").glob("*/SKILL.md")}
+
+
+@pytest.fixture(scope="module")
+def cached_skills() -> set:
+    """Skill names registered in the plugin cache entry for this version.
+
+    See _cached_skill_names and TestSkillRegistrationIntegrity.
+    """
+    return _cached_skill_names()
+
+
+class TestRequirePluginCacheFlag:
+    """#676: in CI's plugin-install smoke job the registration tests must run;
+    the flag turns their "no cache" skip into a failure."""
+
+    def test_no_cache_skips_without_the_flag(self, monkeypatch):
+        monkeypatch.delenv(REQUIRE_PLUGIN_CACHE_ENV, raising=False)
+        monkeypatch.setattr(sys.modules[__name__], "_cache_dir_for_this_version", lambda: None)
+        with pytest.raises(pytest.skip.Exception):
+            _cached_skill_names()
+
+    def test_no_cache_fails_with_the_flag(self, monkeypatch):
+        monkeypatch.setenv(REQUIRE_PLUGIN_CACHE_ENV, "1")
+        monkeypatch.setattr(sys.modules[__name__], "_cache_dir_for_this_version", lambda: None)
+        with pytest.raises(pytest.fail.Exception, match=REQUIRE_PLUGIN_CACHE_ENV):
+            _cached_skill_names()
+
+    def test_cache_present_lists_its_skills(self, monkeypatch, tmp_path):
+        monkeypatch.setenv(REQUIRE_PLUGIN_CACHE_ENV, "1")
+        (tmp_path / "skills" / "resume").mkdir(parents=True)
+        (tmp_path / "skills" / "resume" / "SKILL.md").write_text("x", encoding="utf-8")
+        monkeypatch.setattr(sys.modules[__name__], "_cache_dir_for_this_version", lambda: tmp_path)
+        assert _cached_skill_names() == {"resume"}
 
 
 class TestSkillMdExists:

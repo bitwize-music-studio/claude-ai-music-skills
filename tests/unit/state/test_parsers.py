@@ -708,9 +708,11 @@ class TestNormalizeStatus:
         assert _normalize_status('FINAL') == 'Final'
 
     def test_trailing_content(self):
+        # #679 item 5: a status is matched whole, never by prefix — trailing
+        # content keeps the value as written, so no gate takes it for a status.
         from tools.state.parsers import _normalize_status
-        assert _normalize_status('In Progress (started 2026-01-01)') == 'In Progress'
-        assert _normalize_status('Complete - all tracks done') == 'Complete'
+        assert _normalize_status('In Progress (started 2026-01-01)') == 'In Progress (started 2026-01-01)'
+        assert _normalize_status('Complete - all tracks done') == 'Complete - all tracks done'
 
     def test_empty_returns_unknown(self):
         from tools.state.parsers import _normalize_status
@@ -1311,35 +1313,18 @@ class TestNormalizeStatusEdgeCases:
     """Additional edge cases for _normalize_status()."""
 
     def test_greedy_prefix_concepts_of_art(self):
-        """'concepts of modern art' should NOT match 'Concept'.
-
-        Documents known greedy-prefix behavior: startswith('concept')
-        matches any string beginning with 'concept'.
-        """
-        result = _normalize_status('concepts of modern art')
-        # Current behavior: greedy prefix match returns 'Concept'
-        # This documents the bug — the prefix matching is too loose
-        assert result == 'Concept'
+        """'concepts of modern art' does NOT match 'Concept' (#679 item 5:
+        the prefix bug this test used to document is fixed)."""
+        assert _normalize_status('concepts of modern art') == 'concepts of modern art'
 
     def test_greedy_prefix_generated_report(self):
-        """'generated report' matches 'Generated' due to greedy prefix.
+        """'generated report' does NOT match 'Generated' (#679 item 5)."""
+        assert _normalize_status('generated report') == 'generated report'
 
-        Documents known behavior: any string starting with 'generated'
-        maps to 'Generated'.
-        """
-        result = _normalize_status('generated report')
-        assert result == 'Generated'
-
-    def test_whitespace_only_returns_empty(self):
-        """Whitespace-only input returns empty string.
-
-        Documents current behavior: '   '.strip() -> '' which doesn't
-        match any key, and falls through to return '' (not 'Unknown').
-        Only None and '' (before strip) return 'Unknown' via the
-        `if not raw` guard.
-        """
-        assert _normalize_status('   ') == ''
-        assert _normalize_status('\t\n') == ''
+    def test_whitespace_only_returns_unknown(self):
+        """Whitespace-only input is blank: 'Unknown', like '' and None (#679 item 5)."""
+        assert _normalize_status('   ') == 'Unknown'
+        assert _normalize_status('\t\n') == 'Unknown'
 
     def test_leading_trailing_whitespace(self):
         """Leading/trailing whitespace is stripped before matching."""
@@ -1743,7 +1728,9 @@ class TestSourcesVerifiedEdgeCases:
         assert result['sources_verified'] == 'Verified'
 
     def test_verified_with_extra_text(self, tmp_path):
-        """'verified by human' is recognized via startswith."""
+        """'Verified by human reviewer' is not plain Verified: kept as written,
+        so the Sources Verified gate blocks it (#679 item 1 — only Verified,
+        with or without a date, or N/A pass)."""
         track = tmp_path / "01-track.md"
         track.write_text("""# Track
 
@@ -1758,10 +1745,11 @@ class TestSourcesVerifiedEdgeCases:
 | **Sources Verified** | Verified by human reviewer |
 """)
         result = parse_track_file(track)
-        assert result['sources_verified'] == 'Verified'
+        assert result['sources_verified'] == 'Verified by human reviewer'
 
     def test_verified_with_malformed_date(self, tmp_path):
-        """Date regex doesn't match malformed date; returns plain 'Verified'."""
+        """A month-first date is still a date: Verified, date kept (#679 item 1:
+        Verified with any date passes)."""
         track = tmp_path / "01-track.md"
         track.write_text("""# Track
 
@@ -1776,11 +1764,10 @@ class TestSourcesVerifiedEdgeCases:
 | **Sources Verified** | ✅ Verified (01-15-2026) |
 """)
         result = parse_track_file(track)
-        # Date format is wrong (MM-DD-YYYY instead of YYYY-MM-DD), regex won't match
-        assert result['sources_verified'] == 'Verified'
+        assert result['sources_verified'] == 'Verified (01-15-2026)'
 
     def test_verified_with_partial_date(self, tmp_path):
-        """Partial date '(2026-01)' doesn't match YYYY-MM-DD format."""
+        """A year-month date is a date too: Verified, date kept (#679 item 1)."""
         track = tmp_path / "01-track.md"
         track.write_text("""# Track
 
@@ -1795,7 +1782,7 @@ class TestSourcesVerifiedEdgeCases:
 | **Sources Verified** | ✅ Verified (2026-01) |
 """)
         result = parse_track_file(track)
-        assert result['sources_verified'] == 'Verified'
+        assert result['sources_verified'] == 'Verified (2026-01)'
 
     def test_pending_capitalized_no_emoji(self, tmp_path):
         """'Pending' (capitalized, no emoji) is recognized."""
@@ -1949,14 +1936,11 @@ This file contains album ideas. Use this template.
 class TestNormalizeStatusBoundary:
     """Boundary conditions for _normalize_status."""
 
-    def test_whitespace_only_returns_empty_not_unknown(self):
-        """Whitespace-only input passes 'if not raw' but strips to empty string."""
-        # '   ' is truthy, so it passes the first guard
-        # After strip, it's '' which doesn't match any key or prefix
-        # Falls through to return '' (not 'Unknown')
-        assert _normalize_status('   ') == ''
-        assert _normalize_status('\t') == ''
-        assert _normalize_status('\n') == ''
+    def test_whitespace_only_returns_unknown(self):
+        """Whitespace-only input is blank, so 'Unknown' (#679 item 5)."""
+        assert _normalize_status('   ') == 'Unknown'
+        assert _normalize_status('\t') == 'Unknown'
+        assert _normalize_status('\n') == 'Unknown'
 
     def test_tab_separated_status(self):
         """Status with tab characters is stripped properly."""
@@ -2417,3 +2401,80 @@ class TestParseAlbumReadmeMastering:
                 f"Malformed mastering value {malformed!r} should collapse to {{}}, "
                 f"got {result['mastering']!r}"
             )
+
+
+# =============================================================================
+# #679 items 1 and 5 — statuses and Sources Verified match whole values only
+# =============================================================================
+
+
+_STRICT_TRACK = """# Track
+
+## Track Details
+
+| Attribute | Detail |
+|-----------|--------|
+| **Title** | Test |
+| **Status** | {status} |
+| **Sources Verified** | {sources} |
+"""
+
+
+class TestStatusMatchesWholeValue:
+    """#679 item 5: no prefix matching; decoration is ignored."""
+
+    @pytest.mark.parametrize("raw", [
+        "Finalizing", "Final mix pending", "Released soon", "Complete-ish",
+        "Generated (2 of 3)", "In Progress?", "[Final]",
+    ])
+    def test_prefix_is_not_the_status(self, raw):
+        assert _normalize_status(raw) == raw
+
+    @pytest.mark.parametrize("raw,expected", [
+        ("✅ Final", "Final"), ("**Final**", "Final"), ("Final   ", "Final"),
+        ("`Generated`", "Generated"), ("_In Progress_", "In Progress"),
+        ("✅ **Complete**", "Complete"), ("In  Progress", "In Progress"),
+    ])
+    def test_decoration_is_ignored(self, raw, expected):
+        assert _normalize_status(raw) == expected
+
+    def test_track_file_with_a_prefix_status_is_not_final(self, tmp_path):
+        track = tmp_path / "01-track.md"
+        track.write_text(_STRICT_TRACK.format(status="Final mix pending", sources="N/A"))
+        assert parse_track_file(track)["status"] == "Final mix pending"
+
+
+class TestSourcesVerifiedClearsOnlyVerifiedOrNA:
+    """#679 item 1: only Verified (any date, any decoration) and N/A clear a track."""
+
+    @pytest.mark.parametrize("raw", [
+        "Not verified", "Unverified", "⏳ Pending", "[Pending]", "TBD",
+        "Partially verified", "⚠️ Needs re-check", "Verified, 2 still pending",
+        "Verified (pending)", "❌ Pending", "Pending verification", "N/A (fiction)",
+    ])
+    def test_blocks(self, tmp_path, raw):
+        from tools.state.parsers import sources_verified_cleared
+
+        track = tmp_path / "01-track.md"
+        track.write_text(_STRICT_TRACK.format(status="In Progress", sources=raw))
+        parsed = parse_track_file(track)["sources_verified"]
+        assert not sources_verified_cleared(parsed), (raw, parsed)
+        assert not sources_verified_cleared(raw)
+
+    @pytest.mark.parametrize("raw,expected", [
+        ("✅ Verified (2026-01-15)", "Verified (2026-01-15)"),
+        ("**Verified**", "Verified"),
+        ("Verified", "Verified"),
+        ("verified 2026-01-15", "Verified (2026-01-15)"),
+        ("✅ **Verified** (Jan 15, 2026)", "Verified (Jan 15, 2026)"),
+        ("N/A", "N/A"),
+        ("**n/a**", "N/A"),
+    ])
+    def test_passes(self, tmp_path, raw, expected):
+        from tools.state.parsers import sources_verified_cleared
+
+        track = tmp_path / "01-track.md"
+        track.write_text(_STRICT_TRACK.format(status="In Progress", sources=raw))
+        parsed = parse_track_file(track)["sources_verified"]
+        assert parsed == expected
+        assert sources_verified_cleared(parsed)

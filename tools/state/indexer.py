@@ -28,6 +28,7 @@ import functools
 import json
 import logging
 import os
+import re
 import sys
 import tempfile
 import time
@@ -1374,34 +1375,34 @@ def carry_migration_tracking(
     return new_state
 
 
-def parse_migration_file(path: Path) -> dict[str, Any] | None:
-    """Parse a migration markdown file's YAML frontmatter.
+def read_migration_file(path: Path) -> tuple[dict[str, Any] | None, str | None]:
+    """Parse a migration note: ``(migration, None)``, or ``(None, reason)``.
 
-    Args:
-        path: Path to a ``migrations/<version>.md`` file.
-
-    Returns:
-        Dict with ``version`` (frontmatter value, falling back to the file
-        stem), ``summary``, ``categories``, ``actions``, ``body`` and
-        ``file``; or ``None`` if the file is unreadable, has no frontmatter,
-        or the frontmatter is not a valid YAML mapping.
+    The reason says why a note could not be used — unreadable, no
+    frontmatter, invalid YAML, frontmatter that is not a mapping — so the
+    caller can show it instead of skipping the release's upgrade actions
+    without a sign (#676).
     """
     try:
         text = path.read_text(encoding='utf-8')
-    except (OSError, UnicodeDecodeError):
-        return None
+    except (OSError, UnicodeDecodeError) as e:
+        return None, f"cannot be read: {e}"
     text = text.removeprefix('\ufeff')
     if not text.startswith('---'):
-        return None
+        return None, "has no YAML frontmatter (the file must start with ---)"
     parts = text.split('---', 2)
     if len(parts) < 3:
-        return None
+        return None, "frontmatter is not closed with a second ---"
     try:
         meta = yaml.safe_load(parts[1])
-    except yaml.YAMLError:
-        return None
+    except yaml.YAMLError as e:
+        detail = str(e).splitlines()[0] if str(e) else type(e).__name__
+        return None, f"frontmatter is not valid YAML: {detail}"
     if not isinstance(meta, dict):
-        return None
+        return None, (
+            f"frontmatter is a {type(meta).__name__}, not a mapping of "
+            f"version/summary/actions"
+        )
     version = meta.get('version')
     if not isinstance(version, str) or not version.strip():
         version = path.stem
@@ -1412,7 +1413,26 @@ def parse_migration_file(path: Path) -> dict[str, Any] | None:
         'actions': meta.get('actions', []),
         'body': parts[2].strip(),
         'file': str(path),
-    }
+    }, None
+
+
+def parse_migration_file(path: Path) -> dict[str, Any] | None:
+    """Parse a migration markdown file's YAML frontmatter.
+
+    Args:
+        path: Path to a ``migrations/<version>.md`` file.
+
+    Returns:
+        Dict with ``version`` (frontmatter value, falling back to the file
+        stem), ``summary``, ``categories``, ``actions``, ``body`` and
+        ``file``; or ``None`` if the file is unreadable, has no frontmatter,
+        or the frontmatter is not a valid YAML mapping
+        (``read_migration_file`` says which).
+    """
+    return read_migration_file(path)[0]
+
+
+_RE_VERSION_STEM = re.compile(r'^\d+(?:\.\d+)*$')
 
 
 def get_pending_migrations(
@@ -1437,9 +1457,11 @@ def get_pending_migrations(
 
     Returns:
         Dict with ``installed_version``, ``last_migrated_version``,
-        ``pending`` (list of parsed migrations) and ``reason`` (one of
+        ``pending`` (list of parsed migrations), ``reason`` (one of
         ``"untracked"``, ``"upgrade"``, ``"current"``, or ``"unknown"`` when
-        the installed version can't be read).
+        the installed version can't be read) and ``malformed`` — the notes in
+        the pending range that could not be parsed, each ``{file, path,
+        reason}`` (#676).
     """
     if plugin_root is None:
         plugin_root = _PROJECT_ROOT
@@ -1456,14 +1478,20 @@ def get_pending_migrations(
         last = None
 
     parsed: list[dict[str, Any]] = []
+    malformed_all: list[dict[str, str]] = []
     migrations_dir = plugin_root / 'migrations'
     if migrations_dir.is_dir():
-        for mf in migrations_dir.glob('*.md'):
+        for mf in sorted(migrations_dir.glob('*.md')):
             if mf.name == 'README.md':
                 continue
-            migration = parse_migration_file(mf)
+            migration, reason = read_migration_file(mf)
             if migration is not None:
                 parsed.append(migration)
+            else:
+                logger.warning("Skipping malformed migration note %s: %s", mf, reason)
+                malformed_all.append({
+                    'file': mf.name, 'path': str(mf), 'reason': reason or 'unusable',
+                })
 
     # Cannot compare without an installed version — surface nothing (no crash).
     # Distinct from "current" so callers/telemetry can tell "up to date" apart
@@ -1474,7 +1502,20 @@ def get_pending_migrations(
             'last_migrated_version': last,
             'pending': [],
             'reason': 'unknown',
+            'malformed': malformed_all,
         }
+
+    def _in_window(version: str) -> bool:
+        if _version_compare(version, installed) > 0:
+            return False
+        return last is None or _version_compare(version, last) > 0
+
+    # A malformed note whose file name is a version is shown while that version
+    # is pending; one named otherwise cannot be placed, so it is always shown.
+    malformed = [
+        m for m in malformed_all
+        if not _RE_VERSION_STEM.match(Path(m['file']).stem) or _in_window(Path(m['file']).stem)
+    ]
 
     # Only consider migrations at or below the installed version.
     candidates = [
@@ -1499,6 +1540,7 @@ def get_pending_migrations(
         'last_migrated_version': last,
         'pending': pending,
         'reason': reason,
+        'malformed': malformed,
     }
 
 

@@ -657,6 +657,35 @@ _CROSS_TRACK_STOPWORDS = frozenset({
 })
 
 
+def rebuild_cache() -> tuple[dict[str, Any] | None, str | None]:
+    """Rebuild the state cache from disk: ``(state, None)``, or ``(None, reason)``.
+
+    ``StateCache.rebuild()`` reports a missing or unparseable config and a
+    failed build by *returning* ``{"error": ...}``, and raises when writing
+    state.json fails. Callers that changed files before the rebuild must
+    report either kind of failure, not raise past their own work or ignore
+    the returned error (#679 item 9, #676).
+    """
+    try:
+        rebuilt = cache.rebuild()
+    except Exception as exc:  # reported to the caller, never raised
+        return None, f"{type(exc).__name__}: {exc}"
+    if not isinstance(rebuilt, dict):
+        return None, f"unexpected rebuild result ({type(rebuilt).__name__})"
+    if "error" in rebuilt:
+        return None, str(rebuilt["error"])
+    return rebuilt, None
+
+
+def rebuild_warning(done: str, reason: str) -> str:
+    """The warning a tool returns when its files changed but the rebuild failed."""
+    return (
+        f"{done}, but the state index was not updated — rebuilding it failed: "
+        f"{reason}. Until it is rebuilt, other tools will not see this change. "
+        f"Fix the cause, then run rebuild_state."
+    )
+
+
 def _find_album_or_error(album_slug: str) -> tuple[str, dict[str, Any] | None, str | None]:
     """Find album in state cache, return (normalized_slug, album_data, error_json).
 

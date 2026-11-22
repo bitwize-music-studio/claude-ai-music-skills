@@ -2352,13 +2352,49 @@ async def _stage_playlist(ctx: MasterAlbumCtx) -> str | None:
     return None
 
 
-async def _stage_status_update(ctx: MasterAlbumCtx) -> str | None:
-    """Stage 7: Transition Generated → Final tracks; advance album to Complete.
+_RE_LEADING_TRACK_NUMBER = re.compile(r"^(\d+)")
 
-    Reads ctx: album_slug, warnings
-    Sets ctx:  (appends to ctx.warnings on errors; no new ctx fields)
+
+def _master_of_track(mastered_files: list[Path], track_slug: str) -> Path | None:
+    """The master this run made for *track_slug*, or None.
+
+    Same rule as ``find_track_audio``: ``<slug>.wav`` first, then the one
+    master whose leading number is the track's (two such masters: None).
+    """
+    for wav in mastered_files:
+        if wav.stem == track_slug:
+            return wav
+    number = _RE_LEADING_TRACK_NUMBER.match(track_slug)
+    if not number:
+        return None
+    wanted = int(number.group(1))
+    numbered = [
+        wav for wav in mastered_files
+        if (match := _RE_LEADING_TRACK_NUMBER.match(wav.stem)) and int(match.group(1)) == wanted
+    ]
+    return numbered[0] if len(numbered) == 1 else None
+
+
+async def _stage_status_update(ctx: MasterAlbumCtx) -> str | None:
+    """Stage 7: Mark mastered keepers Final; advance the album to Complete.
+
+    A track goes Final only when this run mastered it (its WAV is in
+    ``ctx.mastered_files``) AND its Generation Log has a take the user marked
+    ✓ (plugin-rules: "Only Final with a ✓ keeper"; #679 item 2). Every other
+    track keeps its status and is listed in ``tracks_left`` with the reason
+    (no master / no ✓ keeper), which makes the stage ``warn``. Final and
+    Released tracks are left as they are (#335: never demote on a re-master).
+    The album goes Complete only when every track ends up Final.
+
+    This replaces #335's "every non-terminal track becomes Final", which
+    marked tracks Final without a master or a keeper the user picked.
+
+    Reads ctx: album_slug, audio_dir, mastered_files, warnings
+    Sets ctx:  stages["status_update"] (appends to ctx.warnings on errors)
     Returns: None always (status errors go to warnings, never halt).
     """
+    # lazy: handlers.generation imports handlers.gates
+    from handlers.generation import parse_generation_log
     from tools.state.indexer import write_state
     from tools.state.parsers import parse_track_file
 
@@ -2369,6 +2405,7 @@ async def _stage_status_update(ctx: MasterAlbumCtx) -> str | None:
 
     tracks_updated = 0
     status_errors: list[str] = []
+    tracks_left: list[dict[str, str]] = []
     album_status: str | None = None
 
     if album_data:
@@ -2384,19 +2421,20 @@ async def _stage_status_update(ctx: MasterAlbumCtx) -> str | None:
                 ALBUM_RELEASED.lower(),
             ):
                 continue
-            # Everything else gets promoted to Final — the mastered WAV is
-            # real, so the status should follow. Previously this stage
-            # only accepted `Generated` as input and appended a "skipped"
-            # error for any other status (Not Started / Sources Pending /
-            # Sources Verified / In Progress), silently no-op'ing the
-            # entire stage on any album whose tracks weren't pinned at
-            # exactly `Generated` (#335).
+            if _master_of_track(ctx.mastered_files, track_slug) is None:
+                tracks_left.append({
+                    "track": track_slug, "status": current_track_status,
+                    "reason": "no master from this run",
+                })
+                continue
             track_path_str = track_info.get("path", "")
             if not track_path_str:
-                # Cache-staleness: a track entry with no path has no disk
-                # file to update. Skip silently — the mastering pipeline
-                # only touched WAVs discovered from the audio dir, so
-                # missing path here is a bookkeeping gap, not a failure.
+                # Cache-staleness: no track file to read the keeper from or
+                # to update — the status stays as it is.
+                tracks_left.append({
+                    "track": track_slug, "status": current_track_status,
+                    "reason": "no track file in the state cache",
+                })
                 continue
             track_path = Path(track_path_str)
             if not track_path.exists():
@@ -2404,6 +2442,12 @@ async def _stage_status_update(ctx: MasterAlbumCtx) -> str | None:
                 continue
             try:
                 text = track_path.read_text(encoding="utf-8")
+                if not any(take["approved"] for take in parse_generation_log(text)):
+                    tracks_left.append({
+                        "track": track_slug, "status": current_track_status,
+                        "reason": "no ✓ keeper in the Generation Log",
+                    })
+                    continue
                 pattern = re.compile(
                     r'^(\|\s*\*\*Status\*\*\s*\|)\s*.*?\s*\|',
                     re.MULTILINE,
@@ -2476,6 +2520,14 @@ async def _stage_status_update(ctx: MasterAlbumCtx) -> str | None:
 
     for err_msg in status_errors:
         ctx.warnings.append(f"Status update: {err_msg}")
+    if tracks_left:
+        ctx.warnings.append(
+            f"Status update: {len(tracks_left)} track(s) not marked Final — "
+            + "; ".join(f"{t['track']} ({t['reason']})" for t in tracks_left[:5])
+            + (" …" if len(tracks_left) > 5 else "")
+            + ". Mark the keeper ✓ (listen/generate) or master the track, then set "
+              "Final with update_track_field."
+        )
 
     # Classify the stage outcome. Prior to #335 this was hardcoded to
     # "pass" even when tracks_updated == 0 AND errors existed, which
@@ -2483,16 +2535,20 @@ async def _stage_status_update(ctx: MasterAlbumCtx) -> str | None:
     #   - no errors                 → "pass" (clean run or idempotent no-op)
     #   - errors + some updates     → "partial" (something worked, some didn't)
     #   - errors + zero updates     → "skipped" (nothing landed, surface it)
-    if not status_errors:
-        stage_outcome = "pass"
-    elif tracks_updated > 0:
+    #   - no errors, tracks left     → "warn" (#679 item 2: they need a keeper or a master)
+    if status_errors and tracks_updated > 0:
         stage_outcome = "partial"
-    else:
+    elif status_errors:
         stage_outcome = "skipped"
+    elif tracks_left:
+        stage_outcome = "warn"
+    else:
+        stage_outcome = "pass"
 
     ctx.stages["status_update"] = {
         "status": stage_outcome,
         "tracks_updated": tracks_updated,
+        "tracks_left": tracks_left,
         "album_status": album_status,
         "errors": status_errors if status_errors else None,
     }

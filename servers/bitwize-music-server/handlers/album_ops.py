@@ -27,6 +27,7 @@ from handlers._shared import (
     _normalize_slug,
     _safe_json,
 )
+from tools.state.parsers import sources_verified_cleared
 
 logger = logging.getLogger(__name__)
 
@@ -329,8 +330,8 @@ async def validate_album_structure(
             track_issues = []
             if status in TRACK_COMPLETED_STATUSES and not has_link:
                 track_issues.append("Suno Link missing")
-            if sources.lower() == "pending":
-                track_issues.append("Sources not verified")
+            if not sources_verified_cleared(sources):
+                track_issues.append(f"Sources not verified ({sources})")
 
             if track_issues:
                 _warn("tracks", f"{t_slug}: Status={status}, issues: {', '.join(track_issues)}")
@@ -458,17 +459,26 @@ async def create_album_structure(
 
     created_files.append("tracks/")
 
-    # Rebuild state so subsequent tools (e.g., create_track) can find the new album
-    _shared.cache.rebuild()
-
-    return _safe_json({
+    result: dict[str, Any] = {
         "created": True,
         "path": str(album_path),
         "tracks_path": str(tracks_path),
         "genre": genre_slug,
         "documentary": documentary,
         "files": created_files,
-    })
+    }
+
+    # Rebuild state so subsequent tools (e.g., create_track) can find the new
+    # album. The album is on disk either way; a failed rebuild (returned or
+    # raised) is reported, never raised past the files just written (#676, #679).
+    _rebuilt, rebuild_error = _shared.rebuild_cache()
+    result["indexed"] = rebuild_error is None
+    if rebuild_error is not None:
+        logger.warning("Album %s created but state rebuild failed: %s", normalized, rebuild_error)
+        result["warnings"] = [_shared.rebuild_warning(
+            f"The album folder was created at {album_path}", rebuild_error,
+        ) + " create_track and other album tools will report it as not found until then."]
+    return _safe_json(result)
 
 
 # ---------------------------------------------------------------------------

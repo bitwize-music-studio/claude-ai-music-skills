@@ -10,6 +10,7 @@ Uses regex against the exact markdown table format in templates:
 from __future__ import annotations
 
 import re
+import unicodedata
 import warnings
 from pathlib import Path
 from typing import Any
@@ -140,40 +141,109 @@ def _extract_table_value(text: str, key: str) -> str | None:
     return None
 
 
+# Marks a status or a Sources Verified value may be dressed in without changing
+# what it says: markdown emphasis (**Final**, _Final_, `Final`, ~~ ~~) and
+# symbols such as ✅ ✓ ⏳ (with their variation selectors and joiners).
+_DECORATION_INLINE = re.compile(r'[*`]|~~')
+_DECORATION_CATEGORIES = ('So', 'Sk', 'Mn', 'Cf')
+
+
+def _strip_decoration(raw: str) -> str:
+    """*raw* without emphasis markers and without symbols or blanks at either end."""
+    text = _DECORATION_INLINE.sub('', raw).strip()
+
+    def _is_decoration(ch: str) -> bool:
+        return ch.isspace() or ch == '_' or unicodedata.category(ch) in _DECORATION_CATEGORIES
+
+    start, end = 0, len(text)
+    while start < end and _is_decoration(text[start]):
+        start += 1
+    while end > start and _is_decoration(text[end - 1]):
+        end -= 1
+    return text[start:end]
+
+
+_STATUS_MAP = {
+    'concept': 'Concept',
+    'in progress': 'In Progress',
+    'research complete': 'Research Complete',
+    'sources verified': 'Sources Verified',
+    'complete': 'Complete',
+    'released': 'Released',
+    'not started': 'Not Started',
+    'sources pending': 'Sources Pending',
+    'generated': 'Generated',
+    'final': 'Final',
+}
+
+
 def _normalize_status(raw: str | None) -> str:
     """Normalize a status string to canonical form.
 
-    Handles common variations and template placeholders.
+    A status is recognised only as a whole: case and decoration (``✅ Final``,
+    ``**Final**``, surrounding blanks) are ignored, and nothing else is. A
+    value that merely starts with a status ("Finalizing", "Final mix pending",
+    "Released soon") is not that status: it comes back as written (trimmed),
+    so no gate mistakes it for one. Blank gives "Unknown". (#679 item 5)
     """
-    if not raw:
+    if not raw or not raw.strip():
         return "Unknown"
 
     status = raw.strip()
+    canonical = _STATUS_MAP.get(re.sub(r'\s+', ' ', _strip_decoration(status)).lower())
+    return canonical if canonical is not None else status
 
-    # Map common variations to canonical names
-    status_map = {
-        'concept': 'Concept',
-        'in progress': 'In Progress',
-        'research complete': 'Research Complete',
-        'sources verified': 'Sources Verified',
-        'complete': 'Complete',
-        'released': 'Released',
-        'not started': 'Not Started',
-        'sources pending': 'Sources Pending',
-        'generated': 'Generated',
-        'final': 'Final',
-    }
 
-    lower = status.lower()
-    if lower in status_map:
-        return status_map[lower]
+# The Sources Verified field. Only "Verified" (with or without a date) and
+# "N/A" clear a track for generation; anything else is still waiting for a
+# human (#679 item 1).
+_MONTHS = (r'(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?')
+_RE_SOURCES_DATE = (
+    r'(?:\d{4}(?:[-/.]\d{1,2}(?:[-/.]\d{1,2})?)?'
+    r'|\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4}'
+    rf'|{_MONTHS}\s+\d{{1,2}}(?:st|nd|rd|th)?,?\s+\d{{4}}'
+    rf'|\d{{1,2}}(?:st|nd|rd|th)?\s+{_MONTHS},?\s+\d{{4}})'
+)
+_RE_SOURCES_VERIFIED = re.compile(
+    r'verified(?:\s*(?:\((' + _RE_SOURCES_DATE + r')\)'
+    r'|(?:[-\u2013\u2014:,]\s*|on\s+|\s+)(' + _RE_SOURCES_DATE + r')))?',
+    re.IGNORECASE,
+)
 
-    # If it starts with a known status, use that (handles trailing content)
-    for key, val in status_map.items():
-        if lower.startswith(key):
-            return val
 
-    return status
+def normalize_sources_verified(raw: str | None) -> str:
+    """The canonical form of a track's Sources Verified value.
+
+    ``N/A`` for no value or exactly N/A; ``Verified`` or ``Verified (<date>)``
+    for exactly "Verified", optionally dated; ``Pending`` for anything marked
+    ❌ or starting with "pending"; otherwise the value as written (trimmed).
+    Decoration (✅, bold) is ignored. "Verified, 2 still pending", "Not
+    verified", "Unverified", "⏳ Pending" and "TBD" are not Verified.
+    """
+    if raw is None or not raw.strip():
+        return 'N/A'
+    value = raw.strip()
+    bare = re.sub(r'\s+', ' ', _strip_decoration(value))
+    lower = bare.lower()
+    if '❌' in value or lower.startswith('pending'):
+        return 'Pending'
+    if lower == 'n/a':
+        return 'N/A'
+    match = _RE_SOURCES_VERIFIED.fullmatch(bare)
+    if match:
+        date = match.group(1) or match.group(2)
+        return f'Verified ({date})' if date else 'Verified'
+    return value
+
+
+def sources_verified_cleared(value: str | None) -> bool:
+    """True when a Sources Verified value lets the track go ahead: Verified or N/A.
+
+    Accepts a raw table value or the canonical one the state holds. Everything
+    else — Pending, "Not verified", "TBD", a half-verified note — blocks.
+    """
+    canonical = normalize_sources_verified(value)
+    return canonical == 'N/A' or _RE_SOURCES_VERIFIED.fullmatch(canonical) is not None
 
 
 def _parse_suno_ref(value: Any) -> dict[str, str] | None:
@@ -495,26 +565,9 @@ def parse_track_file(path: Path) -> dict[str, Any]:
     if isrc:
         result['isrc'] = isrc
 
-    # Sources Verified
-    sources_raw = _extract_table_value(text, 'Sources Verified')
-    if sources_raw:
-        raw_lower = sources_raw.strip().lower()
-        if 'n/a' in raw_lower:
-            result['sources_verified'] = 'N/A'
-        elif '❌' in sources_raw or raw_lower == 'pending' or raw_lower.startswith('pending'):
-            # Check pending BEFORE verified so "pending verification" doesn't match "verified"
-            result['sources_verified'] = 'Pending'
-        elif '✅' in sources_raw or raw_lower == 'verified' or raw_lower.startswith('verified'):
-            # Preserve verification date if present (e.g., "✅ Verified (2025-01-15)")
-            date_match = re.search(r'\((\d{4}-\d{2}-\d{2})\)', sources_raw)
-            if date_match:
-                result['sources_verified'] = f'Verified ({date_match.group(1)})'
-            else:
-                result['sources_verified'] = 'Verified'
-        else:
-            result['sources_verified'] = sources_raw
-    else:
-        result['sources_verified'] = 'N/A'
+    # Sources Verified — only Verified (any date) or N/A clear the track (#679 item 1)
+    result['sources_verified'] = normalize_sources_verified(
+        _extract_table_value(text, 'Sources Verified'))
 
     return result
 

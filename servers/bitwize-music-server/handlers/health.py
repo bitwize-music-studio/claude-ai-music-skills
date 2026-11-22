@@ -291,8 +291,11 @@ async def get_pending_migrations() -> str:
 
     Returns:
         JSON with installed_version, last_migrated_version, reason
-        ("untracked" | "upgrade" | "current" | "unknown"), count, and
-        pending[] (each with version, summary, categories, actions, body, file).
+        ("untracked" | "upgrade" | "current" | "unknown"), count,
+        pending[] (each with version, summary, categories, actions, body, file),
+        and malformed[] — notes in the pending range that could not be parsed,
+        each with file, path and reason, so session start can show them
+        instead of skipping their upgrade actions silently (#676).
     """
     state = _shared.cache.get_state()
     result = indexer.get_pending_migrations(state, _shared.PLUGIN_ROOT)

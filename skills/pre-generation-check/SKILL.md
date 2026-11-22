@@ -58,8 +58,8 @@ Do NOT proceed with gate evaluation until the mismatch is resolved — the wrong
 The MCP tool behind this skill reports 8 blocking gates plus 3 advisories (Style Box Descriptor Count, Performance Cues, Generation Settings).
 
 ### Gate 1: Sources Verified
-- **Check**: Track's `Sources Verified` field is `Verified` or `N/A`
-- **Fail if**: `Pending` or `❌ Pending`
+- **Check**: Track's `Sources Verified` field is `Verified` (with or without a date, ✅ or bold allowed) or `N/A`
+- **Fail if**: anything else — `Pending`, `❌ Pending`, `Not verified`, `TBD`, `Verified, 2 still pending`
 - **Fix**: Run `/bitwize-music:verify-sources [album]` to walk through human source verification for pending tracks.
 - **Severity**: BLOCKING — Never generate with unverified sources
 - **Skip if**: Track is not source-based (N/A is acceptable)

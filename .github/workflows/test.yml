@@ -792,6 +792,21 @@ jobs:
         grep -q "Status: ✔ Connected" mcp-get.txt
         echo "[OK] plugin MCP connected from $PROBE"
 
+    # The skill-registration tests compare skills/ with the installed plugin
+    # cache. Everywhere else they skip for want of a cache; here the plugin was
+    # just installed, so BITWIZE_REQUIRE_PLUGIN_CACHE=1 turns that skip into a
+    # failure and the comparison always runs (#676). The user-style venv already
+    # has the runtime requirements the test package's conftest imports; this
+    # runs last so the test tools never touch the venv the spawn check used.
+    - name: Run skill-registration tests against the installed cache
+      env:
+        BITWIZE_REQUIRE_PLUGIN_CACHE: "1"
+      run: |
+        "$HOME/.bitwize-music/venv/bin/python" -m pip install -r requirements-test.txt
+        "$HOME/.bitwize-music/venv/bin/python" -m pytest \
+          "tests/plugin/test_skills.py::TestSkillRegistrationIntegrity" \
+          -v -p no:cacheprovider --no-cov
+
   codex-plugin-e2e:
     name: Codex Plugin E2E (${{ matrix.os }})
     runs-on: ${{ matrix.os }}

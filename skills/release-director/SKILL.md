@@ -250,8 +250,8 @@ Never publish, unpublish or change remix settings as a side effect of anything e
 ### Before Campaign Trigger
 
 - [ ] All platforms verified live and accessible
-- [ ] Status updated to "Released" in album README
-- [ ] `release_date` set in album README frontmatter
+- [ ] `release_date` set in album README frontmatter (`update_album_field(album_slug, "release-date", "YYYY-MM-DD")`) — first: `update_album_status` refuses `Released` without it
+- [ ] Status updated to "Released" (`update_album_status(album_slug, "Released")`)
 - [ ] Platform URLs documented (use `update_streaming_url` and verify with `verify_streaming_urls`)
 
 ---
@@ -286,7 +286,7 @@ Never publish, unpublish or change remix settings as a side effect of anything e
 2. **Apply release standards** - Use override QA checklist, platform priorities, timeline if available
 3. **QA is non-negotiable** - Don't skip pre-release checks (even with overrides)
 4. **Streaming Lyrics required** - Run `check_streaming_lyrics` MCP tool before distributor upload
-5. **Update status on release** - Set `Status: Released` and `release_date` in album README
+5. **Update status on release** - Set `release_date` first (`update_album_field` → `release-date`), then `Status: Released` (`update_album_status`); `Released` is refused without a release date
 6. **Verify all platforms** - Don't assume upload worked
 7. **Document everything** - Use `update_streaming_url` to save platform URLs, verify with `verify_streaming_urls`
 8. **Timeline matters** - Plan based on release type (or override preferences)

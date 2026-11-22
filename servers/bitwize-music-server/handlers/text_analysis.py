@@ -167,6 +167,24 @@ _artist_blocklist_mtime: float = 0.0
 _artist_blocklist_lock = threading.Lock()
 
 
+def _artist_name_pattern(name: str) -> re.Pattern[str]:
+    """The pattern that finds *name* as a whole name in text, ignoring case.
+
+    Lookarounds instead of ``\\b``: ``\\b`` needs a word character at the
+    name's edge, so a name that starts or ends with punctuation, such as
+    ``(G)I-DLE``, could never match and the gate passed it (#679 item 8).
+    """
+    return re.compile(r"(?<!\w)" + re.escape(name) + r"(?!\w)", re.IGNORECASE)
+
+
+def _artist_pattern(name: str) -> re.Pattern[str]:
+    """The compiled pattern for a blocklist name; compiled on the spot when the
+    cache has none, so a name is never skipped for want of one (#679 item 8)."""
+    patterns = _artist_blocklist_patterns or {}
+    pattern = patterns.get(name)
+    return pattern if pattern is not None else _artist_name_pattern(name)
+
+
 def _load_artist_blocklist() -> list[dict[str, str]]:
     """Load and parse the artist blocklist from the reference file.
 
@@ -230,8 +248,7 @@ def _load_artist_blocklist() -> list[dict[str, str]]:
         _artist_blocklist_mtime = current_mtime
         # Pre-compile patterns for each artist name
         _artist_blocklist_patterns = {
-            entry["name"]: re.compile(r'\b' + re.escape(entry["name"]) + r'\b', re.IGNORECASE)
-            for entry in entries
+            entry["name"]: _artist_name_pattern(entry["name"]) for entry in entries
         }
         logger.info("Loaded artist blocklist: %d entries", len(entries))
         return entries
@@ -261,9 +278,7 @@ async def scan_artist_names(text: str) -> str:
 
     for entry in blocklist:
         name = entry["name"]
-        assert _artist_blocklist_patterns is not None
-        pattern = _artist_blocklist_patterns.get(name)
-        if pattern and pattern.search(text):
+        if _artist_pattern(name).search(text):
             matches.append({
                 "name": name,
                 "alternative": entry["alternative"],
