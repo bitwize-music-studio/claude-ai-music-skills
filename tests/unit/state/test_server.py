@@ -94,6 +94,13 @@ from handlers import health as _health_mod
 from handlers import ideas as _ideas_mod
 from handlers import _shared as _shared_mod
 
+# Load the mastering delivery code (and with it scipy) before any test below
+# uses patch.dict("sys.modules", ...): on exit that drops every module first
+# imported inside it, and scipy's compiled parts can't be loaded twice in one
+# process. The audio handlers import it lazily since #681, so without this the
+# file passed or failed depending on which test imported scipy first.
+import tools.mastering.master_tracks  # noqa: E402, F401
+
 # For lazy-imported functions that need patching at their source module
 import tools.state.parsers as _parsers_mod
 from handlers import core as _core_mod
@@ -13813,66 +13820,59 @@ class TestMasterAudioComprehensive:
 
 
 class TestFixDynamicTrackComprehensive:
-    """Comprehensive tests for fix_dynamic_track success path."""
+    """Comprehensive tests for fix_dynamic_track success path.
 
-    def test_successful_fix(self, tmp_path):
-        """Full success path: read WAV, compress, master, write output."""
+    Real audio in, real file out (#681 item 3): the handler now writes the
+    delivery format through ``write_delivery``, so mocking ``soundfile.read``
+    and the loudness meter no longer reaches the code that matters.
+    """
+
+    @staticmethod
+    def _album(tmp_path, name):
+        import numpy as np
+        import soundfile as sf
+
         audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         audio_dir.mkdir(parents=True)
-        (audio_dir / "05-loud-track.wav").write_bytes(b"")
+        rng = np.random.default_rng(7)
+        data = (rng.standard_normal((44100 * 4, 2)) * 0.05).astype(np.float32)
+        sf.write(str(audio_dir / name), data, 44100, subtype="PCM_16")
 
         state = _fresh_state()
         state["config"]["audio_root"] = str(tmp_path)
         state["config"]["artist_name"] = "test-artist"
-        mock_cache = MockStateCache(state)
+        return audio_dir, MockStateCache(state)
 
-        import numpy as np
+    def test_successful_fix(self, tmp_path):
+        """Full success path: read WAV, compress, master, write the delivery file."""
+        import soundfile as sf
 
-        mock_data = np.random.randn(44100, 2).astype(np.float32) * 0.5
+        audio_dir, mock_cache = self._album(tmp_path, "05-loud-track.wav")
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_helpers, "_check_mastering_deps", return_value=None), \
-             patch("soundfile.read", return_value=(mock_data.copy(), 44100)), \
-             patch("soundfile.write") as mock_write, \
-             patch("pyloudnorm.Meter") as mock_meter_cls:
-            mock_meter = MagicMock()
-            mock_meter.integrated_loudness.side_effect = [-22.0, -16.0, -14.0]
-            mock_meter_cls.return_value = mock_meter
-
+             patch.object(_processing_helpers, "_check_mastering_deps", return_value=None):
             result = json.loads(_run(server.fix_dynamic_track("test-album", "05-loud-track.wav")))
 
         assert result["filename"] == "05-loud-track.wav"
-        assert result["original_lufs"] == -22.0
-        assert result["final_lufs"] == -14.0
-        assert "output_path" in result
-        assert "mastered" in result["output_path"]
-        mock_write.assert_called_once()
+        assert result["original_lufs"] < -20.0
+        assert result["final_lufs"] == pytest.approx(-14.0, abs=0.5)
+        out = Path(result["output_path"])
+        assert out.parent == audio_dir / "mastered"
+        info = sf.info(str(out))
+        # No mastering config: the delivery defaults, not the source's 44.1 kHz / 16-bit
+        assert info.samplerate == 96000
+        assert info.subtype == "PCM_24"
 
     def test_creates_mastered_dir(self, tmp_path):
         """Should create mastered/ subdirectory."""
-        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
-        audio_dir.mkdir(parents=True)
-        (audio_dir / "01-track.wav").write_bytes(b"")
-
-        state = _fresh_state()
-        state["config"]["audio_root"] = str(tmp_path)
-        state["config"]["artist_name"] = "test-artist"
-        mock_cache = MockStateCache(state)
-
-        import numpy as np
-        mock_data = np.random.randn(44100, 2).astype(np.float32) * 0.5
+        audio_dir, mock_cache = self._album(tmp_path, "01-track.wav")
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_helpers, "_check_mastering_deps", return_value=None), \
-             patch("soundfile.read", return_value=(mock_data.copy(), 44100)), \
-             patch("soundfile.write"), \
-             patch("pyloudnorm.Meter") as mock_meter_cls:
-            mock_meter = MagicMock()
-            mock_meter.integrated_loudness.side_effect = [-20.0, -16.0, -14.0]
-            mock_meter_cls.return_value = mock_meter
+             patch.object(_processing_helpers, "_check_mastering_deps", return_value=None):
             _run(server.fix_dynamic_track("test-album", "01-track.wav"))
 
         assert (audio_dir / "mastered").is_dir()
+        assert (audio_dir / "mastered" / "01-track.wav").is_file()
 
 
 class TestMasterWithReferenceComprehensive:
@@ -13902,8 +13902,10 @@ class TestMasterWithReferenceComprehensive:
 
         call_count = [0]
 
-        def side_effect(target, ref, output):
+        def side_effect(target, ref, output, **delivery):
             call_count[0] += 1
+            # The handler passes the delivery format and ceiling (#681 item 4)
+            assert set(delivery) == {"output_bits", "output_sample_rate", "ceiling_db"}
             if "02-bad" in str(target):
                 raise RuntimeError("Processing failed")
 
