@@ -273,3 +273,23 @@ class TestGetMidiScorePlan:
 
     def test_unknown_track(self, album):  # noqa: F811
         assert _score("99-missing")["found"] is False
+
+
+class TestAlbumPlanSourcesGate:
+    """#679 item 1: the album plan runs the real Sources Verified gate — anything
+    but Verified or N/A keeps a track out of the batch that spends credits."""
+
+    @pytest.mark.parametrize("value", ["Not verified", "TBD", "⏳ Pending", "Pending"])
+    def test_unverified_track_is_blocked(self, album, monkeypatch, value):  # noqa: F811
+        monkeypatch.setattr(_plan_mod, "_load_artist_blocklist", lambda: [])
+        album.state["albums"]["test-album"]["tracks"]["01-first-track"]["sources_verified"] = value
+        by_slug = {t["track_slug"]: t for t in _plan()["tracks"]}
+        assert by_slug["01-first-track"]["action"] == "blocked", by_slug["01-first-track"]
+        assert "Sources Verified" in by_slug["01-first-track"]["reason"]
+
+    @pytest.mark.parametrize("value", ["N/A", "Verified (2026-01-01)"])
+    def test_verified_or_na_track_is_not_blocked_by_sources(self, album, monkeypatch, value):  # noqa: F811
+        monkeypatch.setattr(_plan_mod, "_load_artist_blocklist", lambda: [])
+        album.state["albums"]["test-album"]["tracks"]["01-first-track"]["sources_verified"] = value
+        by_slug = {t["track_slug"]: t for t in _plan()["tracks"]}
+        assert "Sources Verified" not in by_slug["01-first-track"]["reason"]

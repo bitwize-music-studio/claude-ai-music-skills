@@ -80,7 +80,7 @@ Map of album slug (string) → album data object.
 | `status` | string | Track status (see valid values below) |
 | `explicit` | boolean | Whether track contains explicit content |
 | `has_suno_link` | boolean | Whether a Suno generation link exists |
-| `sources_verified` | string | Verification status: `"N/A"`, `"Pending"`, or `"Verified (DATE)"` |
+| `sources_verified` | string | Verification status: `"N/A"`, `"Pending"`, `"Verified"` or `"Verified (DATE)"`; any other value is kept as written and counts as not verified |
 | `genre` | string | Track's own genre from frontmatter `genre:`, or `""` when it declares none. A musical descriptor, not a path segment — unlike the album's `genre`, nothing resolves a directory from it. Consumed by `get_lyrics_stats` to pick the word-count target per track, falling back to the album's genre then the default. |
 | `mtime` | float | Last modification time of track file |
 | `fade_out` | float or null | The track file's Fade Out row: seconds of fade-out mastering adds, or `null` for no fade (`0`, `—`, `No …`). **Absent** when the file has no such row, and mastering then applies its 3 s default. Every mastering path reads it through `fade_out_for_track` |

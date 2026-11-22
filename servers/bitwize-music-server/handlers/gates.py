@@ -21,6 +21,7 @@ from handlers._shared import (
     _safe_json,
     _template_style_tokens_in,
 )
+from tools.state.parsers import sources_verified_cleared
 
 logger = logging.getLogger(__name__)
 
@@ -104,11 +105,25 @@ def _check_pre_gen_gates_for_track(
     warning_count = 0
     is_instrumental = bool(file_text and re.search(r"(?mi)^instrumental:\s*true\b", file_text))
 
-    # Gate 1: Sources Verified
-    sources = t_data.get("sources_verified", "N/A")
-    if sources.lower() == "pending":
+    # Frontmatter and the Track Details row disagree on Instrumental: which gates
+    # apply is unknown, so block and run every gate (#679 item 11; the
+    # pre-generation-check skill's "Instrumental field mismatch").
+    if file_text:
+        # lazy: handlers.generation imports handlers.gates
+        from handlers.generation import _instrumental_state
+
+        _, mismatch = _instrumental_state(file_text)
+        if mismatch:
+            is_instrumental = False
+            gates.append({"gate": "Instrumental Flags Agree", "status": "FAIL",
+                          "severity": "BLOCKING", "detail": mismatch["detail"]})
+            blocking += 1
+
+    # Gate 1: Sources Verified — only Verified (any date) or N/A pass (#679 item 1)
+    sources = str(t_data.get("sources_verified") or "N/A")
+    if not sources_verified_cleared(sources):
         gates.append({"gate": "Sources Verified", "status": "FAIL", "severity": "BLOCKING",
-                      "detail": "Sources not yet verified by human"})
+                      "detail": f"Sources not yet verified by a human (Sources Verified: {sources})"})
         blocking += 1
     else:
         gates.append({"gate": "Sources Verified", "status": "PASS",
@@ -266,9 +281,7 @@ def _check_pre_gen_gates_for_track(
         found_artists = []
         for entry in blocklist:
             name = entry["name"]
-            assert _text_analysis._artist_blocklist_patterns is not None
-            pattern = _text_analysis._artist_blocklist_patterns.get(name)
-            if pattern and pattern.search(style_content):
+            if _text_analysis._artist_pattern(name).search(style_content):
                 found_artists.append(name)
 
         if found_artists:
@@ -356,7 +369,7 @@ async def run_pre_generation_gates(
     """Run the pre-generation validation gates (8 blocking + 3 advisory) on a track or album.
 
     Gates:
-        1. Sources Verified — sources_verified is not "Pending"
+        1. Sources Verified — sources_verified is Verified (any date) or N/A
         2. Lyrics Reviewed — Lyrics Box populated, no [TODO]/[PLACEHOLDER], and
            no "[Lyrics here...]" or "[Lyrics to be written]" placeholder lines
         3. Pronunciation Resolved — All Pronunciation Notes entries applied
