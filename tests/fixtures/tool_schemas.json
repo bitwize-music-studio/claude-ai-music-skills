@@ -1948,6 +1948,11 @@
           "title": "Take",
           "type": "integer"
         },
+        "take_length_s": {
+          "default": 0.0,
+          "title": "Take Length S",
+          "type": "number"
+        },
         "track_slug": {
           "title": "Track Slug",
           "type": "string"
