@@ -233,14 +233,8 @@ class TestSpecialCharsStillEscaped:
         assert streaming.get("spotify") == url
         assert result["_state_streaming"].get("spotify") == url
 
-    def test_url_with_backslash_stays_valid_yaml(self, tmp_path):
-        url = 'https://example.com/track\\weird?q="x"'
-        result = _do_update(tmp_path, "spotify", url)
-
-        assert result["success"] is True
-        streaming = _reparse_streaming(result["_readme_text"])
-        assert streaming.get("spotify") == url
-        assert result["_state_streaming"].get("spotify") == url
+    # The backslash case is test_update_streaming_url_yaml_404.py's
+    # test_url_with_backslash_stays_valid_yaml; its copy here was identical.
 
     def test_plain_ascii_url_scalar_unaffected(self, tmp_path):
         """An ASCII URL needing no escaping is written byte-identically."""

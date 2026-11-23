@@ -68,8 +68,5 @@ class TestFindAlbumPathGlobInjection:
         with pytest.raises(SystemExit):
             mod.find_album_path(self._make_config(tmp_path), "[abc]")
 
-    def test_normal_album_name_still_resolves(self, tmp_path):
-        album_dir = tmp_path / "artists" / "testartist" / "albums" / "hip-hop" / "my-album"
-        album_dir.mkdir(parents=True)
-        result = mod.find_album_path(self._make_config(tmp_path), "my-album")
-        assert result == album_dir
+    # An ordinary name still resolving is test_upload_to_cloud.py's
+    # TestFindAlbumPath.test_mirrored_structure (this file had an identical copy).

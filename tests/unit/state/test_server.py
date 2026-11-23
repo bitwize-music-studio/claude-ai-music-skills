@@ -2486,6 +2486,14 @@ class TestExtractMarkdownSectionHelper:
         result = server._extract_markdown_section(text, "Missing")
         assert result is None
 
+    @pytest.mark.xfail(
+        strict=True,
+        reason=(
+            "#682 finding: _extract_markdown_section's _RE_SECTION matches "
+            "'## ' lines inside fenced code blocks, so the section is cut at "
+            "the fenced line and the rest of the block is lost"
+        ),
+    )
     def test_nested_code_block_with_headings(self):
         """Headings inside code blocks should not be treated as section boundaries."""
         text = (
@@ -2499,13 +2507,16 @@ class TestExtractMarkdownSectionHelper:
             "Other content"
         )
         result = server._extract_markdown_section(text, "Lyrics Box")
-        # Currently, the regex treats "## This is NOT a heading" inside
-        # the code block as a section boundary, truncating content early.
-        # This test documents the current behavior.
-        # If this is "Content", the heading inside the code block was
-        # incorrectly treated as a boundary.
-        assert result is not None
-        assert "*Copy this:*" in result
+        # The whole fenced block belongs to the section; it ends at
+        # "## Next Section". Asserting only "*Copy this:*" passed either way,
+        # since that line comes before the fence (#682).
+        assert result == (
+            "*Copy this:*\n\n"
+            "```\n"
+            "## This is NOT a heading\n"
+            "It's inside a code block\n"
+            "```"
+        )
 
     def test_heading_levels_respected(self):
         """Higher-level heading terminates, same-level terminates, lower does not."""
