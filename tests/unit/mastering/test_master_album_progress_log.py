@@ -139,7 +139,7 @@ def test_progress_log_survives_halt(
 
     # Force post_qc to halt by making qc_track return a FAIL verdict
     # on the clicks check.
-    def _fake_qc(path, _checks=None, _genre=None):
+    def _fake_qc(path, _checks=None, _genre=None, _ceiling=None):
         return {
             "filename": Path(path).name,
             "verdict": "FAIL",

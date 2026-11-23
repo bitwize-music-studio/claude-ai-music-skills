@@ -219,7 +219,9 @@ class TestFrontmatterTitleEscaping:
         fm = parse_frontmatter(_written_content(tracks_dir))
         assert "_error" not in fm
         assert fm.get("track_number") == 4
-        assert fm.get("explicit") is False
+        # The template ships explicit blank (undecided) since #683; the key
+        # must still survive the parse.
+        assert "explicit" in fm and fm["explicit"] is None
         assert fm.get("instrumental") is False
 
     def test_double_quote_title_kept_readable_in_body(self, cache_with_album):

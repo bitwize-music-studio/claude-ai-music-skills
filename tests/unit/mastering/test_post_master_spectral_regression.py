@@ -100,7 +100,7 @@ def _run_post_qc(ctx: MasterAlbumCtx) -> str | None:
     """Run _stage_post_qc with qc_track mocked to return a trivial PASS."""
     from unittest.mock import patch
 
-    def _fake_qc(path, checks=None, genre=None):
+    def _fake_qc(path, checks=None, genre=None, ceiling_db=None):
         return {
             "filename": Path(path).name,
             "verdict": "PASS",

@@ -49,7 +49,8 @@ def fix_dynamic(data: Any, rate: int, target_lufs: float = -14.0,
         rate: Sample rate
         target_lufs: Target LUFS (default: -14.0)
         eq_settings: List of (freq, gain_db, q) tuples. If None, applies
-            default 3500 Hz cut (-2.0 dB, Q=1.5).
+            default 3500 Hz cut (-2.0 dB, Q=1.5); an empty list applies no
+            EQ at all.
         ceiling_db: Peak ceiling in dB (default: -1.0)
 
     Returns:

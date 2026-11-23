@@ -13,7 +13,7 @@ from handlers._shared import (
     _GENRE_ALIASES,
     _SECTION_NAMES,
     STATUS_UNKNOWN,
-    TRACK_COMPLETED_STATUSES,
+    TRACK_HAS_TAKES_STATUSES,
     _album_dir,
     _albums_dir,
     _extract_code_block,
@@ -328,7 +328,7 @@ async def validate_album_structure(
             sources = t_data.get("sources_verified", "N/A")
 
             track_issues = []
-            if status in TRACK_COMPLETED_STATUSES and not has_link:
+            if status in TRACK_HAS_TAKES_STATUSES and not has_link:
                 track_issues.append("Suno Link missing")
             if not sources_verified_cleared(sources):
                 track_issues.append(f"Sources not verified ({sources})")

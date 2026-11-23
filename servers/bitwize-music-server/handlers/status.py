@@ -38,6 +38,10 @@ from handlers._shared import (
 
 logger = logging.getLogger(__name__)
 
+# templates/track.md's undecided frontmatter flag: ``explicit:`` with no value
+# (or the ``explicit: false`` the template shipped before #683).
+_RE_TEMPLATE_EXPLICIT_FM = re.compile(r"^explicit:[ \t]*(?:false)?[ \t]*$", re.MULTILINE)
+
 
 # ---------------------------------------------------------------------------
 # Status transition rules — single source of truth for validation logic.
@@ -618,18 +622,18 @@ async def create_track(
     content = content.replace("[Track's role in the album narrative]", "—")
 
     # Fill frontmatter placeholders
-    album_explicit = bool(album.get("explicit", False))
     content = content.replace("track_number: 0", f"track_number: {number}")
-    content = content.replace(
-        "explicit: false",
-        f"explicit: {'true' if album_explicit else 'false'}",
-    )
-    # The Explicit row says what the frontmatter two lines above it already
-    # does, instead of staying a "Yes / No" placeholder beside a set value.
-    content = content.replace(
-        "| **Explicit** | Yes / No |",
-        f"| **Explicit** | {'Yes' if album_explicit else 'No'} |",
-    )
+    # Explicit is decided per track, once its lyrics are checked: a fresh
+    # track keeps the template's blank flag and "Yes / No" row, so the
+    # pre-generation gate blocks until someone decides (#370, #683). The one
+    # thing carried over is a "Yes" from an album the user marked explicit —
+    # the safe direction; an album's false is the album template's default,
+    # not a decision about this track.
+    if album.get("explicit") is True:
+        content = _RE_TEMPLATE_EXPLICIT_FM.sub("explicit: true", content, count=1)
+        content = content.replace(
+            "| **Explicit** | Yes / No |", "| **Explicit** | Yes |",
+        )
 
     # A track with no source material has nothing for a human to verify. The
     # template's "❌ Pending" stays wherever there may be sources: on a

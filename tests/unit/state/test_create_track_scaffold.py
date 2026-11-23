@@ -82,7 +82,7 @@ server = _import_server()
 from handlers import _shared as _shared_mod  # noqa: E402
 from handlers import gates as _gates_mod  # noqa: E402
 from handlers import status as _status_mod  # noqa: E402
-from tools.state.parsers import parse_track_file  # noqa: E402
+from tools.state.parsers import parse_frontmatter, parse_track_file  # noqa: E402
 
 
 def _run(coro):
@@ -229,21 +229,36 @@ class TestSourcesVerifiedRow:
 
 
 class TestExplicitRow:
-    def test_no_on_a_clean_album(self, make_album):
+    # A fresh track's explicit flag is undecided until its lyrics are checked,
+    # so the pre-generation gate blocks (#370). These tests pinned "No" copied
+    # from a non-explicit album, which pre-decided it (#683).
+
+    def test_undecided_on_a_clean_album(self, make_album):
         make_album(explicit=False)
         content = _created_text(_create())
-        assert _row(content, "Explicit") == "| **Explicit** | No |"
-        assert "explicit: false" in content
+        assert _row(content, "Explicit") == "| **Explicit** | Yes / No |"
+        fm = parse_frontmatter(content)
+        assert "explicit" in fm and fm["explicit"] is None
 
     def test_yes_on_an_explicit_album(self, make_album):
         make_album(explicit=True)
         content = _created_text(_create())
         assert _row(content, "Explicit") == "| **Explicit** | Yes |"
-        assert "explicit: true" in content
+        assert parse_frontmatter(content)["explicit"] is True
 
-    def test_the_placeholder_is_gone(self, make_album):
-        make_album()
-        assert "Yes / No" not in _row(_created_text(_create()), "Explicit")
+    def test_fresh_track_blocks_the_explicit_gate(self, make_album):
+        make_album(explicit=False)
+        content = _created_text(_create())
+        t_data = {"sources_verified": "N/A", "explicit": False}
+        _, _, gates = _gates_mod._check_pre_gen_gates_for_track(t_data, content, blocklist=[])
+        gate = next(g for g in gates if g["gate"] == "Explicit Flag Set")
+        assert gate["status"] == "FAIL"
+        assert gate["severity"] == "BLOCKING"
+
+    def test_indexed_as_not_explicit_while_undecided(self, make_album):
+        make_album(explicit=False)
+        result = _create()
+        assert parse_track_file(Path(result["path"]))["explicit"] is False
 
 
 # ===========================================================================
@@ -387,11 +402,13 @@ class TestANewTrackAtTheGates:
         )
         return {g["gate"]: g["status"] for g in gates}
 
-    def test_only_the_unwritten_lyrics_and_style_block_it(self, make_album):
+    def test_only_the_unwritten_lyrics_style_and_explicit_flag_block_it(self, make_album):
+        # The undecided Explicit flag blocks too, as #370 intended; this test
+        # pinned a fresh track passing it with "No" copied from the album (#683).
         make_album()
         gates = self._gates(_create("It's a Bicycle", number=4))
         failing = sorted(name for name, status in gates.items() if status == "FAIL")
-        assert failing == ["Lyrics Reviewed", "Style Prompt Complete"]
+        assert failing == ["Explicit Flag Set", "Lyrics Reviewed", "Style Prompt Complete"]
 
     def test_a_documentary_track_also_waits_for_its_sources(self, make_album):
         make_album(sources=True)

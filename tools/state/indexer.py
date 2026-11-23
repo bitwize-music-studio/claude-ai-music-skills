@@ -115,16 +115,18 @@ AUTO_REFRESH_ON_CONFIG_CHANGE = True
 
 CONFIG_FILE = CONFIG_PATH
 
-# Track statuses that count toward an album's tracks_completed.
-_COMPLETED_TRACK_STATUSES = frozenset({'Final', 'Generated'})
+# Track statuses that count toward an album's tracks_completed. Only Final:
+# a Generated track still awaits its keeper, and an album is Complete only
+# when every track is Final (#683).
+_COMPLETED_TRACK_STATUSES = frozenset({'Final'})
 
 
 def _count_completed_tracks(tracks: dict[str, dict[str, Any]]) -> int:
     """Count tracks whose status counts as completed.
 
     Single source of truth for ``tracks_completed``, which
-    reference/state-schema.md defines as "Number of tracks with completed
-    status". It is always derived from the track files, never from the album
+    reference/state-schema.md defines as the number of tracks whose status
+    is Final. It is always derived from the track files, never from the album
     README's ``## Tracklist`` table: that table is a hand-maintained summary,
     and ``update_track_field`` rewrites a track file without touching it, so
     the two drift the moment a track's status changes. Deriving the count in

@@ -68,7 +68,11 @@ from tools.mastering.coherence import (
 from tools.mastering.coherence import (
     load_tolerances as _coherence_load_tolerances,
 )
-from tools.mastering.config import build_effective_preset
+from tools.mastering.config import (
+    adm_global_setting_note,
+    build_effective_preset,
+    load_mastering_config,
+)
 from tools.mastering.layout import (
     LayoutError,
 )
@@ -118,8 +122,8 @@ class MasterAlbumCtx:
     # ── inputs (set at construction) ─────────────────────────────────────────
     album_slug: str
     genre: str
-    target_lufs: float
-    ceiling_db: float
+    target_lufs: float | None  # None = not passed: preset > config decides
+    ceiling_db: float | None
     # None = "use the genre preset's cut"; an explicit 0.0 disables it
     # (#556 — same sentinel master_audio uses).
     cut_highmid: float | None
@@ -421,6 +425,12 @@ async def _stage_pre_flight(ctx: MasterAlbumCtx) -> str | None:
     ctx.effective_highmid = ctx.settings["cut_highmid"]
     ctx.effective_highs = ctx.settings["cut_highs"]
     ctx.effective_compress = ctx.effective_preset["compress_ratio"]
+
+    # A global ADM switch is not honoured (album frontmatter only); say so
+    # instead of skipping validation silently (#683).
+    adm_note = adm_global_setting_note(load_mastering_config(), ctx.album_mastering or None)
+    if adm_note:
+        ctx.warnings.append(adm_note)
     return None
 
 
@@ -1120,7 +1130,11 @@ async def _stage_verification(ctx: MasterAlbumCtx) -> str | None:
                         fix_dynamic_to_file,
                         raw_path, mastered_path,
                         target_lufs=effective_lufs,
-                        eq_settings=eq_settings if eq_settings else None,
+                        # An empty list is "no EQ": the run's cuts are
+                        # disabled. None would let fix_dynamic fall back to
+                        # its own -2 dB high-mid cut, which ignored an
+                        # explicit cut_highmid=0 (#556, #683).
+                        eq_settings=eq_settings,
                         ceiling_db=effective_ceiling,
                         output_bits=ctx.targets["output_bits"],
                         output_sample_rate=int(
@@ -2007,10 +2021,12 @@ async def _stage_post_qc(ctx: MasterAlbumCtx) -> str | None:
     # when the genre reaches the click detector.
     qc_genre = ctx.genre or None
 
+    # The true-peak check measures against the ceiling this run mastered to
+    # (config, preset, argument or frozen signature), not a fixed -1.0 (#683).
     post_qc_results = []
     for wav in ctx.mastered_files:
         result = await ctx.loop.run_in_executor(
-            None, qc_track, str(wav), None, qc_genre,
+            None, qc_track, str(wav), None, qc_genre, ctx.effective_ceiling,
         )
         post_qc_results.append(result)
 

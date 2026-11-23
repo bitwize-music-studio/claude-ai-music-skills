@@ -154,6 +154,14 @@ This is OK - artist may want explicit flag for themes/context
 No action required (conservative flagging is fine)
 ```
 
+### Flag Not Set Yet
+A new track's Explicit row is `Yes / No` and its frontmatter `explicit:` is blank: nobody has decided. The pre-generation gate blocks it until someone does.
+```
+⚠️ UNSET: Explicit flag not decided
+ACTION: Recommend Yes or No from the scan; once the user agrees, set it with
+        update_track_field(album, track, "explicit", "Yes" | "No")
+```
+
 ---
 
 ## Distributor Requirements

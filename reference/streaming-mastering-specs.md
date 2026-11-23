@@ -79,14 +79,14 @@ album_median:           # album-wide medians across tracks
 delivery_targets:
   target_lufs: -14.0
   tp_ceiling_db: -1.0
-  lra_target_lu: 8.0
+  lra_target_lu: 5.0
   output_bits: 24
   output_sample_rate: 96000
-tolerances:
-  coherence_stl_95_lu: 1.0
-  coherence_lra_floor_lu: 6.0
+tolerances:             # the genre preset's values (shipped defaults shown)
+  coherence_stl_95_lu: 0.5
+  coherence_lra_floor_lu: 1.0
   coherence_low_rms_db: 2.0
-  coherence_vocal_rms_db: 1.5
+  coherence_vocal_rms_db: 2.0
 pipeline:
   polish_subfolder: "polished"
   source_sample_rate: 44100

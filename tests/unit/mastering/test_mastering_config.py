@@ -158,8 +158,8 @@ class TestResolveMasteringTargets:
         targets = resolve_mastering_targets(
             config=self._base_cfg(),
             preset=None,
-            target_lufs_arg=-14.0,
-            ceiling_db_arg=-1.0,
+            target_lufs_arg=None,
+            ceiling_db_arg=None,
         )
         assert targets["target_lufs"] == -14.0
         assert targets["ceiling_db"] == -1.0
@@ -171,8 +171,8 @@ class TestResolveMasteringTargets:
         targets = resolve_mastering_targets(
             config=self._base_cfg(),
             preset=preset,
-            target_lufs_arg=-14.0,  # default -> preset wins
-            ceiling_db_arg=-1.0,
+            target_lufs_arg=None,  # default -> preset wins
+            ceiling_db_arg=None,
         )
         assert targets["target_lufs"] == -9.0
 
@@ -182,7 +182,7 @@ class TestResolveMasteringTargets:
             config=self._base_cfg(),
             preset=preset,
             target_lufs_arg=-16.0,  # explicit override
-            ceiling_db_arg=-1.0,
+            ceiling_db_arg=None,
         )
         assert targets["target_lufs"] == -16.0
 
@@ -191,8 +191,8 @@ class TestResolveMasteringTargets:
         targets = resolve_mastering_targets(
             config=self._base_cfg(),
             preset=preset,
-            target_lufs_arg=-14.0,
-            ceiling_db_arg=-1.0,
+            target_lufs_arg=None,
+            ceiling_db_arg=None,
         )
         assert targets["output_bits"] == 16
 
@@ -201,8 +201,8 @@ class TestResolveMasteringTargets:
         targets = resolve_mastering_targets(
             config=self._base_cfg(),
             preset=preset,
-            target_lufs_arg=-14.0,
-            ceiling_db_arg=-1.0,
+            target_lufs_arg=None,
+            ceiling_db_arg=None,
         )
         assert targets["output_sample_rate"] == 48000
 
@@ -212,8 +212,8 @@ class TestResolveMasteringTargets:
         targets = resolve_mastering_targets(
             config=self._base_cfg(),
             preset=preset,
-            target_lufs_arg=-14.0,
-            ceiling_db_arg=-1.0,
+            target_lufs_arg=None,
+            ceiling_db_arg=None,
         )
         assert targets["output_sample_rate"] == 96000
 
@@ -221,8 +221,8 @@ class TestResolveMasteringTargets:
         targets = resolve_mastering_targets(
             config=self._base_cfg(),
             preset=None,
-            target_lufs_arg=-14.0,
-            ceiling_db_arg=-1.0,
+            target_lufs_arg=None,
+            ceiling_db_arg=None,
             source_sample_rate=44100,
         )
         assert targets["upsampled_from_source"] is True
@@ -232,8 +232,8 @@ class TestResolveMasteringTargets:
         targets = resolve_mastering_targets(
             config=self._base_cfg(),
             preset=None,
-            target_lufs_arg=-14.0,
-            ceiling_db_arg=-1.0,
+            target_lufs_arg=None,
+            ceiling_db_arg=None,
             source_sample_rate=96000,
         )
         assert targets["upsampled_from_source"] is False
@@ -261,8 +261,8 @@ class TestResolveMasteringTargets:
             targets = resolve_mastering_targets(
                 config=cfg,
                 preset=preset,
-                target_lufs_arg=-14.0,
-                ceiling_db_arg=-1.0,
+                target_lufs_arg=None,
+                ceiling_db_arg=None,
             )
             assert targets["output_bits"] == 24, (
                 f"{genre} preset forces 16-bit output; check "
@@ -278,8 +278,8 @@ class TestResolveMasteringTargets:
         targets = resolve_mastering_targets(
             config=cfg,
             preset=None,
-            target_lufs_arg=-14.0,
-            ceiling_db_arg=-1.0,
+            target_lufs_arg=None,
+            ceiling_db_arg=None,
         )
         assert targets["archival_enabled"] is True
 
@@ -292,7 +292,7 @@ def test_opus_safe_preset_applies_1_5_ceiling() -> None:
               "archival_enabled": False, "adm_aac_encoder": "aac"}
     preset = {"opus_safe": True}
     result = resolve_mastering_targets(
-        config, preset=preset, target_lufs_arg=-14.0, ceiling_db_arg=-1.0
+        config, preset=preset, target_lufs_arg=None, ceiling_db_arg=None
     )
     assert result["ceiling_db"] == -1.5
 
@@ -305,7 +305,7 @@ def test_opus_safe_does_not_override_explicit_ceiling() -> None:
               "archival_enabled": False, "adm_aac_encoder": "aac"}
     preset = {"opus_safe": True}
     result = resolve_mastering_targets(
-        config, preset=preset, target_lufs_arg=-14.0, ceiling_db_arg=-2.0
+        config, preset=preset, target_lufs_arg=None, ceiling_db_arg=-2.0
     )
     assert result["ceiling_db"] == -2.0
 
@@ -318,7 +318,7 @@ def test_opus_safe_does_not_override_preset_true_peak_ceiling() -> None:
               "archival_enabled": False, "adm_aac_encoder": "aac"}
     preset = {"opus_safe": True, "true_peak_ceiling": -1.2}
     result = resolve_mastering_targets(
-        config, preset=preset, target_lufs_arg=-14.0, ceiling_db_arg=-1.0
+        config, preset=preset, target_lufs_arg=None, ceiling_db_arg=None
     )
     assert result["ceiling_db"] == -1.2
 
@@ -328,7 +328,52 @@ def test_build_effective_preset_edm_gets_opus_safe_ceiling() -> None:
     from tools.mastering.config import build_effective_preset
     bundle = build_effective_preset(
         genre="edm",
-        target_lufs_arg=-14.0, ceiling_db_arg=-1.0,
+        target_lufs_arg=None, ceiling_db_arg=None,
     )
     assert bundle["error"] is None
     assert bundle["targets"]["ceiling_db"] == -1.5
+
+
+# ---------------------------------------------------------------------------
+# #683: -14.0 / -1.0 are values, not "not set"
+# ---------------------------------------------------------------------------
+
+_CONFIG_683 = {"true_peak_ceiling": -1.0, "delivery_bit_depth": 24,
+               "delivery_sample_rate": 96000, "target_lufs": -14.0,
+               "archival_enabled": False, "adm_aac_encoder": "aac"}
+
+
+def test_explicit_minus_14_lufs_beats_the_preset() -> None:
+    """target_lufs=-14 with a -18 preset used to give -18: -14 meant 'unset'."""
+    result = resolve_mastering_targets(
+        _CONFIG_683, preset={"target_lufs": -18.0}, target_lufs_arg=-14.0,
+    )
+    assert result["target_lufs"] == -14.0
+
+
+def test_explicit_minus_1_ceiling_beats_opus_safe_and_config() -> None:
+    result = resolve_mastering_targets(
+        {**_CONFIG_683, "true_peak_ceiling": -2.0},
+        preset={"opus_safe": True}, ceiling_db_arg=-1.0,
+    )
+    assert result["ceiling_db"] == -1.0
+
+
+def test_omitted_args_still_fall_through_to_preset_and_config() -> None:
+    """Callers that pass nothing get exactly what they always got."""
+    result = resolve_mastering_targets(
+        {**_CONFIG_683, "true_peak_ceiling": -2.0}, preset={"target_lufs": -18.0},
+    )
+    assert result["target_lufs"] == -18.0
+    assert result["ceiling_db"] == -2.0
+
+
+def test_build_effective_preset_classical_with_explicit_minus_14() -> None:
+    from tools.mastering.config import build_effective_preset
+    with patch("tools.mastering.config.load_config", return_value=None):
+        default = build_effective_preset(genre="classical")
+        explicit = build_effective_preset(genre="classical", target_lufs_arg=-14.0)
+    assert default["targets"]["target_lufs"] != -14.0  # the preset decides
+    assert explicit["targets"]["target_lufs"] == -14.0
+    assert explicit["settings"]["target_lufs"] == -14.0
+    assert explicit["effective_preset"]["target_lufs"] == -14.0

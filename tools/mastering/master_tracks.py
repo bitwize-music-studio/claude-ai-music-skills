@@ -146,6 +146,10 @@ _PRESET_DEFAULTS: dict[str, float] = {
     'coherence_low_rms_db': 2.0,
     'coherence_vocal_rms_db': 2.0,
     'coherence_tilt_max_db': 0.5,
+    # Album-mastering anchor selector (#290 phase 2): EBU R128 LRA a source
+    # track ideally reads. Listed here so the loader keeps it; without it the
+    # YAML value was dropped and the selector always used its 8.0 (#683).
+    'genre_ideal_lra_lu': 5.0,
     # Post-master spectral regression: tinniness_ratio = high_mid / mid
     # (from analyze_track). WARN when post-master ratio exceeds floor AND
     # grew by more than delta from pre-master. Both conditions must hold.

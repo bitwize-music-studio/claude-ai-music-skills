@@ -494,6 +494,37 @@ class TestCheckTruePeak:
         assert result["status"] == "PASS"
 
 
+class TestQcTrackCeiling:
+    """qc_track measures true peak against the ceiling the master was made
+    to; it used a fixed -1.0 whatever that was (#683)."""
+
+    @pytest.fixture
+    def peak_wav(self, tmp_path):
+        # Sample peak 0.82 ≈ -1.7 dBFS: under -1.0, over -2.0.
+        data, rate = _generate_sine(amplitude=0.82)
+        path = tmp_path / "peak.wav"
+        _write_wav(path, data, rate, subtype="FLOAT")
+        return path
+
+    def test_default_ceiling_is_minus_1(self, peak_wav):
+        result = qc_track(peak_wav, checks=["truepeak"])
+        assert result["checks"]["truepeak"]["status"] == "PASS"
+        assert "ceiling -1.0" in result["checks"]["truepeak"]["detail"]
+
+    def test_tighter_ceiling_fails_a_peak_over_it(self, peak_wav):
+        result = qc_track(peak_wav, checks=["truepeak"], ceiling_db=-2.0)
+        assert result["checks"]["truepeak"]["status"] == "FAIL"
+        assert "ceiling -2.0" in result["checks"]["truepeak"]["detail"]
+
+    def test_looser_ceiling_passes_a_peak_over_minus_1(self, tmp_path):
+        data, rate = _generate_sine(amplitude=0.9)  # ≈ -0.9 dBFS
+        path = tmp_path / "hot.wav"
+        _write_wav(path, data, rate, subtype="FLOAT")
+        assert qc_track(path, checks=["truepeak"])["checks"]["truepeak"]["status"] == "FAIL"
+        loose = qc_track(path, checks=["truepeak"], ceiling_db=-0.3)
+        assert loose["checks"]["truepeak"]["status"] == "PASS"
+
+
 # ─── Tests: Full qc_track Integration ────────────────────────────────
 
 

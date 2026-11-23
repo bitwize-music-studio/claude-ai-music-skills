@@ -156,7 +156,7 @@ From `list_albums`, the albums with status "In Progress", "Research Complete" or
 
 For each, show:
 - Album name, genre, status
-- Track progress (completed/total)
+- Track progress (completed/total; completed = Final, as `tracks_completed` counts it)
 
 ### Pending Source Verifications
 From `get_pending_verifications(summary_only=True)`

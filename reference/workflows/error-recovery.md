@@ -11,11 +11,11 @@ This document covers edge cases and recovery procedures for common workflow issu
 **Prevention**: Always play through the full track before marking Final. Use the lyric-reviewer skill before generation.
 
 **Recovery Steps**:
-1. Change Status: `Final` → `In Progress`
-2. Note reason in Generation Log: "Needs regen - [reason]"
-3. Regenerate on Suno
-4. Log new attempt with notes
-5. When satisfied, mark `Generated` → `Final` again
+1. Move the track back to `Generated`. `Final` is terminal, so this needs `force=True`: `update_track_field(album, track, "status", "Generated", force=True)`. If the album had gone `Complete`, move it back too: `update_album_status(album, "In Progress", force=True)` (`Complete` → `In Progress` is not a normal transition either)
+2. In the Generation Log, take the ✓ off the old keeper's Rating and note the reason: "Needs regen - [reason]"
+3. Regenerate (`/bitwize-music:generate`, or edit-take / extend-take for one flaw). The status stays `Generated` while you do, as in the [regeneration workflow](status-tracking.md#regeneration-workflow)
+4. Log each new attempt with notes
+5. When the user marks a new keeper ✓, set `Final` again. No `force` needed: `Generated` → `Final` passes once a ✓ keeper is logged (and the Suno link is set, unless `generation.require_suno_link_for_final: false`)
 
 **When to Delete vs Revert**: Never delete the track file. Always revert status and regenerate. Keep the Generation Log history for reference.
 
@@ -63,11 +63,11 @@ This document covers edge cases and recovery procedures for common workflow issu
 
 **Recovery Steps**:
 1. **If on platforms**: Set tracks to private/unlisted (don't delete yet)
-2. Change Status: `Released` → `Complete`
-3. Remove or comment out `release_date` field
+2. Change Status: `Released` → `Complete`. `Released` is terminal, so this needs `force=True`: `update_album_status(album, "Complete", force=True)`
+3. Clear the release date: `update_album_field(album, "release-date", "")`
 4. Add "Version History" section in album README documenting the incident
-5. Fix whatever issues exist
-6. When ready, go through proper release flow again
+5. Fix whatever issues exist. If a track needs regenerating, follow §1 (its status and the album's go back with `force=True`)
+6. When ready, go through the proper release flow again. `Complete` → `Released` needs no `force`, but it is refused until every track is `Final` and `release_date` is set again
 
 **When to Delete vs Revert**: On platforms, prefer unlisting over deletion. Deletion may cause issues with future uploads of same content.
 
@@ -82,8 +82,8 @@ This document covers edge cases and recovery procedures for common workflow issu
 **Recovery Steps**:
 1. Fix lyrics in track file immediately
 2. Add note: "Lyrics revised [date] - [reason]"
-3. **If track was Final**: Revert to `In Progress`, regenerate
-4. **If source-based**: Request re-verification from user
+3. **If track was Final**: move it back to `Generated` with `force=True` and regenerate, as in §1. **If it is still `Generated`**: regenerate; the status stays `Generated` and no `force` is needed
+4. **If source-based**: set the track's Sources Verified back to `❌ Pending` (`update_track_field(album, track, "sources-verified", "❌ Pending")`, no `force` needed) and ask the user to re-verify with `/bitwize-music:verify-sources`. The pre-generation gate blocks regeneration until they do
 5. Update Generation Log with regeneration notes
 
 **When to Delete vs Revert**: Never delete track file. Always fix in place and regenerate audio if needed.

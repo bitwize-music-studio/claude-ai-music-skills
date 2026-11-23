@@ -81,8 +81,10 @@
 #   genre_ideal_lra_lu     - Target loudness-range (LU) used by the album-mastering
 #                            anchor selector (#290 phase 2). Tracks whose EBU R128
 #                            LRA (analyze_track's `lra`) is close to this score
-#                            higher on mix_quality. Default 8.0. Mastered pop reads
-#                            about 3.5-6 LU; dynamic genres override upward.
+#                            higher on mix_quality. Default 5.0: a pop/rock song
+#                            reads 4-6 LU. Genres mastered to -16 LUFS set 7.0,
+#                            those mastered to -18 LUFS set 10.0 (#683; the
+#                            loader dropped this key before, so 8.0 always won).
 #   spectral_reference_energy - 7-band reference curve (sub_bass / bass / low_mid /
 #                            mid / high_mid / high / air) as percentages of total
 #                            spectral energy, summing to 100. Anchor selector
@@ -167,8 +169,11 @@ defaults:
   mono_fold_vocal_warn_db: 2.0
   mono_fold_correlation_warn: 0.3
 
-  # Album-mastering anchor selector (#290 phase 2) — pop defaults
-  genre_ideal_lra_lu: 8.0
+  # Album-mastering anchor selector (#290 phase 2) — pop defaults.
+  # EBU R128 LRA of a well-balanced source track: pop/rock songs read 4-6 LU
+  # (#686's realistic fixtures: 5.06 for a song, 3.50 for its master). The
+  # -16 LUFS dynamic genres set 7.0 and the -18 LUFS ones 10.0 (#683).
+  genre_ideal_lra_lu: 5.0
   spectral_reference_energy:
     sub_bass: 8.0
     bass:     18.0
@@ -207,6 +212,7 @@ genres:
     cut_highs: 0
   enka:
     target_lufs: -16.0
+    genre_ideal_lra_lu: 7.0
     cut_highmid: -1.0
     cut_highs: 0
   mandopop:
@@ -221,6 +227,7 @@ genres:
     click_fail_count: 30
   dream-pop:
     target_lufs: -16.0
+    genre_ideal_lra_lu: 7.0
     cut_highmid: -1.0
     cut_highs: 0
   synth-pop:
@@ -233,10 +240,12 @@ genres:
     cut_highs: 0
   baroque-pop:
     target_lufs: -16.0
+    genre_ideal_lra_lu: 7.0
     cut_highmid: -1.0
     cut_highs: 0
   chamber-pop:
     target_lufs: -16.0
+    genre_ideal_lra_lu: 7.0
     cut_highmid: -1.0
     cut_highs: 0
   bubblegum-pop:
@@ -398,6 +407,7 @@ genres:
     cut_highs: 0
   chopped-and-screwed:
     target_lufs: -16.0
+    genre_ideal_lra_lu: 7.0
     cut_highmid: -1.0
     cut_highs: 0
   bounce:
@@ -472,6 +482,7 @@ genres:
     cut_highs: 0
   quiet-storm:
     target_lufs: -16.0
+    genre_ideal_lra_lu: 7.0
     cut_highmid: -1.0
     cut_highs: 0
   new-jack-swing:
@@ -530,6 +541,7 @@ genres:
     cut_highs: 0
   psychedelic-rock:
     target_lufs: -16.0
+    genre_ideal_lra_lu: 7.0
     cut_highmid: -1.5
     cut_highs: 0
   stoner-rock:
@@ -538,10 +550,12 @@ genres:
     cut_highs: 0
   progressive-rock:
     target_lufs: -16.0
+    genre_ideal_lra_lu: 7.0
     cut_highmid: -1.5
     cut_highs: 0
   post-rock:
     target_lufs: -16.0
+    genre_ideal_lra_lu: 7.0
     cut_highmid: -1.5
     cut_highs: 0
   math-rock:
@@ -576,6 +590,7 @@ genres:
     cut_highs: 0
   space-rock:
     target_lufs: -16.0
+    genre_ideal_lra_lu: 7.0
     cut_highmid: -1.5
     cut_highs: 0
   rockabilly:
@@ -588,18 +603,22 @@ genres:
     cut_highs: 0
   krautrock:
     target_lufs: -16.0
+    genre_ideal_lra_lu: 7.0
     cut_highmid: -1.0
     cut_highs: 0
   jam-band:
     target_lufs: -16.0
+    genre_ideal_lra_lu: 7.0
     cut_highmid: -1.5
     cut_highs: 0
   canterbury-scene:
     target_lufs: -16.0
+    genre_ideal_lra_lu: 7.0
     cut_highmid: -1.0
     cut_highs: 0
   slowcore:
     target_lufs: -16.0
+    genre_ideal_lra_lu: 7.0
     cut_highmid: -1.0
     cut_highs: 0
   post-britpop:
@@ -789,6 +808,7 @@ genres:
     cut_highs: 0
   blackgaze:
     target_lufs: -16.0
+    genre_ideal_lra_lu: 7.0
     cut_highmid: -2.0
     cut_highs: 0
   melodic-death-metal:
@@ -797,10 +817,12 @@ genres:
     cut_highs: -1.0
   drone-metal:
     target_lufs: -16.0
+    genre_ideal_lra_lu: 7.0
     cut_highmid: -2.0
     cut_highs: 0
   post-metal:
     target_lufs: -16.0
+    genre_ideal_lra_lu: 7.0
     cut_highmid: -2.0
     cut_highs: 0
   viking-metal:
@@ -977,6 +999,7 @@ genres:
     click_fail_count: 30
   wave:
     target_lufs: -16.0
+    genre_ideal_lra_lu: 7.0
     cut_highmid: -1.0
     cut_highs: 0
   complextro:
@@ -1013,6 +1036,7 @@ genres:
     click_fail_count: 30
   dub-techno:
     target_lufs: -16.0
+    genre_ideal_lra_lu: 7.0
     cut_highmid: -1.0
     cut_highs: 0
   glitch:
@@ -1045,6 +1069,7 @@ genres:
     click_fail_count: 30
   witch-house:
     target_lufs: -16.0
+    genre_ideal_lra_lu: 7.0
     cut_highmid: -1.0
     cut_highs: 0
   chiptune:
@@ -1067,6 +1092,7 @@ genres:
     cut_highs: 0
   folktronica:
     target_lufs: -16.0
+    genre_ideal_lra_lu: 7.0
     cut_highmid: -1.0
     cut_highs: 0
   deconstructed-club:
@@ -1101,6 +1127,7 @@ genres:
     cut_highs: 0
   balearic:
     target_lufs: -16.0
+    genre_ideal_lra_lu: 7.0
     cut_highmid: -1.0
     cut_highs: 0
   2-step-garage:
@@ -1133,6 +1160,7 @@ genres:
     cut_highs: 0
   post-dubstep:
     target_lufs: -16.0
+    genre_ideal_lra_lu: 7.0
     cut_highmid: -1.0
     cut_highs: 0
   post-disco:
@@ -1141,6 +1169,7 @@ genres:
     cut_highs: 0
   space-disco:
     target_lufs: -16.0
+    genre_ideal_lra_lu: 7.0
     cut_highmid: -1.0
     cut_highs: 0
   rave:
@@ -1203,6 +1232,7 @@ genres:
   # === Ambient / Chill / Atmospheric ===
   ambient:
     target_lufs: -16.0
+    genre_ideal_lra_lu: 7.0
     cut_highmid: -1.0
     cut_highs: 0
   lo-fi:
@@ -1215,6 +1245,7 @@ genres:
     cut_highs: 0
   chillwave:
     target_lufs: -16.0
+    genre_ideal_lra_lu: 7.0
     cut_highmid: -1.0
     cut_highs: 0
   trip-hop:
@@ -1223,14 +1254,17 @@ genres:
     cut_highs: 0
   vaporwave:
     target_lufs: -16.0
+    genre_ideal_lra_lu: 7.0
     cut_highmid: -1.0
     cut_highs: 0
   shoegaze:
     target_lufs: -16.0
+    genre_ideal_lra_lu: 7.0
     cut_highmid: -1.5
     cut_highs: 0
   downtempo:
     target_lufs: -16.0
+    genre_ideal_lra_lu: 7.0
     cut_highmid: -1.0
     cut_highs: 0
   idm:
@@ -1241,30 +1275,37 @@ genres:
     click_fail_count: 30
   new-age:
     target_lufs: -16.0
+    genre_ideal_lra_lu: 7.0
     cut_highmid: -1.0
     cut_highs: 0
   dark-ambient:
     target_lufs: -18.0
+    genre_ideal_lra_lu: 10.0
     cut_highmid: 0
     cut_highs: 0
   drone:
     target_lufs: -18.0
+    genre_ideal_lra_lu: 10.0
     cut_highmid: 0
     cut_highs: 0
   psybient:
     target_lufs: -16.0
+    genre_ideal_lra_lu: 7.0
     cut_highmid: -1.0
     cut_highs: 0
   dungeon-synth:
     target_lufs: -18.0
+    genre_ideal_lra_lu: 10.0
     cut_highmid: -1.0
     cut_highs: 0
   electroacoustic:
     target_lufs: -18.0
+    genre_ideal_lra_lu: 10.0
     cut_highmid: 0
     cut_highs: 0
   lounge:
     target_lufs: -16.0
+    genre_ideal_lra_lu: 7.0
     cut_highmid: -1.0
     cut_highs: 0
 
@@ -1339,6 +1380,7 @@ genres:
     cut_highs: 0
   singer-songwriter:
     target_lufs: -16.0
+    genre_ideal_lra_lu: 7.0
     cut_highmid: -1.5
     cut_highs: 0
   polka:
@@ -1353,6 +1395,7 @@ genres:
   # === Jazz / Blues ===
   jazz:
     target_lufs: -16.0
+    genre_ideal_lra_lu: 7.0
     cut_highmid: 0
     cut_highs: 0
   blues:
@@ -1365,6 +1408,7 @@ genres:
     cut_highs: 0
   bossa-nova:
     target_lufs: -16.0
+    genre_ideal_lra_lu: 7.0
     cut_highmid: 0
     cut_highs: 0
   acid-jazz:
@@ -1373,18 +1417,22 @@ genres:
     cut_highs: 0
   bebop:
     target_lufs: -16.0
+    genre_ideal_lra_lu: 7.0
     cut_highmid: 0
     cut_highs: 0
   cool-jazz:
     target_lufs: -16.0
+    genre_ideal_lra_lu: 7.0
     cut_highmid: 0
     cut_highs: 0
   hard-bop:
     target_lufs: -16.0
+    genre_ideal_lra_lu: 7.0
     cut_highmid: 0
     cut_highs: 0
   modal-jazz:
     target_lufs: -16.0
+    genre_ideal_lra_lu: 7.0
     cut_highmid: 0
     cut_highs: 0
   jazz-fusion:
@@ -1401,6 +1449,7 @@ genres:
     cut_highs: 0
   gypsy-jazz:
     target_lufs: -16.0
+    genre_ideal_lra_lu: 7.0
     cut_highmid: 0
     cut_highs: 0
   ethio-jazz:
@@ -1409,6 +1458,7 @@ genres:
     cut_highs: 0
   dark-jazz:
     target_lufs: -18.0
+    genre_ideal_lra_lu: 10.0
     cut_highmid: 0
     cut_highs: 0
   latin-jazz:
@@ -1417,6 +1467,7 @@ genres:
     cut_highs: 0
   vocal-jazz:
     target_lufs: -16.0
+    genre_ideal_lra_lu: 7.0
     cut_highmid: 0
     cut_highs: 0
   soul-jazz:
@@ -1425,14 +1476,17 @@ genres:
     cut_highs: 0
   big-band:
     target_lufs: -16.0
+    genre_ideal_lra_lu: 7.0
     cut_highmid: -1.0
     cut_highs: 0
   delta-blues:
     target_lufs: -16.0
+    genre_ideal_lra_lu: 7.0
     cut_highmid: -1.0
     cut_highs: 0
   piano-blues:
     target_lufs: -16.0
+    genre_ideal_lra_lu: 7.0
     cut_highmid: -1.0
     cut_highs: 0
   desert-blues:
@@ -1443,22 +1497,27 @@ genres:
   # === Classical / Cinematic / Theatrical ===
   classical:
     target_lufs: -18.0
+    genre_ideal_lra_lu: 10.0
     cut_highmid: 0
     cut_highs: 0
   opera:
     target_lufs: -18.0
+    genre_ideal_lra_lu: 10.0
     cut_highmid: 0
     cut_highs: 0
   musicals:
     target_lufs: -16.0
+    genre_ideal_lra_lu: 7.0
     cut_highmid: -1.0
     cut_highs: 0
   musical-theater:
     target_lufs: -16.0
+    genre_ideal_lra_lu: 7.0
     cut_highmid: -1.0
     cut_highs: 0
   broadway:
     target_lufs: -16.0
+    genre_ideal_lra_lu: 7.0
     cut_highmid: -1.0
     cut_highs: 0
   soundtrack:
@@ -1475,26 +1534,32 @@ genres:
     cut_highs: 0
   cinematic:
     target_lufs: -16.0
+    genre_ideal_lra_lu: 7.0
     cut_highmid: 0
     cut_highs: 0
   medieval:
     target_lufs: -18.0
+    genre_ideal_lra_lu: 10.0
     cut_highmid: 0
     cut_highs: 0
   madrigal:
     target_lufs: -18.0
+    genre_ideal_lra_lu: 10.0
     cut_highmid: 0
     cut_highs: 0
   ragtime:
     target_lufs: -16.0
+    genre_ideal_lra_lu: 7.0
     cut_highmid: -1.0
     cut_highs: 0
   gregorian-chant:
     target_lufs: -18.0
+    genre_ideal_lra_lu: 10.0
     cut_highmid: 0
     cut_highs: 0
   spaghetti-western:
     target_lufs: -16.0
+    genre_ideal_lra_lu: 7.0
     cut_highmid: -1.0
     cut_highs: 0
   dark-cabaret:
@@ -1561,16 +1626,19 @@ genres:
     cut_highs: 0
   sufi:
     target_lufs: -16.0
+    genre_ideal_lra_lu: 7.0
     cut_highmid: -1.0
     cut_highs: 0
 
   # === European Pop / World ===
   fado:
     target_lufs: -16.0
+    genre_ideal_lra_lu: 7.0
     cut_highmid: -1.0
     cut_highs: 0
   flamenco:
     target_lufs: -16.0
+    genre_ideal_lra_lu: 7.0
     cut_highmid: -1.0
     cut_highs: 0
   afro-cuban:
@@ -1591,6 +1659,7 @@ genres:
     cut_highs: 0
   rebetiko:
     target_lufs: -16.0
+    genre_ideal_lra_lu: 7.0
     cut_highmid: -1.0
     cut_highs: 0
   turbo-folk:
@@ -1599,6 +1668,7 @@ genres:
     cut_highs: 0
   sevdah:
     target_lufs: -16.0
+    genre_ideal_lra_lu: 7.0
     cut_highmid: -1.0
     cut_highs: 0
   manele:
@@ -1607,6 +1677,7 @@ genres:
     cut_highs: 0
   morna:
     target_lufs: -16.0
+    genre_ideal_lra_lu: 7.0
     cut_highmid: -1.0
     cut_highs: 0
   afropop:
@@ -1629,18 +1700,22 @@ genres:
     cut_highs: 0
   hindustani:
     target_lufs: -18.0
+    genre_ideal_lra_lu: 10.0
     cut_highmid: 0
     cut_highs: 0
   carnatic:
     target_lufs: -18.0
+    genre_ideal_lra_lu: 10.0
     cut_highmid: 0
     cut_highs: 0
   indian-classical:
     target_lufs: -18.0
+    genre_ideal_lra_lu: 10.0
     cut_highmid: 0
     cut_highs: 0
   ghazal:
     target_lufs: -16.0
+    genre_ideal_lra_lu: 7.0
     cut_highmid: -1.0
     cut_highs: 0
   chutney:
@@ -1715,10 +1790,12 @@ genres:
     cut_highs: 0
   bolero:
     target_lufs: -16.0
+    genre_ideal_lra_lu: 7.0
     cut_highmid: -1.0
     cut_highs: 0
   tango:
     target_lufs: -16.0
+    genre_ideal_lra_lu: 7.0
     cut_highmid: -1.0
     cut_highs: 0
   mambo:
@@ -1833,6 +1910,7 @@ genres:
     cut_highs: 0
   isicathamiya:
     target_lufs: -16.0
+    genre_ideal_lra_lu: 7.0
     cut_highmid: 0
     cut_highs: 0
   maskandi:
@@ -1845,6 +1923,7 @@ genres:
     cut_highs: 0
   taarab:
     target_lufs: -16.0
+    genre_ideal_lra_lu: 7.0
     cut_highmid: -1.0
     cut_highs: 0
   sega:
@@ -1901,20 +1980,24 @@ genres:
     cut_highs: 0
   lullaby:
     target_lufs: -16.0
+    genre_ideal_lra_lu: 7.0
     cut_highmid: -1.0
     cut_highs: 0
 
   # === Vocal / Choral ===
   a-cappella:
     target_lufs: -16.0
+    genre_ideal_lra_lu: 7.0
     cut_highmid: -1.0
     cut_highs: 0
   barbershop:
     target_lufs: -16.0
+    genre_ideal_lra_lu: 7.0
     cut_highmid: -1.0
     cut_highs: 0
   choir:
     target_lufs: -18.0
+    genre_ideal_lra_lu: 10.0
     cut_highmid: 0
     cut_highs: 0
   beatboxing:
@@ -1927,6 +2010,7 @@ genres:
     cut_highs: 0
   throat-singing:
     target_lufs: -16.0
+    genre_ideal_lra_lu: 7.0
     cut_highmid: 0
     cut_highs: 0
   visual-kei:

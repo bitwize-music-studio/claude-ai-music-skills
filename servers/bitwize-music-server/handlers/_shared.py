@@ -54,7 +54,13 @@ ALBUM_COMPLETE = "Complete"
 ALBUM_RELEASED = "Released"
 
 # Sets for membership checks
-TRACK_COMPLETED_STATUSES = {TRACK_FINAL, TRACK_GENERATED}
+# A track is complete when it is Final (plugin-rules: "Only `Final` with a ✓
+# keeper"); an album is Complete when every track is. Generated means takes
+# exist but none is chosen yet, so it doesn't count toward tracks_completed or
+# completion_percentage (#683).
+TRACK_COMPLETED_STATUSES = {TRACK_FINAL}
+# Statuses whose track has Suno takes, so it should carry a Suno link.
+TRACK_HAS_TAKES_STATUSES = {TRACK_FINAL, TRACK_GENERATED}
 ALBUM_VALID_STATUSES = [
     ALBUM_CONCEPT, ALBUM_RESEARCH_COMPLETE, ALBUM_SOURCES_VERIFIED,
     ALBUM_IN_PROGRESS, ALBUM_COMPLETE, ALBUM_RELEASED,
@@ -380,8 +386,14 @@ def _json_sanitize(value: Any) -> Any:
     standard JS replacement (``JSON.stringify(Infinity) === "null"``).
 
     numpy float64 is a subclass of ``float``, so the ``isinstance`` check
-    covers the values produced by the mastering/analysis tools.
+    covers the values produced by the mastering/analysis tools. Other numpy
+    scalars and arrays (``np.bool_``, ``np.int64``, ``np.float32``,
+    ``ndarray``) are not, and ``default=str`` would serialise them as
+    strings — ``np.False_`` as the truthy ``"False"`` (#683) — so they are
+    converted to their Python equivalents with ``tolist()`` first.
     """
+    if type(value).__module__ == "numpy" and hasattr(value, "tolist"):
+        value = value.tolist()
     if isinstance(value, float):
         return value if math.isfinite(value) else None
     if isinstance(value, dict):
@@ -532,15 +544,47 @@ def _update_frontmatter_block(
 # Pre-compiled patterns for section extraction
 _RE_SECTION = re.compile(r'^(#{1,3})\s+(.+)$', re.MULTILINE)
 _RE_CODE_BLOCK = re.compile(r'```(?:[^\n]*\n)(.*?)```|```(.*?)```', re.DOTALL)
+_RE_FENCE = re.compile(r'^ {0,3}(`{3,}|~{3,})([^\n]*)$', re.MULTILINE)
+
+
+def _fenced_spans(text: str) -> list[tuple[int, int]]:
+    """Return (start, end) offsets of fenced code blocks (``` or ~~~).
+
+    A fence closes on a line opening with the same character, at least as
+    long as the opener, with nothing but whitespace after it. An unclosed
+    fence is ignored rather than run to the end of the text (CommonMark's
+    rule), so one stray fence in a hand-edited file can't hide every
+    heading after it.
+    """
+    spans: list[tuple[int, int]] = []
+    open_start: int | None = None
+    open_fence = ""
+    for m in _RE_FENCE.finditer(text):
+        fence = m.group(1)
+        if open_start is None:
+            open_start, open_fence = m.start(), fence
+        elif (
+            fence[0] == open_fence[0]
+            and len(fence) >= len(open_fence)
+            and not m.group(2).strip()
+        ):
+            spans.append((open_start, m.end()))
+            open_start = None
+    return spans
 
 
 def _extract_markdown_section(text: str, heading: str) -> str | None:
     """Extract content under a specific markdown heading.
 
     Returns the text between the target heading and the next heading
-    of equal or higher level, or end of file.
+    of equal or higher level, or end of file. ``#`` lines inside fenced
+    code blocks (``` or ~~~) are content, not headings.
     """
-    matches = list(_RE_SECTION.finditer(text))
+    spans = _fenced_spans(text)
+    matches = [
+        m for m in _RE_SECTION.finditer(text)
+        if not any(start < m.start() < end for start, end in spans)
+    ]
     target_idx = None
     target_level = None
 

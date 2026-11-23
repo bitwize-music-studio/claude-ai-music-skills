@@ -1100,22 +1100,28 @@ artwork:
 #   # adm_aac_encoder: aac
 #
 #   # ---------------------------
-#   # adm_validation_enabled [optional, default: false]
+#   # adm_validation_enabled — PER ALBUM ONLY, not read from this file
 #   # ---------------------------
-#   # When true, master_album runs the ADM (Apple Digital Masters)
-#   # validation stage — encodes each mastered track to AAC, decodes,
-#   # and scans for inter-sample peaks above the true-peak ceiling.
-#   # If clips are found, the adaptive retry loop tightens the ceiling
-#   # up to 2 additional times.
+#   # ADM (Apple Digital Masters) validation encodes each mastered track
+#   # to AAC, decodes it, and scans for inter-sample peaks above the
+#   # true-peak ceiling. If clips are found, the adaptive retry loop
+#   # tightens the ceiling up to 2 additional times.
+#   #
+#   # It is switched on in the album README's frontmatter, never here:
+#   #
+#   #   ---
+#   #   mastering:
+#   #     adm_validation_enabled: true
+#   #   ---
+#   #
+#   # Setting it in this file does nothing except make master_album warn
+#   # that the album's run skipped it. Default OFF.
 #   #
 #   # Cost: each cycle re-masters every track, so on a 10-track album
 #   # this adds ~10-12 minutes per cycle (up to ~30-36 min in the worst
-#   # case). Default OFF — opt in per album when preparing for Apple
-#   # Hi-Res Lossless / ADM submission, or when you need provable
-#   # zero-clip delivery. Normal streaming-target mastering doesn't
-#   # need it.
-#   #
-#   # adm_validation_enabled: false
+#   # case). Opt in per album when preparing for Apple Hi-Res Lossless /
+#   # ADM submission, or when you need provable zero-clip delivery.
+#   # Normal streaming-target mastering doesn't need it.
 
 
 # =============================================================================

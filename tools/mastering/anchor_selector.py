@@ -219,7 +219,8 @@ def select_anchor(
         ``selected_index`` is always the 1-based position in ``tracks``;
         ``override_index`` echoes the track number the caller passed.
     """
-    ideal_lra = float(preset.get("genre_ideal_lra_lu", 8.0))
+    # Fallback matches genre-presets.yaml's default (pop/rock: 4-6 LU, #683).
+    ideal_lra = float(preset.get("genre_ideal_lra_lu", 5.0))
     if target_lufs is None and preset.get("target_lufs") is not None:
         target_lufs = float(preset["target_lufs"])
     if ceiling_db is None:

@@ -133,6 +133,7 @@ async def qc_audio(
     subfolder: str = "",
     checks: str = "",
     genre: str = "",
+    ceiling_db: float | None = None,
 ) -> str:
     """Run technical QC checks on audio tracks.
 
@@ -147,9 +148,14 @@ async def qc_audio(
         genre: Optional genre preset name. When set, the click detector uses
                 genre-tuned peak/RMS thresholds so intentional sharp transients
                 in electronic/metal/IDM don't FAIL QC.
+        ceiling_db: True-peak ceiling the tracks were mastered to, for the
+                truepeak check. Omit to use the ceiling mastering resolves
+                for this genre and config (mastering.true_peak_ceiling,
+                tightened for opus-safe genres; -1.0 by default).
 
     Returns:
-        JSON with per-track QC results, summary, and verdicts
+        JSON with per-track QC results, summary, verdicts, and the
+        ceiling_db the truepeak check used
     """
     dep_err = _helpers._check_mastering_deps()
     if dep_err:
@@ -193,11 +199,22 @@ async def qc_audio(
         except ValueError as e:
             return _safe_json({"error": str(e)})
 
+    # The true-peak check measures against the ceiling mastering would use,
+    # not a fixed -1.0 (#683): the argument, else genre preset and config.
+    from tools.mastering.config import build_effective_preset
+
+    ceiling_bundle = build_effective_preset(
+        genre=genre_arg or "", ceiling_db_arg=ceiling_db,
+    )
+    if ceiling_bundle["error"] is not None:
+        ceiling_bundle = build_effective_preset(genre="", ceiling_db_arg=ceiling_db)
+    qc_ceiling = float(ceiling_bundle["targets"]["ceiling_db"])
+
     loop = asyncio.get_running_loop()
     results = []
     for wav in wav_files:
         result = await loop.run_in_executor(
-            None, qc_track, str(wav), active_checks, genre_arg
+            None, qc_track, str(wav), active_checks, genre_arg, qc_ceiling,
         )
         results.append(result)
 
@@ -222,6 +239,7 @@ async def qc_audio(
             "failed": failed,
         },
         "verdict": verdict,
+        "ceiling_db": qc_ceiling,
     })
 
 
@@ -240,8 +258,8 @@ def _refresh_playlist(album_slug: str, audio_dir: Path) -> str | None:
 async def master_audio(
     album_slug: str,
     genre: str = "",
-    target_lufs: float = -14.0,
-    ceiling_db: float = -1.0,
+    target_lufs: float | None = None,
+    ceiling_db: float | None = None,
     cut_highmid: float | None = None,
     cut_highs: float | None = None,
     dry_run: bool = False,
@@ -256,8 +274,12 @@ async def master_audio(
     Args:
         album_slug: Album slug (e.g., "my-album")
         genre: Genre preset to apply (overrides EQ/LUFS defaults if set)
-        target_lufs: Target integrated loudness (default: -14.0)
-        ceiling_db: True peak ceiling in dB (default: -1.0)
+        target_lufs: Target integrated loudness. Omit to use the genre
+            preset's target (else mastering.target_lufs in config, else
+            -14.0); any value passed, -14.0 included, is used as given.
+        ceiling_db: True peak ceiling in dB. Omit to use the genre preset
+            and config (else -1.0); any value passed, -1.0 included, is
+            used as given.
         cut_highmid: High-mid EQ cut in dB at 3.5kHz (e.g., -2.0). Omit
             (None) to use the genre preset's cut; pass 0 or 0.0 explicitly
             to disable the cut regardless of genre.
@@ -434,16 +456,12 @@ def _delivery_bundle_for_album(
     chosen = genre or _helpers._derive_album_genre(album_slug)
     bundle = build_effective_preset(
         genre=chosen,
-        target_lufs_arg=-14.0,
-        ceiling_db_arg=-1.0,
         source_sample_rate=source_sample_rate,
     )
     if bundle["error"] is not None and chosen and not explicit:
         # The album's genre has no mastering preset: deliver to config.
         bundle = build_effective_preset(
             genre="",
-            target_lufs_arg=-14.0,
-            ceiling_db_arg=-1.0,
             source_sample_rate=source_sample_rate,
         )
     return bundle
@@ -744,8 +762,8 @@ def _adm_adaptive_ceiling_per_track(
 async def master_album(
     album_slug: str,
     genre: str = "",
-    target_lufs: float = -14.0,
-    ceiling_db: float = -1.0,
+    target_lufs: float | None = None,
+    ceiling_db: float | None = None,
     cut_highmid: float | None = None,
     cut_highs: float | None = None,
     source_subfolder: str = "",
@@ -810,8 +828,12 @@ async def master_album(
     Args:
         album_slug: Album slug (e.g., "my-album").
         genre: Genre preset to apply (EQ/LUFS/QC tolerances).
-        target_lufs: Target integrated loudness (default: -14.0).
-        ceiling_db: True peak ceiling in dB (default: -1.0).
+        target_lufs: Target integrated loudness. Omit to use the genre
+            preset's target (else mastering.target_lufs in config, else
+            -14.0); any value passed, -14.0 included, is used as given.
+        ceiling_db: True peak ceiling in dB. Omit to use the genre preset
+            and config (else -1.0); any value passed, -1.0 included, is
+            used as given.
         cut_highmid: High-mid EQ cut in dB at 3.5kHz (e.g., -2.0). Omit
             (None) to use the genre preset's cut; pass 0 or 0.0
             explicitly to disable the cut regardless of genre.
@@ -1676,8 +1698,6 @@ async def measure_album_signature(
             genre=genre,
             # Only preset_dict is consumed here; the cut arguments are
             # left at their "use the preset" default (#556).
-            target_lufs_arg=-14.0,
-            ceiling_db_arg=-1.0,
         )
         if bundle["error"] is not None:
             return _safe_json({
@@ -1855,8 +1875,6 @@ async def album_coherence_check(
             genre=genre,
             # Only preset_dict is consumed here; the cut arguments are
             # left at their "use the preset" default (#556).
-            target_lufs_arg=-14.0,
-            ceiling_db_arg=-1.0,
         )
         if bundle["error"] is not None:
             return _safe_json({
@@ -1988,8 +2006,8 @@ async def album_coherence_correct(
     genre: str,
     source_subfolder: str = "polished",
     check_subfolder: str = "mastered",
-    target_lufs: float = -14.0,
-    ceiling_db: float = -1.0,
+    target_lufs: float | None = None,
+    ceiling_db: float | None = None,
     cut_highmid: float | None = None,
     cut_highs: float | None = None,
     anchor_track: int | None = None,
@@ -2016,7 +2034,8 @@ async def album_coherence_correct(
         check_subfolder: Directory to measure first (default "mastered").
         target_lufs / ceiling_db: Mastering overrides used only as the
             initial preset; per-track target_lufs is overridden with the
-            anchor's measured LUFS during correction.
+            anchor's measured LUFS during correction. Omit to use the genre
+            preset and config; any value passed is used as given.
         cut_highmid / cut_highs: EQ cuts in dB (3.5kHz / 8kHz). Omit
             (None) to use the genre preset's cut; pass 0 or 0.0
             explicitly to disable that cut regardless of genre. The
@@ -2243,7 +2262,7 @@ async def album_coherence_correct(
                 "result_lufs":          staged_result["lufs"],
                 "status":               "ok",
                 "delta_from_anchor":    delta,
-                "within_tolerance":     abs(delta) <= 0.5,
+                "within_tolerance":     bool(abs(delta) <= 0.5),
             })
 
         if failed == 0 and response["corrections"]:

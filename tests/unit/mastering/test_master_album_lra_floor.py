@@ -53,7 +53,7 @@ def test_lra_floor_fail_halts_pipeline(
     wav = tmp_path / "01-track.wav"
     wav.touch()
 
-    def _fake_qc(path, _preset=None, _genre=None):
+    def _fake_qc(path, _preset=None, _genre=None, _ceiling=None):
         return _make_qc_pass(Path(path).name)
 
     with patch("tools.mastering.qc_tracks.qc_track", _fake_qc):
@@ -90,7 +90,7 @@ def test_lra_floor_pass_does_not_halt(
     wav = tmp_path / "01-track.wav"
     wav.touch()
 
-    def _fake_qc(path, _preset=None, _genre=None):
+    def _fake_qc(path, _preset=None, _genre=None, _ceiling=None):
         return _make_qc_pass(Path(path).name)
 
     with patch("tools.mastering.qc_tracks.qc_track", _fake_qc):
@@ -119,7 +119,7 @@ def test_lra_floor_skipped_when_no_preset(
     wav = tmp_path / "01-track.wav"
     wav.touch()
 
-    def _fake_qc(path, _preset=None, _genre=None):
+    def _fake_qc(path, _preset=None, _genre=None, _ceiling=None):
         return _make_qc_pass(Path(path).name)
 
     with patch("tools.mastering.qc_tracks.qc_track", _fake_qc):

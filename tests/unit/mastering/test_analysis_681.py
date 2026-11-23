@@ -135,7 +135,7 @@ class TestLoudnessRange:
         wav = tmp_path / "01-a.wav"
         wav.touch()
 
-        def _fake_qc(path, _preset=None, _genre=None):
+        def _fake_qc(path, _preset=None, _genre=None, _ceiling=None):
             return {"filename": Path(path).name, "verdict": "PASS", "checks": {}}
 
         async def _run(row: dict):
@@ -182,12 +182,13 @@ class TestAnchorOnSunoMasters:
         # 2.5 dB over the ceiling once it is raised to -14 LUFS.
         medians = {k: float(np.median([t[k] for t in album]))
                    for k in ("stl_95", "lra", "low_rms", "vocal_rms")}
+        # The genre's ideal LRA is read from the preset: it was a literal 8.0,
+        # the selector's fallback while the loader dropped the key (#683).
+        pop = load_genre_presets()["pop"]
         hot = {**album[0], **medians, "filename": "05-hot.wav",
-               "lufs": -16.0, "peak_db": -0.5, "lra": 8.0}
+               "lufs": -16.0, "peak_db": -0.5, "lra": pop["genre_ideal_lra_lu"]}
         tracks = [*album, hot]
-        result = select_anchor(
-            tracks, load_genre_presets()["pop"], target_lufs=-14.0, ceiling_db=-1.0,
-        )
+        result = select_anchor(tracks, pop, target_lufs=-14.0, ceiling_db=-1.0)
         hot_score = result["scores"][4]
         assert hot_score["ceiling_penalty"] == pytest.approx(2.5 / 3.0)
         assert hot_score["mix_quality"] == max(s["mix_quality"] for s in result["scores"])

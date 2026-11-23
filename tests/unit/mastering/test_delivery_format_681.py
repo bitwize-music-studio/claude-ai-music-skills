@@ -110,7 +110,7 @@ class TestPresetsHonourConfiguredFormat:
     def test_config_16_44100_survives_a_genre_preset(self, genre: str) -> None:
         with _cfg(LEGACY_CFG):
             bundle = build_effective_preset(
-                genre=genre, target_lufs_arg=-14.0, ceiling_db_arg=-1.0,
+                genre=genre, target_lufs_arg=None, ceiling_db_arg=None,
             )
         assert bundle["targets"]["output_bits"] == 16
         assert bundle["targets"]["output_sample_rate"] == 44100
@@ -137,8 +137,8 @@ class TestPresetsHonourConfiguredFormat:
         )
         point_overrides_at(monkeypatch, overrides)
         with _cfg(LEGACY_CFG):
-            pop = build_effective_preset(genre="pop", target_lufs_arg=-14.0, ceiling_db_arg=-1.0)
-            rock = build_effective_preset(genre="rock", target_lufs_arg=-14.0, ceiling_db_arg=-1.0)
+            pop = build_effective_preset(genre="pop", target_lufs_arg=None, ceiling_db_arg=None)
+            rock = build_effective_preset(genre="rock", target_lufs_arg=None, ceiling_db_arg=None)
         assert (pop["targets"]["output_bits"], pop["targets"]["output_sample_rate"]) == (24, 48000)
         assert pop["effective_preset"]["dither_bits"] == 24
         assert (rock["targets"]["output_bits"], rock["targets"]["output_sample_rate"]) == (16, 44100)
@@ -185,13 +185,13 @@ class TestOpusSafeOnlyTightens:
         targets = build_delivery_targets(
             {**DEFAULT_MASTERING_CONFIG, "true_peak_ceiling": config_ceiling},
             preset={"opus_safe": 1.0},
-            target_lufs_arg=-14.0, ceiling_db_arg=-1.0,
+            target_lufs_arg=None, ceiling_db_arg=None,
         )
         assert targets["ceiling_db"] == expected
 
     def test_metal_with_a_minus_2_config(self) -> None:
         with _cfg({**DEFAULT_MASTERING_CONFIG, "true_peak_ceiling": -2.0}):
-            bundle = build_effective_preset(genre="metal", target_lufs_arg=-14.0, ceiling_db_arg=-1.0)
+            bundle = build_effective_preset(genre="metal", target_lufs_arg=None, ceiling_db_arg=None)
         assert bundle["settings"]["ceiling_db"] == -2.0
 
 
@@ -345,7 +345,7 @@ class TestFrozenTolerancesAreUsed:
         wav = tmp_path / "01-a.wav"
         wav.touch()
 
-        def _fake_qc(path, _preset=None, _genre=None):
+        def _fake_qc(path, _preset=None, _genre=None, _ceiling=None):
             return {"filename": Path(path).name, "verdict": "PASS", "checks": {}}
 
         async def _run():

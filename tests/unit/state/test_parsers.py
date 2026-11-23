@@ -182,8 +182,9 @@ class TestParseAlbumReadme:
     def test_tracks_completed_count(self):
         path = FIXTURES_DIR / "album-readme.md"
         result = parse_album_readme(path)
-        # Final (1) + Generated (1) = 2 completed
-        assert result['tracks_completed'] == 2
+        # Only Final counts, as in the indexer; this pinned Final (1) +
+        # Generated (1) = 2 (#683).
+        assert result['tracks_completed'] == 1
 
     def test_nonexistent_file(self):
         path = FIXTURES_DIR / "does-not-exist.md"
