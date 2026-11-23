@@ -17,8 +17,8 @@ class TestBuildEffectivePreset:
     def test_pop_genre_happy_path(self):
         result = build_effective_preset(
             genre="pop",
-            target_lufs_arg=-14.0,
-            ceiling_db_arg=-1.0,
+            target_lufs_arg=None,
+            ceiling_db_arg=None,
             source_sample_rate=44100,
         )
         assert result["error"] is None
@@ -42,8 +42,8 @@ class TestBuildEffectivePreset:
     def test_empty_genre_no_preset(self):
         result = build_effective_preset(
             genre="",
-            target_lufs_arg=-14.0,
-            ceiling_db_arg=-1.0,
+            target_lufs_arg=None,
+            ceiling_db_arg=None,
         )
         assert result["error"] is None
         assert result["preset_dict"] is None
@@ -65,8 +65,8 @@ class TestBuildEffectivePreset:
         """
         result = build_effective_preset(
             genre="",
-            target_lufs_arg=-14.0,
-            ceiling_db_arg=-1.0,
+            target_lufs_arg=None,
+            ceiling_db_arg=None,
         )
         ep = result["effective_preset"]
         assert "dither_bits" in ep, "genreless preset must set dither_bits explicitly"
@@ -80,8 +80,8 @@ class TestBuildEffectivePreset:
         consistent with output_bits (genre-presets.yaml sets dither_bits=24)."""
         result = build_effective_preset(
             genre="pop",
-            target_lufs_arg=-14.0,
-            ceiling_db_arg=-1.0,
+            target_lufs_arg=None,
+            ceiling_db_arg=None,
         )
         ep = result["effective_preset"]
         assert ep["dither_bits"] == ep["output_bits"]
@@ -89,8 +89,8 @@ class TestBuildEffectivePreset:
     def test_unknown_genre_returns_error(self):
         result = build_effective_preset(
             genre="not-a-real-genre",
-            target_lufs_arg=-14.0,
-            ceiling_db_arg=-1.0,
+            target_lufs_arg=None,
+            ceiling_db_arg=None,
         )
         assert result["error"] is not None
         assert "Unknown genre" in result["error"]["reason"]
@@ -136,7 +136,7 @@ class TestCutEqNoneSentinel:
     def test_omitted_uses_preset_cuts(self):
         preset = self._preset()
         result = build_effective_preset(
-            genre="black-metal", target_lufs_arg=-14.0, ceiling_db_arg=-1.0,
+            genre="black-metal", target_lufs_arg=None, ceiling_db_arg=None,
         )
         assert result["effective_preset"]["cut_highmid"] == preset["cut_highmid"]
         assert result["effective_preset"]["cut_highs"] == preset["cut_highs"]
@@ -147,7 +147,7 @@ class TestCutEqNoneSentinel:
         preset = self._preset()
         result = build_effective_preset(
             genre="black-metal", cut_highmid_arg=None, cut_highs_arg=None,
-            target_lufs_arg=-14.0, ceiling_db_arg=-1.0,
+            target_lufs_arg=None, ceiling_db_arg=None,
         )
         assert result["settings"]["cut_highmid"] == preset["cut_highmid"]
         assert result["settings"]["cut_highs"] == preset["cut_highs"]
@@ -157,7 +157,7 @@ class TestCutEqNoneSentinel:
         assert preset["cut_highmid"] != 0, "fixture genre must ship a cut"
         result = build_effective_preset(
             genre="black-metal", cut_highmid_arg=0.0, cut_highs_arg=0.0,
-            target_lufs_arg=-14.0, ceiling_db_arg=-1.0,
+            target_lufs_arg=None, ceiling_db_arg=None,
         )
         assert result["effective_preset"]["cut_highmid"] == 0.0
         assert result["effective_preset"]["cut_highs"] == 0.0
@@ -168,7 +168,7 @@ class TestCutEqNoneSentinel:
         preset = self._preset()
         result = build_effective_preset(
             genre="black-metal", cut_highmid_arg=0.0,
-            target_lufs_arg=-14.0, ceiling_db_arg=-1.0,
+            target_lufs_arg=None, ceiling_db_arg=None,
         )
         assert result["settings"]["cut_highmid"] == 0.0
         assert result["settings"]["cut_highs"] == preset["cut_highs"]
@@ -176,7 +176,7 @@ class TestCutEqNoneSentinel:
     def test_genreless_omitted_still_resolves_to_no_cut(self):
         """Byte-identical to the pre-#556 float-only default of 0.0."""
         result = build_effective_preset(
-            genre="", target_lufs_arg=-14.0, ceiling_db_arg=-1.0,
+            genre="", target_lufs_arg=None, ceiling_db_arg=None,
         )
         assert result["effective_preset"]["cut_highmid"] == 0.0
         assert result["effective_preset"]["cut_highs"] == 0.0

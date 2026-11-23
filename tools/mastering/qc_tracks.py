@@ -478,6 +478,7 @@ def qc_track(
     filepath: Path | str,
     checks: list[str] | None = None,
     genre: str | None = None,
+    ceiling_db: float | None = None,
 ) -> dict[str, Any]:
     """Run QC checks on a single audio track.
 
@@ -489,6 +490,11 @@ def qc_track(
             the click detector reads `click_peak_ratio` and `click_fail_count`
             from the matching genre preset so intentional sharp transients
             don't FAIL QC. Unknown names raise ValueError.
+        ceiling_db: True-peak ceiling the track was mastered to. The truepeak
+            check measures against it; None means the -1.0 dBTP default. A
+            master made to -2.0 that peaks at -1.2 is over its ceiling, and
+            one made to -0.5 is not, though a fixed -1.0 said the opposite
+            (#683).
 
     Returns:
         Dict with filename, per-check results, and overall verdict.
@@ -534,7 +540,9 @@ def qc_track(
         results["clipping"] = _check_clipping(data)
 
     if "truepeak" in active_checks:
-        results["truepeak"] = _check_truepeak(data, rate)
+        results["truepeak"] = _check_truepeak(
+            data, rate, -1.0 if ceiling_db is None else float(ceiling_db),
+        )
 
     if "clicks" in active_checks:
         results["clicks"] = _check_clicks(

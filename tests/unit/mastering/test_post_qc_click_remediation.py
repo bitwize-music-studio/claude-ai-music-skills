@@ -32,7 +32,7 @@ def _run_post_qc(tmp_path: Path, qc_result: dict) -> dict:
     wav = tmp_path / "01-track.wav"
     wav.touch()
 
-    def _fake_qc(path, _preset=None, _genre=None):
+    def _fake_qc(path, _preset=None, _genre=None, _ceiling=None):
         return {**qc_result, "filename": Path(path).name}
 
     with patch("tools.mastering.qc_tracks.qc_track", _fake_qc):

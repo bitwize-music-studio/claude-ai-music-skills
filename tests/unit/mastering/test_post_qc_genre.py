@@ -62,7 +62,7 @@ def test_post_qc_passes_genre_to_qc_track(
 
     captured_calls: list[dict] = []
 
-    def _spy_qc_track(path, checks=None, genre=None):
+    def _spy_qc_track(path, checks=None, genre=None, ceiling_db=None):
         captured_calls.append({"path": path, "checks": checks, "genre": genre})
         return {"filename": Path(path).name, "verdict": "PASS", "checks": {}}
 

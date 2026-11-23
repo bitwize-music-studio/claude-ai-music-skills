@@ -89,3 +89,35 @@ class TestAdmResolutionFromAlbumOverrides:
             config_adm=True,
             album_mastering={"adm_validation_enabled": 0},
         ) is False
+
+
+class TestGlobalAdmSettingNote:
+    """A global adm_validation_enabled is ignored; say so (#683).
+
+    config.example.yaml documented the key as a global setting, and a user
+    who set it there got no validation and no warning.
+    """
+
+    def test_global_true_without_album_key_warns(self):
+        from tools.mastering.config import adm_global_setting_note
+
+        note = adm_global_setting_note({"adm_validation_enabled": True}, None)
+        assert note is not None
+        assert "per album" in note and "frontmatter" in note
+
+    @pytest.mark.parametrize("value", ["true", "yes", 1])
+    def test_global_truthy_strings_warn(self, value):
+        from tools.mastering.config import adm_global_setting_note
+
+        assert adm_global_setting_note({"adm_validation_enabled": value}, {}) is not None
+
+    @pytest.mark.parametrize("config, album", [
+        ({}, None),
+        ({"adm_validation_enabled": False}, None),
+        ({"adm_validation_enabled": True}, {"adm_validation_enabled": True}),
+        ({"adm_validation_enabled": True}, {"adm_validation_enabled": False}),
+    ])
+    def test_no_note_when_nothing_is_ignored(self, config, album):
+        from tools.mastering.config import adm_global_setting_note
+
+        assert adm_global_setting_note(config, album) is None

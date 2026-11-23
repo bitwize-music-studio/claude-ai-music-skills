@@ -142,19 +142,42 @@ def _resolve_adm_enabled(album_mastering: dict[str, Any] | None) -> bool:
         return False
 
 
+def adm_global_setting_note(
+    config: dict[str, Any], album_mastering: dict[str, Any] | None,
+) -> str | None:
+    """A warning when config.yaml asks for ADM validation that won't run.
+
+    ADM validation is enabled per album only (``_resolve_adm_enabled``).
+    ``mastering.adm_validation_enabled: true`` in config.yaml used to be
+    ignored without a word, so a user who set it there got no validation and
+    no sign of it (#683). Returns None when the global value is unset or
+    false, or when the album's frontmatter decides for itself.
+    """
+    if not _config_bool(config, "adm_validation_enabled", False):
+        return None
+    if album_mastering and "adm_validation_enabled" in album_mastering:
+        return None
+    return (
+        "mastering.adm_validation_enabled is true in config.yaml, but ADM "
+        "validation is switched on per album only, so it did not run. To run "
+        "it for this album, add `mastering: {adm_validation_enabled: true}` "
+        "to the album README's frontmatter."
+    )
+
+
 def build_delivery_targets(
     config: dict[str, Any],
     *,
     preset: dict[str, Any] | None,
-    target_lufs_arg: float,
-    ceiling_db_arg: float,
+    target_lufs_arg: float | None = None,
+    ceiling_db_arg: float | None = None,
     source_sample_rate: int | None = None,
     album_mastering: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Resolve effective mastering targets from config + preset + explicit args.
 
     Precedence (highest wins):
-      1. Explicit arg (when it differs from the function's documented default).
+      1. Explicit arg (any value that is not None).
       2. Genre preset (when provided and relevant field set).
       3. Config value.
 
@@ -163,9 +186,10 @@ def build_delivery_targets(
     user put in ``{overrides}/mastering-presets.yaml``. ``opus_safe`` never
     loosens the ceiling: it yields ``min(config ceiling, -1.5)`` (#681).
 
-    ``target_lufs_arg`` defaults to -14.0 and ``ceiling_db_arg`` to -1.0 in
-    handler signatures; a value equal to the default is treated as "not
-    explicitly set" so the preset can take precedence.
+    ``target_lufs_arg`` / ``ceiling_db_arg`` use None for "not passed", so
+    the preset and config decide. Any number is the caller's choice and wins,
+    -14.0 and -1.0 included: those used to double as the "not set" sentinel,
+    so an explicit -14 LUFS on a classical album gave the preset's -18 (#683).
 
     ``album_mastering`` is the per-album ``mastering:`` frontmatter block
     (from the album's README). For ``adm_validation_enabled`` specifically,
@@ -173,7 +197,7 @@ def build_delivery_targets(
     is ignored for this key (see ``_resolve_adm_enabled``).
     """
     # Loudness target
-    if target_lufs_arg != -14.0:
+    if target_lufs_arg is not None:
         target_lufs = float(target_lufs_arg)
     elif preset is not None and preset.get("target_lufs") is not None:
         target_lufs = float(preset["target_lufs"])
@@ -184,7 +208,7 @@ def build_delivery_targets(
     # > config, with the opus_safe flag (dense-transient genres) able only to
     # TIGHTEN the config ceiling to -1.5 dBTP. A user who set a tighter
     # ceiling (say -2.0) keeps it on an opus-safe genre (#681).
-    if ceiling_db_arg != -1.0:
+    if ceiling_db_arg is not None:
         ceiling_db = float(ceiling_db_arg)
     elif preset is not None and preset.get("true_peak_ceiling") is not None:
         ceiling_db = float(preset["true_peak_ceiling"])
@@ -252,8 +276,8 @@ def build_effective_preset(
     genre: str,
     cut_highmid_arg: float | None = None,
     cut_highs_arg: float | None = None,
-    target_lufs_arg: float,
-    ceiling_db_arg: float,
+    target_lufs_arg: float | None = None,
+    ceiling_db_arg: float | None = None,
     source_sample_rate: int | None = None,
     album_mastering: dict[str, Any] | None = None,
 ) -> dict[str, Any]:

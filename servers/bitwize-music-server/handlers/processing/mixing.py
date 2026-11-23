@@ -1113,8 +1113,8 @@ async def polish_album(
 async def polish_and_master_album(
     album_slug: str,
     genre: str = "",
-    target_lufs: float = -14.0,
-    ceiling_db: float = -1.0,
+    target_lufs: float | None = None,
+    ceiling_db: float | None = None,
     cut_highmid: float | None = None,
     cut_highs: float | None = None,
 ) -> str:
@@ -1143,8 +1143,11 @@ async def polish_and_master_album(
             to both phases unchanged (#556); an explicit value
             unrecognized by either phase still fails that phase's
             existing validation.
-        target_lufs: Mastering target integrated loudness (default: -14.0)
-        ceiling_db: Mastering true peak ceiling in dB (default: -1.0)
+        target_lufs: Mastering target integrated loudness. Omit to use the
+            genre preset and config (else -14.0); any value passed, -14.0
+            included, is used as given.
+        ceiling_db: Mastering true peak ceiling in dB. Omit to use the genre
+            preset and config (else -1.0); any value passed is used as given.
         cut_highmid: High-mid EQ cut in dB at 3.5kHz (e.g., -2.0). Omit
             (None) to use the genre preset's cut; pass 0 or 0.0
             explicitly to disable the cut regardless of genre. Forwarded
