@@ -1349,6 +1349,23 @@ _ANALYZER_BLOCKED_DEFAULT_REASON = (
 )
 
 
+def _merge_analyzer_value(key: str, preset_value: Any, rec_value: Any) -> Any:
+    """The value an analyzer recommendation leaves in the stem's settings.
+
+    The recommendation wins, except for ``highpass_cutoff`` (#681): a rumble
+    finding asks for *at least* that much highpass, so it can raise a stem
+    that has none (or a lower one) but never pull a preset's own cutoff down
+    (the old 35 Hz recommendation lowered vocals' 80 Hz). The analyzer
+    recommends 25 Hz, so it cannot raise a preset's choice above that either.
+    """
+    if key == "highpass_cutoff" and preset_value is not None:
+        try:
+            return max(float(preset_value), float(rec_value))
+        except (TypeError, ValueError):
+            return rec_value
+    return rec_value
+
+
 def _get_stem_settings(
     stem_name: str,
     genre: str | None = None,
@@ -1402,7 +1419,7 @@ def _get_stem_settings(
     if analyzer_rec:
         for key, value in analyzer_rec.items():
             if key in _ANALYZER_EQ_OVERRIDE_KEYS:
-                result[key] = value
+                result[key] = _merge_analyzer_value(key, result.get(key), value)
 
     result[_SCOPE_KEY] = _scope_label(stem_name, genre)
     return result
@@ -2383,7 +2400,9 @@ def mix_track_stems(
                             "parameter":      key,
                             "genre_default":  baseline_settings.get(key),
                             "analyzer_rec":   rec_val,
-                            "applied":        rec_val,
+                            # What the merge left in the settings, which for
+                            # highpass_cutoff can be the preset's own (#681).
+                            "applied":        settings.get(key, rec_val),
                             "reason":         reason,
                         })
                     else:

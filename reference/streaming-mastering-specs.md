@@ -16,6 +16,21 @@ This document is the authoritative reference for how `master_album` delivers aud
 | `archival_enabled` | `false` (opt-in) | ↑ |
 | `adm_aac_encoder` | `aac` (ffmpeg native) | ↑ |
 
+### Precedence
+
+The delivery format comes from this block. The shipped genre presets leave
+`output_bits` / `output_sample_rate` at 0 ("not set"), so `delivery_bit_depth: 16`
+and `delivery_sample_rate: 44100` hold for every genre; only a non-zero
+`output_bits` / `output_sample_rate` you add for one genre in
+`{overrides}/mastering-presets.yaml` wins over it. `target_lufs` follows the
+genre preset. An opus-safe genre (trap, punk, metal, industrial, edm, dnb,
+dubstep, hardstyle) can only tighten `true_peak_ceiling`, to
+`min(true_peak_ceiling, -1.5)`.
+
+Every path that writes into `mastered/` delivers this format and ceiling:
+`master_album` (including its auto-recovery), `master_audio`,
+`fix_dynamic_track` and `master_with_reference`.
+
 ### Why 24/96 specifically
 
 - Apple Music **Hi-Res Lossless** badge: ≥24-bit AND **>48 kHz** (strict `>`). 48 kHz doesn't qualify.
@@ -50,7 +65,8 @@ anchor:
     stl_95: -14.8
     low_rms: -22.1
     vocal_rms: -17.6
-    short_term_range: 8.4
+    lra: 5.1              # EBU R128 loudness range (LU)
+    short_term_range: 22.4  # ungated max-min short-term loudness (report only)
     lufs: -14.0
     peak_db: -3.1
 album_median:           # album-wide medians across tracks
@@ -58,7 +74,8 @@ album_median:           # album-wide medians across tracks
   stl_95: -14.5
   low_rms: -22.0
   vocal_rms: -17.8
-  short_term_range: 8.2
+  lra: 5.0
+  short_term_range: 21.9
 delivery_targets:
   target_lufs: -14.0
   tp_ceiling_db: -1.0
@@ -76,6 +93,12 @@ pipeline:
   upsampled_from_source: true
 ```
 
+### What the signature measures
+
+- `lra` is the EBU R128 loudness range (Tech 3342: 3 s short-term loudness, gated at -70 LUFS and 20 LU below the mean, 95th minus 10th percentile). A mastered pop song reads about 3.5-6 LU. The anchor's LRA match (`genre_ideal_lra_lu`) and the post-QC LRA floor (`coherence_lra_floor_lu`) read it. `short_term_range` (max minus min short-term loudness, ungated) is still reported, but it spans the intro and the fade and reads ~20 LU on almost any song, so nothing decides on it.
+- `vocal_rms` comes from the polished vocal stem (`polished/<track>/vocals.wav`) when its mix, `polished/<track>.wav`, is there too, shifted by the loudness difference between the file analyzed and that mix: after mastering it follows the master's gain. Without that mix it is the 1-4 kHz band of the file itself (`signature_meta.vocal_rms_source`).
+- The anchor's ceiling penalty is the limiting a source will get once mastering brings it to the target loudness: its peak plus the gain to the target, over the ceiling, with 3 dB of gain reduction as the full penalty (`ceiling_penalty_basis: limiting_at_target`). A loud Suno master turned down to -14 LUFS is not penalised for peaking near 0 dBFS; a quiet, peaky track that has to come up into the limiter is.
+
 ## Re-mastering behavior
 
 | Album state | Signature file present | Default routing | What happens |
@@ -83,6 +106,8 @@ pipeline:
 | Not `Released` (any sub-state) | may or may not exist | **fresh** | Full pipeline: score a new anchor across the current track set, rewrite signature on success. |
 | `Released` | **must exist** | **frozen** | Skip anchor scoring. Master new/regenerated tracks against the anchor + targets in the signature. |
 | `Released` | missing | — | **Halt + escalate.** Signature was deleted or never written. Cannot safely re-master. |
+
+In frozen mode the signature's `delivery_targets` and `tolerances` are the ones used: the coherence check and correction classify against the stored tolerance bands, and post-QC holds tracks to the stored `coherence_lra_floor_lu`, not to the genre preset's current values.
 
 ### Manual overrides
 
@@ -92,7 +117,7 @@ pipeline:
 
 ### Archival stage mirrors `mastered/`
 
-When `archival_enabled: true`, the 32-bit float pre-downconvert master is written to `archival/`. The archival stage now mirrors `mastered/` — entries whose basename is no longer in `mastered/` are pruned. This keeps the archival set in sync across re-masters where tracks are dropped or renamed. The `prune_archival` MCP tool is still available for time-versioned cleanup (keep N newest by mtime) — that's a separate concept.
+When `archival_enabled: true`, the 32-bit float pre-downconvert master is written to `archival/`: the master at the delivery sample rate, captured before dither and the conversion to `delivery_bit_depth`, with any ceiling-guard pull-down applied to it as well. The archival stage now mirrors `mastered/` — entries whose basename is no longer in `mastered/` are pruned. This keeps the archival set in sync across re-masters where tracks are dropped or renamed. The `prune_archival` MCP tool is still available for time-versioned cleanup (keep N newest by mtime) — that's a separate concept.
 
 ## AAC encoder selection (future ADM validation step)
 

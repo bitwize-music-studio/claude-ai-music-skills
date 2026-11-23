@@ -108,10 +108,11 @@ def classify_outliers(
             tolerance=tolerances["coherence_stl_95_lu"],
             correctable=False,
         ))
-        # LRA floor — absolute value check, not delta
+        # LRA floor — absolute value check, not delta. The EBU R128
+        # loudness range (#681), not the ungated short_term_range.
         row["violations"].append(_floor_check(
             metric="lra_floor",
-            value=track.get("short_term_range"),
+            value=track.get("lra"),
             floor=tolerances["coherence_lra_floor_lu"],
         ))
         # low-RMS — correctable via tilt-EQ (spec step 6, ±0.5 dB)

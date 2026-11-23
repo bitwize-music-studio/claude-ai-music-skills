@@ -90,13 +90,50 @@ def _auto_resolve_vocal_stem(input_path: Path) -> Path | None:
     return None
 
 
+def _stem_mix_path(stem_path: Path) -> Path:
+    """The mix a polished stem belongs to: ``polished/<name>/vocals.wav`` →
+    ``polished/<name>.wav`` (what ``polish_album`` writes beside the stems)."""
+    return stem_path.parent.parent / f"{stem_path.parent.name}.wav"
+
+
+def _same_file(a: Path, b: Path) -> bool:
+    try:
+        return a.resolve() == b.resolve() or a.samefile(b)
+    except OSError:
+        return False
+
+
+def loudness_range(data: np.ndarray, rate: int) -> float | None:
+    """EBU R128 loudness range (LRA, EBU Tech 3342) in LU, or None.
+
+    Short-term loudness (3 s windows at a 10 Hz rate), absolute gate at
+    -70 LUFS, relative gate 20 LU below the power mean of what passes, then
+    the 95th minus the 10th percentile. pyloudnorm implements Tech 3342's
+    reference algorithm; it reads one 1.5 s of appended silence, which only
+    matters for clips far shorter than a song. ``None`` when nothing passes
+    the gates or the clip is too short to measure.
+    """
+    try:
+        lra = float(pyln.Meter(rate).loudness_range(data))
+    except (ValueError, IndexError) as exc:
+        logger.debug("Loudness range not measurable: %s", exc)
+        return None
+    return lra if np.isfinite(lra) else None
+
+
 def analyze_track(filepath: Path | str, *,
                   vocal_stem_path: Path | str | None = None) -> dict[str, Any]:
     """Analyze a single track and return metrics.
 
     Optional vocal_stem_path lets Phase 2 callers feed a known stem path
-    directly; omitted calls auto-resolve via the polished/<name>/vocals.wav
-    sibling convention (added in later tasks).
+    directly (the caller vouches that it is this file's vocal); omitted calls
+    auto-resolve the polished/<name>/vocals.wav sibling convention, and use
+    that stem only when its own mix, polished/<name>.wav, is there to relate
+    it to the file being analyzed (see the vocal-RMS block below, #681).
+
+    ``lra`` is the EBU R128 loudness range; ``short_term_range`` is the
+    ungated max-minus-min of the 3 s short-term loudness, kept for reports
+    and not an LRA (#681).
     """
     data, rate = sf.read(filepath)
 
@@ -202,21 +239,53 @@ def analyze_track(filepath: Path | str, *,
 
     # vocal-RMS: whole-stem RMS when stem path resolves; 1-4 kHz band of
     # full mix otherwise. See #290 spec footnote ‡.
+    #
+    # An auto-resolved stem (polished/<name>/vocals.wav) is the vocal of the
+    # polished mix polished/<name>.wav, not of the file analyzed here, which
+    # after polish is usually mastered/<name>.wav: mastering's gain moved the
+    # vocal with the rest of the mix and the raw stem RMS cannot see it, so
+    # the same master at 0 dB and -6 dB read the same vocal_rms (#681). The
+    # stem is therefore shifted by the integrated-loudness difference
+    # between the analyzed file and the stem's own mix (0 dB when they are
+    # the same file). That tracks gain changes exactly and EQ / limiting only
+    # approximately. With no stem mix to relate it to, the stem is not used
+    # and the 1-4 kHz band of the analyzed file stands in. An explicit
+    # vocal_stem_path is used as given: the caller vouches for it.
     vocal_rms: float | None = None
     vocal_rms_source: str = "unavailable"
+    vocal_rms_offset_db: float | None = None
 
     resolved_stem: Path | None
+    stem_offset_db: float | None = None
     if vocal_stem_path is not None:
         resolved_stem = Path(vocal_stem_path)
+        stem_offset_db = 0.0
     else:
         resolved_stem = _auto_resolve_vocal_stem(Path(filepath))
-    if resolved_stem is not None and resolved_stem.is_file():
+        if resolved_stem is not None:
+            stem_mix = _stem_mix_path(resolved_stem)
+            if _same_file(stem_mix, Path(filepath)):
+                stem_offset_db = 0.0
+            elif stem_mix.is_file() and np.isfinite(loudness):
+                try:
+                    mix_data, mix_rate = sf.read(str(stem_mix))
+                    if mix_data.ndim == 1:
+                        mix_data = np.column_stack([mix_data, mix_data])
+                    mix_lufs = pyln.Meter(mix_rate).integrated_loudness(mix_data)
+                except Exception as exc:
+                    logger.warning("Could not measure stem mix %s: %s", stem_mix, exc)
+                    mix_lufs = float('-inf')
+                if np.isfinite(mix_lufs):
+                    stem_offset_db = float(loudness - mix_lufs)
+    if (resolved_stem is not None and stem_offset_db is not None
+            and resolved_stem.is_file()):
         stem_mono = _read_vocal_stem(resolved_stem, rate)
         if stem_mono is not None:
             rms_val = _rms_db(stem_mono)
             if np.isfinite(rms_val):
-                vocal_rms = float(rms_val)
+                vocal_rms = float(rms_val) + stem_offset_db
                 vocal_rms_source = "stem"
+                vocal_rms_offset_db = stem_offset_db
 
     if vocal_rms is None:
         try:
@@ -242,12 +311,21 @@ def analyze_track(filepath: Path | str, *,
                         if np.isfinite(max_short_term) and np.isfinite(min_short_term)
                         else 0.0)
 
+    # EBU R128 loudness range — what the anchor's LRA match and the post-QC
+    # LRA floor read (#681). short_term_range is not one: ungated, it spans
+    # the fade-out and the quiet intro (a realistic song reads ~23 LU where
+    # its LRA is ~5).
+    lra = loudness_range(data, rate)
+
     # signature_meta records provenance for downstream consumers (anchor
     # selector in phase 2a, coherence check in phase 2b).
     signature_meta = {
         'stl_window_count': len(st_values),
         'stl_top_5pct_count': len(stl_top_5pct_indices),
         'vocal_rms_source': vocal_rms_source,
+        # dB added to the stem's RMS to place it in the analyzed file (#681);
+        # None when the stem was not used.
+        'vocal_rms_offset_db': vocal_rms_offset_db,
     }
 
     return {
@@ -264,6 +342,7 @@ def analyze_track(filepath: Path | str, *,
         'max_short_term_lufs': max_short_term if np.isfinite(max_short_term) else None,
         'max_momentary_lufs': max_momentary if np.isfinite(max_momentary) else None,
         'short_term_range': short_term_range,
+        'lra': lra,
         'stl_95': stl_95,
         'low_rms': low_rms,
         'vocal_rms': vocal_rms,
@@ -348,15 +427,17 @@ def main() -> None:
         print("=" * 80)
         print("LOUDNESS DYNAMICS (short-term=3s, momentary=400ms)")
         print("=" * 80)
-        print(f"{'Track':<35} {'MaxST':>8} {'MaxMom':>8} {'STRange':>8}")
-        print("-" * 65)
+        print(f"{'Track':<35} {'MaxST':>8} {'MaxMom':>8} {'LRA':>8} {'STRange':>8}")
+        print("-" * 74)
         for r in results:
             st = r.get('max_short_term_lufs')
             mom = r.get('max_momentary_lufs')
+            lra_val = r.get('lra')
             st_range = r.get('short_term_range', 0)
             st_str = f"{st:.1f}" if st is not None else "N/A"
             mom_str = f"{mom:.1f}" if mom is not None else "N/A"
-            print(f"{r['filename'][:34]:<35} {st_str:>8} {mom_str:>8} {st_range:>7.1f}dB")
+            lra_str = f"{lra_val:.1f}LU" if lra_val is not None else "N/A"
+            print(f"{r['filename'][:34]:<35} {st_str:>8} {mom_str:>8} {lra_str:>8} {st_range:>7.1f}dB")
         print()
 
     print("=" * 80)

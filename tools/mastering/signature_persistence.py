@@ -22,7 +22,8 @@ Schema v1 layout (top-level keys required at read time):
         stl_95: -14.8
         low_rms: -22.1
         vocal_rms: -17.6
-        short_term_range: 8.4
+        lra: 5.1                    # EBU R128 loudness range (LU)
+        short_term_range: 22.4      # ungated max-min, report only
         lufs: -14.0
         peak_db: -3.1
     album_median:                   # album-wide median across tracks
@@ -30,7 +31,8 @@ Schema v1 layout (top-level keys required at read time):
       stl_95: -14.5
       low_rms: -22.0
       vocal_rms: -17.8
-      short_term_range: 8.2
+      lra: 5.0
+      short_term_range: 21.9
     delivery_targets:               # what the album was actually shipped at
       target_lufs: -14.0
       tp_ceiling_db: -1.0

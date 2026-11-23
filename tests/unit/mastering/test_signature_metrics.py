@@ -241,11 +241,16 @@ class TestAutoResolveStem:
         stereo = np.column_stack([mono, mono])
         _write_wav(path, stereo, rate)
 
+    # #681 (item 7): an auto-resolved stem is used only beside its own mix,
+    # polished/<name>.wav, which places it relative to the analyzed file.
+    # These two tests used to pass with no such mix: a polished stem was
+    # read raw for whatever file shared its name.
     def test_auto_resolve_album_root_layout(self, tmp_path):
         mix = tmp_path / "01-song.wav"
         self._make_mix(mix)
         stem_dir = tmp_path / "polished" / "01-song"
         stem_dir.mkdir(parents=True)
+        self._make_mix(tmp_path / "polished" / "01-song.wav")
         stem = stem_dir / "vocals.wav"
         self._make_stem(stem)
         result = analyze_track(str(mix))
@@ -258,6 +263,7 @@ class TestAutoResolveStem:
         self._make_mix(mix)
         stem_dir = tmp_path / "polished" / "01-song"
         stem_dir.mkdir(parents=True)
+        self._make_mix(tmp_path / "polished" / "01-song.wav")
         stem = stem_dir / "vocals.wav"
         self._make_stem(stem)
         result = analyze_track(str(mix))

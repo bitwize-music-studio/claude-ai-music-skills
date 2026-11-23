@@ -25,13 +25,14 @@ AGGREGATE_KEYS = (
     "peak_db",
     "stl_95",
     "short_term_range",
+    "lra",
     "low_rms",
     "vocal_rms",
 )
 
 # Subset required for signature-eligibility (same four keys the anchor
 # selector uses — see ``tools/mastering/anchor_selector.py::SIGNATURE_KEYS``).
-ELIGIBILITY_KEYS = ("stl_95", "short_term_range", "low_rms", "vocal_rms")
+ELIGIBILITY_KEYS = ("stl_95", "lra", "low_rms", "vocal_rms")
 
 
 def _finite_values(tracks: list[dict[str, Any]], key: str) -> list[float]:
@@ -104,6 +105,7 @@ def build_signature(
             "peak_db":            t.get("peak_db"),
             "stl_95":             t.get("stl_95"),
             "short_term_range":   t.get("short_term_range"),
+            "lra":                t.get("lra"),
             "low_rms":            t.get("low_rms"),
             "vocal_rms":          t.get("vocal_rms"),
             "band_energy":        t.get("band_energy"),

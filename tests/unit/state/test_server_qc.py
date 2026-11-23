@@ -544,6 +544,9 @@ class TestMasterAlbumPipeline:
             "max_short_term_lufs": lufs + 0.5,
             "max_momentary_lufs": lufs + 1.0,
             "short_term_range": 8.0,
+            # analyze_track's EBU R128 loudness range, which the anchor
+            # requires since #681 (item 9).
+            "lra": 8.0,
             "stl_95": lufs + 0.3,
             "low_rms": -20.0,
             "vocal_rms": -18.0,

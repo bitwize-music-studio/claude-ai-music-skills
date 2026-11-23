@@ -16,13 +16,17 @@ Selection strategy (in order):
    in ``override_reason``. Only when no file is numbered is the number
    read as a position in the list.
 2. Composite scoring: ``0.4 * mix_quality + 0.4 * representativeness
-   - 1.0 * ceiling_penalty`` (formula from issue #290).
+   - 1.0 * ceiling_penalty`` (formula from issue #290). ``mix_quality``
+   matches the track's EBU R128 loudness range (``lra``) against the
+   genre's ideal; ``ceiling_penalty`` is the limiting the track will take
+   once mastering brings it to the target loudness (#681, see
+   ``_limiter_penalty_score``).
 3. Deterministic tie-breaker when top two scores differ by < 0.05:
    lowest 1-based index wins.
 
-Tracks missing any of ``stl_95`` / ``low_rms`` / ``vocal_rms`` /
-``short_term_range`` are considered ineligible and surface with
-``eligible: False`` + a ``reason`` in the per-track score list.
+Tracks missing any of ``stl_95`` / ``low_rms`` / ``vocal_rms`` / ``lra``
+are considered ineligible and surface with ``eligible: False`` + a
+``reason`` in the per-track score list.
 """
 
 from __future__ import annotations
@@ -34,7 +38,12 @@ from typing import Any
 import numpy as np
 
 BANDS = ("sub_bass", "bass", "low_mid", "mid", "high_mid", "high", "air")
-SIGNATURE_KEYS = ("stl_95", "short_term_range", "low_rms", "vocal_rms")
+# ``lra`` is the EBU R128 loudness range. It replaced ``short_term_range``
+# (ungated max - min of the short-term loudness, ~20 LU on any song with a
+# fade) as the dynamics key in #681.
+SIGNATURE_KEYS = ("stl_95", "lra", "low_rms", "vocal_rms")
+# Full penalty at this much limiter gain reduction (dB).
+LIMITER_PENALTY_FULL_DB = 3.0
 TIE_BREAKER_EPSILON = 0.05
 _TRACK_NUMBER_RE = re.compile(r"^(\d+)")
 
@@ -106,7 +115,7 @@ def _mix_quality_score(track: dict[str, Any],
                        spectral_reference: dict[str, float],
                        genre_ideal_lra: float) -> float:
     """Combined LRA-match x spectral-match score, ∈ (0, 1]."""
-    lra = track.get("short_term_range")
+    lra = track.get("lra")
     if lra is None:
         return 0.0
     lra_match = 1.0 / (1.0 + abs(float(lra) - float(genre_ideal_lra)))
@@ -129,8 +138,38 @@ def _representativeness_score(track: dict[str, Any],
 
 
 def _ceiling_penalty_score(peak_db: float) -> float:
-    """Penalty for tracks pinned near 0 dBFS. 0 at ≤ -3 dB, 1 at 0 dBFS."""
+    """Penalty for tracks pinned near 0 dBFS. 0 at ≤ -3 dB, 1 at 0 dBFS.
+
+    The fallback for a track with no measured loudness only (see
+    ``_limiter_penalty_score``): on real Suno masters every source peaks
+    within ~1.5 dB of 0 dBFS, so this reads 0.5-0.6 on all of them and
+    outweighs everything else (#681).
+    """
     return max(0.0, min(1.0, (float(peak_db) - (-3.0)) / 3.0))
+
+
+def _limiter_penalty_score(peak_db: float, lufs: float,
+                           target_lufs: float, ceiling_db: float) -> float:
+    """Penalty for the limiting a track will take in mastering, ∈ [0, 1].
+
+    Mastering moves the track by ``target_lufs - lufs`` and then limits at
+    ``ceiling_db``; the source peak lands at ``peak_db + target_lufs - lufs``.
+    The penalty is the gain reduction that leaves the limiter, 0 when the
+    normalised peak stays under the ceiling, 1 at ``LIMITER_PENALTY_FULL_DB``
+    or more. The anchor should be a track the limiter barely touches; a
+    loud, already-brickwalled Suno master is turned *down* to the target
+    and is not one the limiter hits (#681).
+    """
+    normalised_peak = float(peak_db) + float(target_lufs) - float(lufs)
+    reduction = normalised_peak - float(ceiling_db)
+    return max(0.0, min(1.0, reduction / LIMITER_PENALTY_FULL_DB))
+
+
+def _finite(value: Any) -> bool:
+    try:
+        return value is not None and bool(np.isfinite(float(value)))
+    except (TypeError, ValueError):
+        return False
 
 
 def _is_eligible(track: dict[str, Any]) -> tuple[bool, str | None]:
@@ -150,14 +189,17 @@ def select_anchor(
     tracks: list[dict[str, Any]],
     preset: dict[str, Any],
     override_index: int | None = None,
+    *,
+    target_lufs: float | None = None,
+    ceiling_db: float | None = None,
 ) -> dict[str, Any]:
     """Select the anchor track for album mastering.
 
     Args:
         tracks: List of ``analyze_track`` result dicts, in track order
                 (index 0 == track #1). Must include ``filename``,
-                ``stl_95``, ``short_term_range``, ``low_rms``,
-                ``vocal_rms``, ``peak_db``, ``band_energy``.
+                ``stl_95``, ``lra``, ``low_rms``, ``vocal_rms``,
+                ``peak_db``, ``lufs``, ``band_energy``.
         preset: Genre preset dict; must include
                 ``genre_ideal_lra_lu`` and ``spectral_reference_energy``
                 (fall back to defaults.yaml shape when missing).
@@ -167,6 +209,10 @@ def select_anchor(
                 Values ≤ 0, and numbers no file or several files carry,
                 fall through to composite scoring with ``override_reason``
                 saying why.
+        target_lufs: The loudness mastering will bring each track to.
+                Defaults to the preset's ``target_lufs``; with neither, the
+                ceiling penalty falls back to the source peak alone.
+        ceiling_db: The true-peak ceiling mastering limits at (default -1.0).
 
     Returns:
         Dict — see module docstring + plan design section for shape.
@@ -174,6 +220,10 @@ def select_anchor(
         ``override_index`` echoes the track number the caller passed.
     """
     ideal_lra = float(preset.get("genre_ideal_lra_lu", 8.0))
+    if target_lufs is None and preset.get("target_lufs") is not None:
+        target_lufs = float(preset["target_lufs"])
+    if ceiling_db is None:
+        ceiling_db = -1.0
     spectral_ref = preset.get("spectral_reference_energy") or {
         "sub_bass": 8.0, "bass": 18.0, "low_mid": 20.0, "mid": 25.0,
         "high_mid": 14.0, "high": 10.0, "air": 5.0,
@@ -256,11 +306,20 @@ def select_anchor(
         track = tracks[idx - 1]
         mq = _mix_quality_score(track, spectral_ref, ideal_lra)
         rp = _representativeness_score(track, medians)
-        cp = _ceiling_penalty_score(float(track.get("peak_db", 0.0)))
+        peak_db = float(track.get("peak_db", 0.0))
+        if target_lufs is not None and _finite(track.get("lufs")):
+            cp = _limiter_penalty_score(
+                peak_db, float(track["lufs"]), target_lufs, ceiling_db,
+            )
+            basis = "limiting_at_target"
+        else:
+            cp = _ceiling_penalty_score(peak_db)
+            basis = "source_peak"
         composite = 0.4 * mq + 0.4 * rp - 1.0 * cp
         entry["mix_quality"] = mq
         entry["representativeness"] = rp
         entry["ceiling_penalty"] = cp
+        entry["ceiling_penalty_basis"] = basis
         entry["score"] = composite
 
     ranked = sorted(

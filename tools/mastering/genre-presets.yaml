@@ -18,8 +18,12 @@
 #   eq_sub_cut_freq      - Sub-bass HPF frequency in Hz (0 = bypass, removes rumble below this)
 #   stereo_width         - Stereo width multiplier (0.0 = mono, 1.0 = unchanged, >1.0 = wider)
 #   stereo_bass_mono_freq - Mono-sum below this frequency in Hz (0 = bypass, bass coherence)
-#   output_bits            - Output bit depth (16 or 24, default 24 for streaming delivery)
-#   dither_bits            - Dither bit depth (default: follows output_bits)
+#   output_bits            - Output bit depth (16 or 24). 0 = not set: use
+#                            mastering.delivery_bit_depth from config.yaml
+#                            (default 24). Shipped presets leave it at 0 so the
+#                            config decides; set it in {overrides} only to force
+#                            one genre to a different bit depth (#681).
+#   dither_bits            - Dither bit depth (0 = follow the output bit depth)
 #   limiter_lookahead_ms   - Look-ahead buffer in ms (0 = reactive, default 5.0)
 #   limiter_release_ms     - Limiter release time in ms (default 50.0)
 #   compress_mix           - Compression wet/dry blend (0.0=dry, 1.0=wet, default 1.0)
@@ -27,7 +31,9 @@
 #   processing_oversample  - Oversample factor for nonlinear stages (1/2/4, default 1)
 #   target_lra             - Target loudness range in LU (0 = disable, default 0)
 #   dc_filter_freq         - DC offset HPF frequency in Hz (0 = bypass, default 5.0)
-#   output_sample_rate     - Target sample rate (default 96000 for streaming; 0 = fall back to mastering.delivery_sample_rate)
+#   output_sample_rate     - Target sample rate in Hz. 0 = not set: use
+#                            mastering.delivery_sample_rate from config.yaml
+#                            (default 96000). Shipped presets leave it at 0 (#681).
 #   deess_enabled          - Enable de-esser (0 = off, 1 = on, default 0)
 #   deess_freq             - De-esser center frequency in Hz (default 6500)
 #   deess_bandwidth        - De-esser bandwidth in Hz (default 4000)
@@ -73,9 +79,10 @@
 #   mono_fold_vocal_warn_db - Warn threshold for vocal-band (1–4 kHz) RMS delta (default 2.0 dB).
 #   mono_fold_correlation_warn - Warn threshold for stereo correlation coefficient (default 0.3).
 #   genre_ideal_lra_lu     - Target loudness-range (LU) used by the album-mastering
-#                            anchor selector (#290 phase 2). Tracks whose LRA is
-#                            close to this score higher on mix_quality. Default 8.0
-#                            matches balanced pop; dynamic genres override upward.
+#                            anchor selector (#290 phase 2). Tracks whose EBU R128
+#                            LRA (analyze_track's `lra`) is close to this score
+#                            higher on mix_quality. Default 8.0. Mastered pop reads
+#                            about 3.5-6 LU; dynamic genres override upward.
 #   spectral_reference_energy - 7-band reference curve (sub_bass / bass / low_mid /
 #                            mid / high_mid / high / air) as percentages of total
 #                            spectral energy, summing to 100. Anchor selector
@@ -85,9 +92,13 @@
 #   coherence_stl_95_lu    - Max |track.stl_95 - anchor.stl_95| (LU) before
 #                            the track is classified an STL-95 outlier by
 #                            album_coherence_check (#290 phase 3b). Default 0.5.
-#   coherence_lra_floor_lu - Minimum short_term_range (LU) allowed; tracks
-#                            below trip an LRA-floor violation regardless of
-#                            anchor. Default 1.0.
+#   coherence_lra_floor_lu - Minimum EBU R128 loudness range (LRA, LU) a master
+#                            may have; tracks below trip an LRA-floor violation
+#                            regardless of anchor. Default 1.0: a mastered song
+#                            reads ~3.5-5 LU and a brickwalled one ~2, so only a
+#                            track squashed flat trips it. (It read the ungated
+#                            short_term_range, ~20 LU on any song with a fade,
+#                            until #681.)
 #   coherence_low_rms_db   - Max |delta_low_rms| (dB) before low-RMS outlier.
 #                            Default 2.0.
 #   coherence_vocal_rms_db - Max |delta_vocal_rms| (dB) before vocal-RMS outlier.
@@ -115,8 +126,8 @@ defaults:
   eq_sub_cut_freq: 0
   stereo_width: 1.0
   stereo_bass_mono_freq: 0
-  output_bits: 24
-  dither_bits: 24
+  output_bits: 0           # 0 = config's mastering.delivery_bit_depth (#681)
+  dither_bits: 0           # 0 = follow the output bit depth
   limiter_lookahead_ms: 5.0
   limiter_release_ms: 50.0
   compress_mix: 1.0
@@ -124,7 +135,7 @@ defaults:
   processing_oversample: 1
   target_lra: 0
   dc_filter_freq: 5.0
-  output_sample_rate: 96000
+  output_sample_rate: 0    # 0 = config's mastering.delivery_sample_rate (#681)
   deess_enabled: 0
   deess_freq: 6500
   deess_bandwidth: 4000
@@ -172,7 +183,7 @@ defaults:
   # outlier tracks relative to the selected anchor. All thresholds are
   # absolute-value deltas from the anchor unless otherwise noted.
   coherence_stl_95_lu: 0.5         # ±LU around anchor's STL-95
-  coherence_lra_floor_lu: 1.0      # minimum short_term_range allowed (absolute)
+  coherence_lra_floor_lu: 1.0      # minimum EBU R128 LRA allowed (absolute)
   coherence_low_rms_db: 2.0        # ±dB around anchor's low_rms
   coherence_vocal_rms_db: 2.0      # ±dB around anchor's vocal_rms
 

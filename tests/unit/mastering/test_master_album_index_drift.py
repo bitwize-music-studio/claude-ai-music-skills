@@ -71,6 +71,7 @@ def _analysis(filename: str, lufs: float = -14.0) -> dict[str, Any]:
         "peak_db": -4.0,
         "stl_95": lufs + 2.0,
         "short_term_range": 8.0,
+        "lra": 8.0,  # the anchor's dynamics key since #681 (item 9)
         "low_rms": lufs - 8.0,
         "vocal_rms": lufs - 3.0,
         "band_energy": {"sub_bass": 8.0, "bass": 18.0, "low_mid": 20.0,

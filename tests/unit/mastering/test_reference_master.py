@@ -32,7 +32,43 @@ for dep, original in _SAVED_DEPS.items():
 # master_with_reference
 # ---------------------------------------------------------------------------
 
+def _render_float(target, reference, results):
+    """matchering stand-in: render a short float file where asked (#681)."""
+    import numpy as np
+    import soundfile as sf
+
+    rate = 44100
+    t = np.arange(rate) / rate
+    mono = 0.5 * np.sin(2 * np.pi * 440 * t)
+    sf.write(results[0].file, np.column_stack([mono, mono]), rate, subtype="FLOAT")
+
+
+@pytest.fixture
+def _matchering_renders(monkeypatch):
+    """matchering now renders a float file the module reads back (#681).
+
+    The mocked ``mg`` is shared module state; give ``Result`` a real
+    ``file`` attribute and make ``process`` write it, and pin the delivery
+    config so the developer's own config.yaml does not leak in.
+    """
+    from types import SimpleNamespace
+
+    from tools.mastering import config as mastering_config
+    from tools.mastering.config import DEFAULT_MASTERING_CONFIG
+
+    mod.mg.reset_mock()
+    mod.mg.Result.side_effect = lambda file, **kw: SimpleNamespace(file=file, **kw)
+    mod.mg.process.side_effect = _render_float
+    monkeypatch.setattr(
+        mastering_config, "load_mastering_config", lambda: dict(DEFAULT_MASTERING_CONFIG),
+    )
+    yield
+    mod.mg.Result.side_effect = None
+    mod.mg.process.side_effect = None
+
+
 @pytest.mark.unit
+@pytest.mark.usefixtures("_matchering_renders")
 class TestMasterWithReference:
     """Tests for reference-based mastering via matchering."""
 
@@ -61,7 +97,13 @@ class TestMasterWithReference:
         assert kwargs["target"] == str(target)
         assert kwargs["reference"] == str(reference)
 
-    def test_uses_pcm16_output(self, tmp_path):
+    def test_renders_float_and_delivers_the_configured_format(self, tmp_path):
+        # #681: this test used to pin matchering's pcm16() writing straight
+        # into mastered/ (16-bit, 44.1 kHz, peaks at about -0.02 dBFS).
+        # matchering now renders unlimited float and the delivery tail
+        # writes the configured format (default 24-bit / 96 kHz).
+        import soundfile as sf
+
         target = tmp_path / "track.wav"
         target.write_bytes(b"audio")
         reference = tmp_path / "ref.wav"
@@ -71,9 +113,12 @@ class TestMasterWithReference:
         mod.master_with_reference(target, reference, output)
 
         args, kwargs = mod.mg.process.call_args
-        # results should contain a pcm16() call
         assert "results" in kwargs
-        mod.mg.pcm16.assert_called_with(str(output))
+        mod.mg.pcm16.assert_not_called()
+        result = kwargs["results"][0]
+        assert (result.subtype, result.use_limiter, result.normalize) == ("FLOAT", False, False)
+        info = sf.info(str(output))
+        assert (info.subtype, info.samplerate) == ("PCM_24", 96000)
 
     def test_matchering_exception_propagates(self, tmp_path):
         target = tmp_path / "track.wav"
@@ -85,8 +130,8 @@ class TestMasterWithReference:
         mod.mg.process.side_effect = RuntimeError("matchering failed")
         with pytest.raises(RuntimeError, match="matchering failed"):
             mod.master_with_reference(target, reference, output)
-        # Reset side_effect for other tests
-        mod.mg.process.side_effect = None
+        # The float render's temp file does not outlive the failure.
+        assert not list(tmp_path.glob(".matchering_*"))
 
 
 # ---------------------------------------------------------------------------

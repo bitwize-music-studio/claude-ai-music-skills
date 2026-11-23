@@ -1119,13 +1119,74 @@ def apply_tpdf_dither(data: Any, target_bits: int = 16, seed: int | None = None)
 
     return data + noise
 
+# Bit depth used when nothing sets one (preset value 0 = "not set", #681).
+DEFAULT_OUTPUT_BITS = 24
+
+
+def resolve_output_bits(value: Any) -> int:
+    """A preset's ``output_bits`` as 16 or 24; 0 / missing → 24 (#681)."""
+    bits = int(value or 0)
+    return bits if bits > 0 else DEFAULT_OUTPUT_BITS
+
+
+def write_archival_float(path: Path | str, data: Any, rate: int) -> None:
+    """Write the pre-dither, pre-quantisation master as 32-bit float.
+
+    The archival copy is the master *before* it is dithered and truncated to
+    the delivery bit depth (#681), so a later re-master or format change
+    starts from full precision rather than from the 16/24-bit delivery file.
+    """
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+    sf.write(str(path), np.asarray(data, dtype=np.float32), rate, subtype='FLOAT')
+
+
+def write_delivery(data: Any, rate: int, output_path: Path | str, *,
+                   ceiling_db: float, output_bits: Any,
+                   output_sample_rate: Any = 0,
+                   dither_bits: Any = None,
+                   archival_path: Path | str | None = None) -> dict[str, Any]:
+    """Write processed float audio in the delivery format.
+
+    The tail every path that writes into ``mastered/`` shares (#681):
+    sample-rate conversion to ``output_sample_rate`` (0 = keep ``rate``), a
+    true-peak guard at ``ceiling_db`` (polyphase SRC ripple and sample-peak
+    limiters both leave inter-sample overs), the optional archival float
+    copy, TPDF dither and the PCM write at ``output_bits`` (0 = 24).
+
+    Returns ``{"sample_rate", "output_bits", "final_peak_db"}`` where
+    ``final_peak_db`` is the true peak written, in dBTP.
+    """
+    out_sr = int(output_sample_rate or 0)
+    if out_sr > 0 and out_sr != rate:
+        from math import gcd
+        g = gcd(out_sr, rate)
+        data = signal.resample_poly(data, up=out_sr // g, down=rate // g, axis=0)
+        rate = out_sr
+    data = limit_peaks(data, ceiling_db)
+    tp = measure_true_peak(data, rate)
+    final_peak_db = 20 * np.log10(tp) if tp > 0 else float('-inf')
+    if archival_path is not None:
+        write_archival_float(archival_path, data, rate)
+    bits = resolve_output_bits(output_bits)
+    d_bits = int(dither_bits or 0) or bits
+    data = apply_tpdf_dither(data, target_bits=d_bits)
+    sf.write(str(output_path), data, rate,
+             subtype='PCM_16' if bits <= 16 else 'PCM_24')
+    return {
+        'sample_rate': rate,
+        'output_bits': bits,
+        'final_peak_db': float(final_peak_db),
+    }
+
+
 def master_track(input_path: Path | str, output_path: Path | str,
                  target_lufs: float = -14.0,
                  eq_settings: list[tuple[float, float, float]] | None = None,
                  ceiling_db: float = -1.0, fade_out: float | None = None,
                  compress_ratio: float = 1.5,
                  preset: dict[str, float] | None = None,
-                 tilt_db: float = 0.0) -> dict[str, Any]:
+                 tilt_db: float = 0.0,
+                 archival_path: Path | str | None = None) -> dict[str, Any]:
     """Master a single track.
 
     Args:
@@ -1142,6 +1203,9 @@ def master_track(input_path: Path | str, output_path: Path | str,
         tilt_db: Bounded tilt-EQ correction in dB, applied post-EQ and
             pre-compression for #290 coherence correction. Callers must
             clamp to ±0.5 dB. Default 0.0 (bypass).
+        archival_path: When set, the finished master is also written here
+            as 32-bit float at the output sample rate, captured *before*
+            dither and the downconvert to ``output_bits`` (#681).
     """
     # Resolve parameters from preset or legacy args
     p = {**_PRESET_DEFAULTS}
@@ -1449,20 +1513,35 @@ def master_track(input_path: Path | str, output_path: Path | str,
     final_peak = 20 * np.log10(true_peak_linear) if true_peak_linear > 0 else float('-inf')
 
     # Resolve output bit depth: output_bits controls the format,
-    # dither_bits follows output_bits by default but can be overridden
-    output_bits = int(p.get('output_bits', 16))
-    dither_bits = int(p.get('dither_bits', output_bits))
+    # dither_bits follows output_bits by default but can be overridden.
+    # 0 means "not set" (the shipped genre presets, #681): the handlers
+    # resolve it from mastering.delivery_bit_depth before calling here, and
+    # a direct caller gets the documented 24-bit delivery default.
+    output_bits = resolve_output_bits(p.get('output_bits'))
+    dither_bits = int(p.get('dither_bits') or 0) or output_bits
+
+    # Inter-track gap (digital silence, prepended to the delivered file and
+    # to the archival copy alike so the two stay sample-aligned).
+    track_gap = p.get('track_gap', 0.0)
+    gap_samples = int(rate * track_gap) if track_gap > 0 else 0
+
+    def _with_gap(x: Any) -> Any:
+        if gap_samples <= 0:
+            return x
+        if x.ndim == 1:
+            silence = np.zeros(gap_samples, dtype=x.dtype)
+        else:
+            silence = np.zeros((gap_samples, x.shape[1]), dtype=x.dtype)
+        return np.concatenate([silence, x], axis=0)
+
+    # Archival: the float master before dither and the bit-depth downconvert.
+    if archival_path is not None:
+        write_archival_float(archival_path, _with_gap(data), rate)
+
     data = apply_tpdf_dither(data, target_bits=dither_bits)
 
     # Inter-track gap insertion (after dither, before write)
-    track_gap = p.get('track_gap', 0.0)
-    if track_gap > 0:
-        gap_samples = int(rate * track_gap)
-        if data.ndim == 1:
-            silence = np.zeros(gap_samples, dtype=data.dtype)
-        else:
-            silence = np.zeros((gap_samples, data.shape[1]), dtype=data.dtype)
-        data = np.concatenate([silence, data], axis=0)
+    data = _with_gap(data)
 
     # Write output
     subtype = 'PCM_16' if output_bits <= 16 else 'PCM_24'
@@ -1665,6 +1744,16 @@ Examples:
             logger.error("Available: %s", ', '.join(sorted(GENRE_PRESETS.keys())))
             return
         preset.update(GENRE_PRESETS[genre_key])
+        # The shipped presets leave the delivery format unset (0, #681): fill
+        # it from mastering.delivery_bit_depth / delivery_sample_rate in
+        # config.yaml, as the MCP tools do. A non-zero value from a user
+        # override, and the CLI flags below, still win.
+        from tools.mastering.config import load_mastering_config
+        _delivery = load_mastering_config()
+        if int(preset.get('output_bits') or 0) <= 0:
+            preset['output_bits'] = float(_delivery['delivery_bit_depth'])
+        if int(preset.get('output_sample_rate') or 0) <= 0:
+            preset['output_sample_rate'] = float(_delivery['delivery_sample_rate'])
 
     # CLI overrides (only apply if explicitly set)
     cli_overrides = {

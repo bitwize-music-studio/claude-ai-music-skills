@@ -46,10 +46,12 @@ class TestSpectralMatchScore:
 
 
 def _track(**overrides) -> dict:
+    # The dynamics key is ``lra``, the EBU R128 loudness range; these
+    # fixtures fed it as ``short_term_range`` until #681 (item 9).
     base = {
         "filename": "01.wav",
         "stl_95": -14.0,
-        "short_term_range": 8.0,
+        "lra": 8.0,
         "low_rms": -20.0,
         "vocal_rms": -18.0,
         "peak_db": -4.0,
@@ -61,13 +63,13 @@ def _track(**overrides) -> dict:
 
 class TestMixQuality:
     def test_on_target_lra_and_spectral_match_scores_near_one(self):
-        track = _track(short_term_range=8.0, band_energy=dict(REF))
+        track = _track(lra=8.0, band_energy=dict(REF))
         score = _mix_quality_score(track, REF, genre_ideal_lra=8.0)
         # LRA difference 0 → 1/(1+0)=1; spectral exact → 1; product = 1
         assert score == pytest.approx(1.0)
 
     def test_off_target_lra_drops_score(self):
-        track = _track(short_term_range=14.0, band_energy=dict(REF))
+        track = _track(lra=14.0, band_energy=dict(REF))
         score = _mix_quality_score(track, REF, genre_ideal_lra=8.0)
         # |14 − 8| = 6 → 1/7 ≈ 0.143; spectral match = 1 → score ≈ 0.143
         assert score == pytest.approx(1.0 / 7.0, rel=1e-3)
@@ -76,9 +78,9 @@ class TestMixQuality:
 class TestRepresentativeness:
     def test_track_at_median_scores_one(self):
         tracks = [
-            _track(stl_95=-14.0, short_term_range=8.0, low_rms=-20.0, vocal_rms=-18.0),
-            _track(stl_95=-14.0, short_term_range=8.0, low_rms=-20.0, vocal_rms=-18.0),
-            _track(stl_95=-14.0, short_term_range=8.0, low_rms=-20.0, vocal_rms=-18.0),
+            _track(stl_95=-14.0, lra=8.0, low_rms=-20.0, vocal_rms=-18.0),
+            _track(stl_95=-14.0, lra=8.0, low_rms=-20.0, vocal_rms=-18.0),
+            _track(stl_95=-14.0, lra=8.0, low_rms=-20.0, vocal_rms=-18.0),
         ]
         medians = _album_medians(tracks)
         score = _representativeness_score(tracks[0], medians)
@@ -86,9 +88,9 @@ class TestRepresentativeness:
 
     def test_distant_track_scores_below(self):
         tracks = [
-            _track(stl_95=-14.0, short_term_range=8.0, low_rms=-20.0, vocal_rms=-18.0),
-            _track(stl_95=-14.0, short_term_range=8.0, low_rms=-20.0, vocal_rms=-18.0),
-            _track(stl_95=-10.0, short_term_range=3.0, low_rms=-12.0, vocal_rms=-10.0),
+            _track(stl_95=-14.0, lra=8.0, low_rms=-20.0, vocal_rms=-18.0),
+            _track(stl_95=-14.0, lra=8.0, low_rms=-20.0, vocal_rms=-18.0),
+            _track(stl_95=-10.0, lra=3.0, low_rms=-12.0, vocal_rms=-10.0),
         ]
         medians = _album_medians(tracks)
         score_close = _representativeness_score(tracks[0], medians)
@@ -122,11 +124,11 @@ def _preset(ideal_lra: float = 8.0) -> dict:
 class TestSelectAnchorComposite:
     def test_picks_representative_track(self):
         # Track 1 matches album median exactly; track 2 is an outlier.
-        t1 = _track(filename="01.wav", stl_95=-14.0, short_term_range=8.0,
+        t1 = _track(filename="01.wav", stl_95=-14.0, lra=8.0,
                     low_rms=-20.0, vocal_rms=-18.0, peak_db=-5.0)
-        t2 = _track(filename="02.wav", stl_95=-14.0, short_term_range=8.0,
+        t2 = _track(filename="02.wav", stl_95=-14.0, lra=8.0,
                     low_rms=-20.0, vocal_rms=-18.0, peak_db=-5.0)
-        t3 = _track(filename="03.wav", stl_95=-10.0, short_term_range=3.0,
+        t3 = _track(filename="03.wav", stl_95=-10.0, lra=3.0,
                     low_rms=-12.0, vocal_rms=-10.0, peak_db=-2.0)
         result = select_anchor([t1, t2, t3], _preset())
         assert result["method"] == "tie_breaker"  # 01 and 02 identical
@@ -137,11 +139,11 @@ class TestSelectAnchorComposite:
         # The hot track sits on the album median and the genre's ideal LRA, so it
         # is the most representative and best-mixed; only the ceiling penalty can
         # demote it. A weaker penalty weight would let it win.
-        t1 = _track(filename="01.wav", stl_95=-14.0, short_term_range=8.0,
+        t1 = _track(filename="01.wav", stl_95=-14.0, lra=8.0,
                     low_rms=-20.0, vocal_rms=-18.0, peak_db=-1.5)
-        t2 = _track(filename="02.wav", stl_95=-13.0, short_term_range=9.0,
+        t2 = _track(filename="02.wav", stl_95=-13.0, lra=9.0,
                     low_rms=-19.0, vocal_rms=-17.0, peak_db=-6.0)
-        t3 = _track(filename="03.wav", stl_95=-16.0, short_term_range=6.0,
+        t3 = _track(filename="03.wav", stl_95=-16.0, lra=6.0,
                     low_rms=-22.0, vocal_rms=-20.0, peak_db=-6.0)
         result = select_anchor([t1, t2, t3], _preset())
         hot, cool, far = result["scores"]
@@ -189,8 +191,8 @@ class TestSelectAnchorTieBreaker:
 
     def test_a_near_tie_goes_to_the_lowest_index(self):
         """Within the epsilon, track 1 wins even though track 2 scores higher (#674)."""
-        t1 = _track(filename="01.wav", short_term_range=8.05)  # a hair off target
-        t2 = _track(filename="02.wav", short_term_range=8.0)   # on target
+        t1 = _track(filename="01.wav", lra=8.05)  # a hair off target
+        t2 = _track(filename="02.wav", lra=8.0)   # on target
         result = select_anchor([t1, t2], _preset())
         s1, s2 = (s["score"] for s in result["scores"])
         assert 0 < s2 - s1 < TIE_BREAKER_EPSILON
@@ -199,17 +201,17 @@ class TestSelectAnchorTieBreaker:
 
     def test_the_tie_is_measured_from_the_best_score(self):
         """Every track within the epsilon of the best is in the tie, not just the runner-up."""
-        t1 = _track(filename="01.wav", short_term_range=8.1)
-        t2 = _track(filename="02.wav", short_term_range=8.05)
-        t3 = _track(filename="03.wav", short_term_range=8.0)
+        t1 = _track(filename="01.wav", lra=8.1)
+        t2 = _track(filename="02.wav", lra=8.05)
+        t3 = _track(filename="03.wav", lra=8.0)
         result = select_anchor([t1, t2, t3], _preset())
         scores = [s["score"] for s in result["scores"]]
         assert max(scores) - min(scores) < TIE_BREAKER_EPSILON
         assert result["selected_index"] == 1
 
     def test_just_outside_the_epsilon_the_best_score_wins(self):
-        t1 = _track(filename="01.wav", short_term_range=8.2)
-        t2 = _track(filename="02.wav", short_term_range=8.0)
+        t1 = _track(filename="01.wav", lra=8.2)
+        t2 = _track(filename="02.wav", lra=8.0)
         result = select_anchor([t1, t2], _preset())
         s1, s2 = (s["score"] for s in result["scores"])
         assert s2 - s1 >= TIE_BREAKER_EPSILON
@@ -217,8 +219,8 @@ class TestSelectAnchorTieBreaker:
         assert result["selected_index"] == 2
 
     def test_scores_outside_epsilon_use_composite(self):
-        t1 = _track(filename="01.wav", short_term_range=8.0)   # on-target LRA
-        t2 = _track(filename="02.wav", short_term_range=20.0)  # far-off LRA
+        t1 = _track(filename="01.wav", lra=8.0)   # on-target LRA
+        t2 = _track(filename="02.wav", lra=20.0)  # far-off LRA
         result = select_anchor([t1, t2], _preset())
         assert result["method"] == "composite"
         assert result["selected_index"] == 1

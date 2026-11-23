@@ -291,6 +291,11 @@ If a track has excessive dynamic range and won't reach target LUFS:
 fix_dynamic_track(album_slug, track_filename="05-problem-track.wav")
 ```
 
+The fixed track goes into `mastered/` like every other master: the genre's
+loudness target and true-peak ceiling (the album's genre by default, or pass
+`genre=`), at `mastering.delivery_bit_depth` / `delivery_sample_rate`.
+`master_with_reference` writes the same delivery format and ceiling.
+
 ### Step 6.5: Real-listener QC artifacts (`mastering_samples/`)
 
 After verification, `master_album` writes operator-listening artifacts to a

@@ -176,7 +176,7 @@ This automatically detects stems — if no root WAVs exist but `stems/` has trac
 - Low-mid energy (muddiness indicator)
 - High-mid energy (harshness indicator)
 - Click/pop count
-- Sub-bass rumble
+- Sub-bass rumble (energy below 25 Hz; an 808 tuned to C1 or A0 is not rumble). A rumble finding recommends a 25 Hz highpass, which polish applies only where the stem's own highpass is lower: it never lowers a preset's cutoff and never raises one above 25 Hz
 
 **Stereo width on v6 renders**: two independent launch-week testers reported Suno v6 output narrower than expected. Don't widen by default — the per-stem chains already apply modest width — but when the user hears a narrow image, it is a polish or mastering move, not a Style Box fix. Run `mono_fold_check` after any widening so the fold-down stays clean.
 
