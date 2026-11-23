@@ -361,6 +361,19 @@ class TestGetGenerationRequest:
         assert result["request"]["duration"] == expected
         assert ("duration_clamped" in _codes(result, "warning")) is warned
 
+    @pytest.mark.parametrize("doc", [
+        "templates/track.md", "skills/suno-engineer/SKILL.md",
+    ])
+    def test_docs_give_the_mcp_duration_range(self, doc):
+        """The docs said 10 s–6:00, which is suno.com's slider; through the MCP
+        server the range is this module's, and 0:10 goes as 0:15 (#683)."""
+        text = (PROJECT_ROOT / doc).read_text(encoding="utf-8")
+        lo, hi = _gen_mod._MIN_DURATION, _gen_mod._MAX_DURATION
+        mcp_range = f"{lo // 60}:{lo % 60:02d}–{hi // 60}:{hi % 60:02d}"
+        assert mcp_range in text
+        assert "0:10–6:00" in text  # suno.com's slider, named as such
+        assert "10 s–6:00" not in text
+
     def test_auto_duration_is_omitted(self, album):
         assert "duration" not in _request()["request"]
 

@@ -36,14 +36,14 @@ Schema v1 layout (top-level keys required at read time):
     delivery_targets:               # what the album was actually shipped at
       target_lufs: -14.0
       tp_ceiling_db: -1.0
-      lra_target_lu: 8.0
+      lra_target_lu: 5.0
       output_bits: 24
       output_sample_rate: 96000
     tolerances:                     # coherence-correction tolerances in force
-      coherence_stl_95_lu: 1.0
-      coherence_lra_floor_lu: 6.0
+      coherence_stl_95_lu: 0.5      # the genre preset's values; these are
+      coherence_lra_floor_lu: 1.0   # the shipped defaults (genre-presets.yaml)
       coherence_low_rms_db: 2.0
-      coherence_vocal_rms_db: 1.5
+      coherence_vocal_rms_db: 2.0
     pipeline:                       # provenance, informational
       polish_subfolder: "polished"
       source_sample_rate: 44100

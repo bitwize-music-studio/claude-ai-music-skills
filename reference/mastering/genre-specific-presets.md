@@ -40,9 +40,9 @@ python3 {plugin_root}/tools/mastering/master_tracks.py {audio_path}/ --genre roc
 | hip-hop | -14 | -1.0 dB | Standard, bass-forward |
 | rap | -14 | -1.0 dB | Same as hip-hop |
 | trap | -14 | -1.0 dB | Keep hi-hat brightness |
-| drill | -14 | -1.5 dB | Dark, aggressive |
+| drill | -14 | -1.0 dB | Dark, aggressive |
 | phonk | -14 | -1.5 dB | Lo-fi aesthetic, warmer |
-| grime | -14 | -1.0 dB | UK sound, punchy |
+| grime | -14 | -1.5 dB | UK sound, punchy |
 | nerdcore | -14 | -1.0 dB | Clear vocals, nerdy themes |
 
 **When to use**: Any hip-hop subgenre.
@@ -58,7 +58,7 @@ python3 {plugin_root}/tools/mastering/master_tracks.py {audio_path}/ --genre roc
 | rnb | -14 | -1.5 dB | Smooth, vocal clarity |
 | soul | -14 | -1.5 dB | Warm, analog feel |
 | funk | -14 | -1.5 dB | Punchy, groove-focused |
-| disco | -14 | -1.5 dB | Bright but not harsh |
+| disco | -14 | -1.0 dB | Bright but not harsh |
 | gospel | -14 | -1.5 dB | Vocal warmth, choir clarity |
 
 **When to use**: Smooth, vocal-driven music.
@@ -71,8 +71,8 @@ python3 {plugin_root}/tools/mastering/master_tracks.py {audio_path}/ --genre roc
 
 | Genre | LUFS | High-Mid Cut | Notes |
 |-------|------|--------------|-------|
-| rock | -14 | -2.0 dB | Standard rock, tame guitar harshness |
-| indie-rock | -14 | -1.5 dB | Less aggressive |
+| rock | -14 | -2.5 dB | Standard rock, tame guitar harshness |
+| indie-rock | -14 | -2.0 dB | Less aggressive |
 | alternative | -14 | -2.0 dB | Varied, safe middle ground |
 | grunge | -14 | -2.5 dB | Gritty but controlled |
 | garage-rock | -14 | -2.0 dB | Raw energy |
@@ -118,11 +118,11 @@ python3 {plugin_root}/tools/mastering/master_tracks.py {audio_path}/ --genre roc
 
 | Genre | LUFS | High-Mid Cut | Notes |
 |-------|------|--------------|-------|
-| metal | -14 | -2.5 dB | Heavy, needs harshness control |
+| metal | -14 | -3.0 dB | Heavy, needs harshness control |
 | thrash-metal | -14 | -3.0 dB | Very aggressive |
 | black-metal | -14 | -3.0 dB | Treble-heavy, needs taming |
 | doom-metal | -14 | -2.5 dB | Slow, heavy |
-| metalcore | -14 | -2.5 dB | Modern, punchy |
+| metalcore | -14 | -3.0 dB | Modern, punchy |
 | industrial | -14 | -2.5 dB | Harsh by design |
 
 **When to use**: Heavy, distorted music.
@@ -141,8 +141,8 @@ python3 {plugin_root}/tools/mastering/master_tracks.py {audio_path}/ --genre roc
 | techno | -14 | -1.0 dB | Driving, minimal |
 | trance | -14 | -1.0 dB | Euphoric builds |
 | dubstep | -14 | -1.5 dB | Bass-heavy, mid-range drops |
-| drum-and-bass | -14 | -1.0 dB | Fast, punchy |
-| synthwave | -14 | -1.0 dB | Retro brightness |
+| drum-and-bass | -14 | -1.5 dB | Fast, punchy |
+| synthwave | -14 | -1.5 dB | Retro brightness |
 | new-wave | -14 | -1.5 dB | 80s sound |
 | dancehall | -14 | -1.0 dB | Jamaican club |
 
@@ -158,10 +158,10 @@ python3 {plugin_root}/tools/mastering/master_tracks.py {audio_path}/ --genre roc
 |-------|------|--------------|-------|
 | ambient | -16 | -1.0 dB | Quiet, atmospheric |
 | lo-fi | -14 | -1.0 dB | Warm, nostalgic |
-| chillwave | -14 | -1.0 dB | Dreamy, hazy |
+| chillwave | -16 | -1.0 dB | Dreamy, hazy |
 | trip-hop | -14 | -1.5 dB | Dark, moody |
-| vaporwave | -14 | -1.0 dB | Retro processing |
-| shoegaze | -14 | -1.5 dB | Wall of sound |
+| vaporwave | -16 | -1.0 dB | Retro processing |
+| shoegaze | -16 | -1.5 dB | Wall of sound |
 
 **When to use**: Background listening, relaxation.
 
@@ -173,11 +173,11 @@ python3 {plugin_root}/tools/mastering/master_tracks.py {audio_path}/ --genre roc
 
 | Genre | LUFS | High-Mid Cut | Notes |
 |-------|------|--------------|-------|
-| folk | -14 | -1.5 dB | Acoustic warmth |
+| folk | -14 | -2.0 dB | Acoustic warmth |
 | country | -14 | -2.0 dB | Twangy guitars need taming |
-| americana | -14 | -1.5 dB | Roots sound |
-| bluegrass | -14 | -2.0 dB | Fast picking, bright |
-| indie-folk | -14 | -1.5 dB | Intimate, natural |
+| americana | -14 | -2.0 dB | Roots sound |
+| bluegrass | -14 | -1.5 dB | Fast picking, bright |
+| indie-folk | -14 | -2.0 dB | Intimate, natural |
 
 **When to use**: Acoustic and roots music.
 
@@ -205,7 +205,7 @@ python3 {plugin_root}/tools/mastering/master_tracks.py {audio_path}/ --genre roc
 | Genre | LUFS | High-Mid Cut | Notes |
 |-------|------|--------------|-------|
 | classical | -18 | 0 dB | Maximum dynamics |
-| opera | -16 | 0 dB | Vocal dynamics |
+| opera | -18 | 0 dB | Vocal dynamics |
 | cinematic | -16 | 0 dB | Film scoring standard |
 
 **When to use**: Orchestral, dynamic range is essential.

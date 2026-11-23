@@ -37,7 +37,7 @@ Detailed mastering settings by genre.
 ## Genre Presets
 
 ### Hip-Hop / Rap
-**LUFS target**: -12 to -14 LUFS
+**LUFS target**: -14 LUFS (preset; the genre range is -12 to -14: pass target_lufs to move within it)
 **Dynamics**: Moderate compression, punchy transients
 **EQ focus**: Sub-bass presence (40-60 Hz), vocal clarity (2-4 kHz)
 **MCP command**: `master_audio(album_slug, genre="hip-hop")`
@@ -48,7 +48,7 @@ Detailed mastering settings by genre.
 - Punchy kick/snare
 
 ### Rock / Alternative
-**LUFS target**: -12 to -14 LUFS
+**LUFS target**: -14 LUFS (preset; the genre range is -12 to -14: pass target_lufs to move within it)
 **Dynamics**: Wide dynamic range, preserve peaks
 **EQ focus**: Guitar presence (800 Hz - 3 kHz), avoid harsh highs
 **MCP command**: `master_audio(album_slug, genre="rock")`
@@ -162,7 +162,7 @@ Detailed mastering settings by genre.
 - Cybergrind with electronic elements: drum machines may need different treatment than acoustic drums; preserve the mechanical quality
 
 ### Electronic / EDM
-**LUFS target**: -10 to -12 LUFS (can go louder)
+**LUFS target**: -14 LUFS (louder club masters: pass target_lufs, e.g. -12 to -10)
 **Dynamics**: Heavy compression, consistent energy
 **EQ focus**: Sub-bass (30-50 Hz), sparkle on top (10+ kHz)
 **MCP command**: `master_audio(album_slug, genre="edm")`
@@ -294,7 +294,7 @@ Detailed mastering settings by genre.
 - Speed garage variants can push slightly louder; 2-step house leans cleaner and more spacious
 
 ### Folk / Acoustic
-**LUFS target**: -14 to -16 LUFS
+**LUFS target**: -14 LUFS (preset; the genre range is -14 to -16: pass target_lufs to move within it)
 **Dynamics**: Preserve natural dynamics
 **EQ focus**: Warmth (200-500 Hz), natural highs
 **MCP command**: `master_audio(album_slug, genre="folk")`
@@ -305,7 +305,7 @@ Detailed mastering settings by genre.
 - Minimal processing
 
 ### Country
-**LUFS target**: -13 to -14 LUFS
+**LUFS target**: -14 LUFS (preset; the genre range is -13 to -14: pass target_lufs to move within it)
 **Dynamics**: Moderate, radio-ready
 **EQ focus**: Vocal clarity, steel guitar presence
 **MCP command**: `master_audio(album_slug, genre="country")`
@@ -316,7 +316,7 @@ Detailed mastering settings by genre.
 - Warm, polished
 
 ### Jazz / Classical
-**LUFS target**: -16 to -18 LUFS
+**LUFS target**: -16 LUFS (preset; the genre range is -16 to -18: pass target_lufs to move within it)
 **Dynamics**: Preserve full dynamic range
 **EQ focus**: Natural tonal balance, minimal EQ
 **MCP command**: `master_audio(album_slug, genre="jazz")`
@@ -355,7 +355,7 @@ Detailed mastering settings by genre.
 - Cast album aesthetic: theatrical room ambience preserved, not over-dried
 
 ### Schlager
-**LUFS target**: -12 to -14 LUFS
+**LUFS target**: -14 LUFS (preset; the genre range is -12 to -14: pass target_lufs to move within it)
 **Dynamics**: Moderate-to-heavy compression, radio-ready loudness
 **EQ focus**: Vocal presence (2-5 kHz), bass drum punch (60-100 Hz), bright top end (8-12 kHz for shimmer)
 **MCP command**: `master_audio(album_slug, genre="schlager")`
@@ -381,7 +381,7 @@ Detailed mastering settings by genre.
 - Mahraganat: louder target (-12 LUFS), heavier compression, bass-forward mix
 
 ### Chanson
-**LUFS target**: -14 to -16 LUFS
+**LUFS target**: -15 LUFS (preset; the genre range is -14 to -16: pass target_lufs to move within it)
 **Dynamics**: Light compression, preserve natural dynamics and rubato phrasing
 **EQ focus**: Vocal transparency (1-4 kHz), accordion warmth (200-800 Hz), gentle high cut above 12 kHz for vintage warmth
 **MCP command**: `master_audio(album_slug, genre="chanson")`
