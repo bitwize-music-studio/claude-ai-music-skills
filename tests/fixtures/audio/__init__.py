@@ -25,10 +25,18 @@ def _bandpass(data: np.ndarray, rate: int, low: float, high: float) -> np.ndarra
     return lfilter(b, a, data).astype(np.float64)
 
 
-def _to_stereo(mono: np.ndarray, width: float = 0.1) -> np.ndarray:
-    """Convert mono to stereo with slight decorrelation for realism."""
-    shift = int(DEFAULT_RATE * 0.0003 * width)  # ~0.3ms offset
-    right = np.roll(mono, shift)
+def _to_stereo(mono: np.ndarray, width: float = 0.1, rate: int = DEFAULT_RATE) -> np.ndarray:
+    """Convert mono to stereo with slight decorrelation for realism.
+
+    The right channel is the left delayed by ``width`` x 0.3 ms. The delay is
+    fractional (linear interpolation between neighbouring samples), so every
+    width > 0 gives L != R; rounding it to whole samples made widths below
+    ~0.08 a zero shift, i.e. dual mono (#682).
+    """
+    delay = rate * 0.0003 * width
+    whole = int(delay)
+    frac = delay - whole
+    right = (1.0 - frac) * np.roll(mono, whole) + frac * np.roll(mono, whole + 1)
     return np.column_stack([mono, right])
 
 
@@ -44,16 +52,36 @@ def write_wav(path: str, data: np.ndarray, rate: int = DEFAULT_RATE) -> str:
 
 
 def make_vocal(duration: float = 2.0, rate: int = DEFAULT_RATE) -> tuple[np.ndarray, int]:
-    """Formant-shaped bandpass noise with sibilant bursts (4-8 kHz spikes).
+    """A sung-vowel-like tone with sibilant bursts (4-8 kHz spikes).
+
+    A 220 Hz fundamental with 5 Hz vibrato and its harmonics (1/k
+    roll-off), lifted at three vowel formants (~700, 1200, 2600 Hz), with
+    a little breath noise, phrased in syllables. It has a pitch, as a voice
+    does; the old version was band-passed noise with no fundamental (#682).
 
     Exercises: de-essing, vocal EQ, compression.
     """
     n = int(rate * duration)
     rng = np.random.default_rng(seed=100)
+    t = np.arange(n) / rate
 
-    # Base: bandpass noise shaped to vocal formants (300-3500 Hz)
-    raw = rng.normal(0, 0.3, n)
-    vocal_body = _bandpass(raw, rate, 300, 3500)
+    # Voiced source: harmonics of a vibrato'd 220 Hz fundamental.
+    f0 = 220.0 * (1.0 + 0.01 * np.sin(2 * np.pi * 5.0 * t))
+    phase = 2 * np.pi * np.cumsum(f0) / rate
+    voiced = np.zeros(n)
+    for k in range(1, int((rate / 2 * 0.9) // 230) + 1):
+        voiced += np.sin(k * phase) / k
+    # Formant shaping: the source plus resonant lifts at the vowel formants.
+    vocal_body = (
+        voiced
+        + 1.5 * _bandpass(voiced, rate, 600, 850)
+        + 1.0 * _bandpass(voiced, rate, 1050, 1400)
+        + 0.6 * _bandpass(voiced, rate, 2300, 2900)
+        + _bandpass(rng.normal(0, 0.05, n), rate, 300, 3500)  # breath
+    )
+    # Syllables: four notes a second, with soft attack and release.
+    syllable = np.clip(np.sin(np.pi * ((t * 4.0) % 1.0)) * 1.5, 0.0, 1.0)
+    vocal_body *= 0.3 + 0.7 * syllable
 
     # Add sibilant bursts every ~0.5s (4-8 kHz energy)
     sibilance = _bandpass(rng.normal(0, 0.6, n), rate, 4000, 8000)
@@ -68,7 +96,7 @@ def make_vocal(duration: float = 2.0, rate: int = DEFAULT_RATE) -> tuple[np.ndar
     mono /= np.max(np.abs(mono)) + 1e-10  # normalize
     mono *= 0.7  # headroom
 
-    return _to_stereo(mono), rate
+    return _to_stereo(mono, rate=rate), rate
 
 
 def make_drums(duration: float = 2.0, rate: int = DEFAULT_RATE) -> tuple[np.ndarray, int]:
@@ -92,7 +120,7 @@ def make_drums(duration: float = 2.0, rate: int = DEFAULT_RATE) -> tuple[np.ndar
         mono[start : start + hit_len] += hit
 
     mono = np.clip(mono, -1.0, 1.0)
-    return _to_stereo(mono, width=0.05), rate
+    return _to_stereo(mono, width=0.05, rate=rate), rate
 
 
 def make_bass(duration: float = 2.0, rate: int = DEFAULT_RATE) -> tuple[np.ndarray, int]:
@@ -112,7 +140,7 @@ def make_bass(duration: float = 2.0, rate: int = DEFAULT_RATE) -> tuple[np.ndarr
     mono = mono.astype(np.float64)
     mono *= 0.8
 
-    return _to_stereo(mono, width=0.02), rate
+    return _to_stereo(mono, width=0.02, rate=rate), rate
 
 
 def make_full_mix(duration: float = 3.0, rate: int = DEFAULT_RATE) -> tuple[np.ndarray, int]:
@@ -157,7 +185,7 @@ def make_clipping(duration: float = 2.0, rate: int = DEFAULT_RATE) -> tuple[np.n
     mono = 1.5 * np.sin(2 * np.pi * 300 * t)
     mono = np.clip(mono, -1.0, 1.0)
 
-    return _to_stereo(mono.astype(np.float64)), rate
+    return _to_stereo(mono.astype(np.float64), rate=rate), rate
 
 
 def make_phase_problem(duration: float = 2.0, rate: int = DEFAULT_RATE) -> tuple[np.ndarray, int]:
@@ -192,7 +220,7 @@ def make_bright(duration: float = 2.0, rate: int = DEFAULT_RATE) -> tuple[np.nda
     mono = (low + mid + high_mid + air).astype(np.float64)
     mono *= 0.8
 
-    return _to_stereo(mono), rate
+    return _to_stereo(mono, rate=rate), rate
 
 
 def make_noisy(duration: float = 2.0, rate: int = DEFAULT_RATE) -> tuple[np.ndarray, int]:
@@ -212,7 +240,7 @@ def make_noisy(duration: float = 2.0, rate: int = DEFAULT_RATE) -> tuple[np.ndar
     mono = (signal + noise).astype(np.float64)
     mono *= 0.7
 
-    return _to_stereo(mono), rate
+    return _to_stereo(mono, rate=rate), rate
 
 
 def make_clicks_and_pops(duration: float = 3.0, rate: int = DEFAULT_RATE) -> tuple[np.ndarray, int]:
@@ -240,16 +268,19 @@ def make_clicks_and_pops(duration: float = 3.0, rate: int = DEFAULT_RATE) -> tup
         hit = 0.4 * np.sin(2 * np.pi * 70 * local_t) * np.exp(-local_t * 30)
         transient_env[start : start + hit_len] += hit
 
-    mono = (bed + transient_env).astype(np.float64)
+    stereo = _to_stereo((bed + transient_env).astype(np.float64), width=0.05, rate=rate)
 
-    # Inject 6 single-sample spikes at irregular offsets (not aligned with hits)
+    # Inject 6 single-sample spikes at irregular offsets (not aligned with
+    # hits). A digital click lands on the same sample in both channels, so
+    # they go in after the stereo spread; spreading them would smear each
+    # one over two samples of the right channel (#682).
     spike_offsets = [0.13, 0.55, 0.92, 1.34, 1.71, 2.18]
     for offset_sec in spike_offsets:
         idx = int(offset_sec * rate)
         if idx < n:
-            mono[idx] = 0.9 if mono[idx] >= 0 else -0.9
+            stereo[idx, :] = 0.9 if stereo[idx, 0] >= 0 else -0.9
 
-    return _to_stereo(mono, width=0.05), rate
+    return stereo, rate
 
 
 def make_silent_gaps(rate: int = DEFAULT_RATE) -> tuple[np.ndarray, int]:
@@ -265,7 +296,7 @@ def make_silent_gaps(rate: int = DEFAULT_RATE) -> tuple[np.ndarray, int]:
     gap = np.zeros(gap_samples, dtype=np.float64)
     mono = np.concatenate([seg, gap, seg])
 
-    return _to_stereo(mono, width=0.02), rate
+    return _to_stereo(mono, width=0.02, rate=rate), rate
 
 
 def make_phase_partial(duration: float = 2.0, rate: int = DEFAULT_RATE) -> tuple[np.ndarray, int]:
