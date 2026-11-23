@@ -1544,12 +1544,8 @@ class TestCheckHomographsExtended:
         words = [f["canonical"] for f in result["matches"]]
         assert "read" in words
 
-    def test_empty_text(self, integration_env):
-        """check_homographs returns empty for blank text."""
-        result = json.loads(_run(server.check_homographs("")))
-        assert result["count"] == 0
-        assert result["has_homographs"] is False
-        assert result["matches"] == []
+    # Blank text: test_server.py's TestCheckHomographs.test_empty_text
+    # (this class had an identical copy).
 
     def test_multiple_homographs(self, integration_env):
         """check_homographs detects multiple different homographs."""

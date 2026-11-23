@@ -130,13 +130,37 @@ class TestAnalyzeTrackBasic:
         assert result['lufs'] < 0
 
     def test_peak_db_is_negative(self, sine_wav):
-        """Peak should be below 0 dBFS for 0.5 amplitude signal."""
+        """A 0.5-amplitude sine peaks at 20·log10(0.5) = -6.02 dBFS (#682)."""
         result = analyze_track(sine_wav)
-        assert result['peak_db'] < 0
+        assert result['peak_db'] == pytest.approx(20 * np.log10(0.5), abs=0.01)
+
+    def test_rms_db_of_a_sine(self, sine_wav):
+        """A sine's RMS is its peak / √2: -6.02 - 3.01 = -9.03 dBFS (#682)."""
+        result = analyze_track(sine_wav)
+        assert result['rms_db'] == pytest.approx(20 * np.log10(0.5 / np.sqrt(2)), abs=0.01)
 
     def test_dynamic_range_is_positive(self, sine_wav):
+        """Peak minus RMS of a sine is its crest factor, 3.01 dB (#682)."""
         result = analyze_track(sine_wav)
-        assert result['dynamic_range'] > 0
+        assert result['dynamic_range'] == pytest.approx(20 * np.log10(np.sqrt(2)), abs=0.01)
+
+    def test_peak_and_rms_of_a_mono_file(self, mono_wav):
+        """Mono is read as dual-mono: the same peak and RMS as one channel."""
+        result = analyze_track(mono_wav)
+        assert result['peak_db'] == pytest.approx(-6.02, abs=0.01)
+        assert result['rms_db'] == pytest.approx(-9.03, abs=0.01)
+
+    def test_peak_tracks_the_loudest_sample(self, tmp_path):
+        """One sample at 0.9 in a 0.1 sine: peak_db is that sample's -0.92 dBFS."""
+        data, rate = _generate_sine(amplitude=0.1)
+        data[rate, 1] = 0.9
+        path = tmp_path / "spike.wav"
+        _write_wav(path, data, rate)
+        result = analyze_track(str(path))
+        assert result['peak_db'] == pytest.approx(20 * np.log10(0.9), abs=0.01)
+        assert result['dynamic_range'] == pytest.approx(
+            result['peak_db'] - result['rms_db'], abs=1e-9)
+        assert result['dynamic_range'] > 18.0
 
 
 class TestAnalyzeTrackBandEnergy:

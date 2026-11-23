@@ -12,6 +12,7 @@ import sys
 from pathlib import Path
 
 import numpy as np
+import pyloudnorm as pyln
 import pytest
 import soundfile as sf
 
@@ -69,6 +70,79 @@ def _generate_noise(duration=3.0, rate=44100, amplitude=0.3, stereo=True):
 
 def _write_wav(path, data, rate):
     sf.write(str(path), data, rate, subtype='PCM_16')
+
+
+@pytest.fixture(autouse=True)
+def _seeded_dither(monkeypatch):
+    """Seed master_track's TPDF dither (#682).
+
+    master_track dithers with a fresh RNG, so two masters of the same input
+    differ by up to 2 LSB, and a test comparing an "on" and an "off" master
+    passes on the dither alone. Seeding it here makes every master
+    deterministic, so a difference between two outputs is the feature's.
+    The unit tests of apply_tpdf_dither import it directly and are unaffected.
+    """
+    real = master_tracks.apply_tpdf_dither
+
+    def _seeded(data, target_bits=16, seed=None):
+        return real(data, target_bits=target_bits, seed=0 if seed is None else seed)
+
+    monkeypatch.setattr(master_tracks, "apply_tpdf_dither", _seeded)
+
+
+def _tone(x, rate, freq):
+    """Complex amplitude of the ``freq`` component of mono ``x`` (Hann window)."""
+    x = np.asarray(x, dtype=np.float64)
+    w = np.hanning(len(x))
+    n = np.arange(len(x))
+    return np.sum(w * x * np.exp(-2j * np.pi * freq * n / rate)) * 2 / np.sum(w)
+
+
+def _tone_db(x, rate, freq):
+    return 20 * np.log10(abs(_tone(x, rate, freq)))
+
+
+def _band_db(x, rate, lo, hi):
+    """Energy of mono ``x`` between ``lo`` and ``hi`` Hz, in dB."""
+    x = np.asarray(x, dtype=np.float64)
+    spec = np.abs(np.fft.rfft(x * np.hanning(len(x)))) ** 2
+    freqs = np.fft.rfftfreq(len(x), 1 / rate)
+    return 10 * np.log10(np.sum(spec[(freqs >= lo) & (freqs < hi)]))
+
+
+def _written_lufs(path):
+    """Integrated loudness of the file on disk (mono read as dual-mono)."""
+    data, rate = sf.read(str(path))
+    if data.ndim == 1:
+        data = np.column_stack([data, data])
+    return pyln.Meter(rate).integrated_loudness(data)
+
+
+def _written_true_peak_db(path):
+    data, rate = sf.read(str(path))
+    return 20 * np.log10(measure_true_peak(data, rate))
+
+
+def _master_pair(tmp_path, data, rate, preset_a, preset_b):
+    """Master ``data`` with two presets; return (out_a, out_b, result_a, result_b)."""
+    inp = tmp_path / "in.wav"
+    out_a = tmp_path / "out_a.wav"
+    out_b = tmp_path / "out_b.wav"
+    _write_wav(inp, data, rate)
+    r_a = master_track(str(inp), str(out_a), preset={**_PRESET_DEFAULTS, **preset_a})
+    r_b = master_track(str(inp), str(out_b), preset={**_PRESET_DEFAULTS, **preset_b})
+    assert not r_a.get('skipped') and not r_b.get('skipped')
+    d_a, _ = sf.read(str(out_a))
+    d_b, _ = sf.read(str(out_b))
+    return d_a, d_b, r_a, r_b
+
+
+def _mid_side(data):
+    return (data[:, 0] + data[:, 1]) / 2, (data[:, 0] - data[:, 1]) / 2
+
+
+# The product promises masters within ±0.5 dB of the target (#682).
+LUFS_TOLERANCE = 0.5
 
 
 # ─── Fixtures ──────────────────────────────────────────────────────────
@@ -398,15 +472,23 @@ class TestMasterTrack:
         assert Path(output_path).exists()
 
     def test_output_loudness_near_target(self, sine_wav, output_path):
-        """Final LUFS should be close to target."""
+        """Final LUFS is within the promised ±0.5 dB, in the file as written."""
         result = master_track(sine_wav, output_path, target_lufs=-14.0)
-        # Allow 1.5 dB tolerance due to limiting
-        assert abs(result['final_lufs'] - (-14.0)) < 1.5
+        assert abs(result['final_lufs'] - (-14.0)) <= LUFS_TOLERANCE
+        assert abs(_written_lufs(output_path) - (-14.0)) <= LUFS_TOLERANCE
 
     def test_output_peak_below_ceiling(self, sine_wav, output_path):
-        """Final peak should not exceed the ceiling."""
-        result = master_track(sine_wav, output_path, ceiling_db=-1.0)
-        assert result['final_peak'] <= -0.9  # Small tolerance
+        """Final peak should not exceed the ceiling.
+
+        Mastered to -3 LUFS the sine would peak about 1.3 dB over full
+        scale, so the limiter has to hold it at the -1.0 ceiling (#682: at
+        -14 LUFS it peaked at -9.65 and never reached the limiter). A sine
+        that hot ends up pinned at the ceiling, not below it.
+        """
+        result = master_track(sine_wav, output_path, target_lufs=-3.0, ceiling_db=-1.0)
+        written_tp = _written_true_peak_db(output_path)
+        assert -1.0 - 0.1 <= written_tp <= -1.0 + 0.05
+        assert result['final_peak'] <= -1.0 + 0.05
 
     def test_mono_input_produces_mono_output(self, mono_wav, output_path):
         """Mono input should produce mono output."""
@@ -428,23 +510,54 @@ class TestMasterTrack:
         assert result.get('skipped', False) is True
         assert result['original_lufs'] == float('-inf')
 
-    def test_with_eq_settings(self, noise_wav, output_path):
-        """Mastering with EQ settings should complete without error."""
-        eq = [(3500, -2.0, 1.5)]
-        result = master_track(noise_wav, output_path, target_lufs=-14.0, eq_settings=eq)
-        assert not result.get('skipped', False)
-        assert Path(output_path).exists()
+    @staticmethod
+    def _eq_change_db(noise_wav, output_path, tmp_path, eq):
+        """Change in band energy (relative to 600-1000 Hz) that ``eq`` makes.
 
-    def test_with_multiple_eq_bands(self, noise_wav, output_path):
-        """Multiple EQ bands should all be applied."""
-        eq = [(3500, -2.0, 1.5), (8000, -1.5, 0.7)]
+        Returns {(lo, hi): dB} for the 3.5 kHz and 8 kHz bands, measured
+        against a master of the same noise with no EQ.
+        """
+        flat = str(tmp_path / "flat.wav")
         result = master_track(noise_wav, output_path, target_lufs=-14.0, eq_settings=eq)
         assert not result.get('skipped', False)
+        master_track(noise_wav, flat, target_lufs=-14.0)
+        d_eq, rate = sf.read(output_path)
+        d_flat, _ = sf.read(flat)
+        ref = (600, 1000)
+        change = {}
+        for band in ((3300, 3700), (7600, 8400)):
+            eq_rel = _band_db(d_eq[:, 0], rate, *band) - _band_db(d_eq[:, 0], rate, *ref)
+            flat_rel = _band_db(d_flat[:, 0], rate, *band) - _band_db(d_flat[:, 0], rate, *ref)
+            change[band] = eq_rel - flat_rel
+        return change
+
+    def test_with_eq_settings(self, noise_wav, output_path, tmp_path):
+        """A -2 dB bell at 3.5 kHz cuts about 2 dB there and leaves 8 kHz alone."""
+        change = self._eq_change_db(noise_wav, output_path, tmp_path, [(3500, -2.0, 1.5)])
+        assert -2.3 <= change[(3300, 3700)] <= -1.5, change
+        assert abs(change[(7600, 8400)]) <= 0.3, change
+
+    def test_with_multiple_eq_bands(self, noise_wav, output_path, tmp_path):
+        """Multiple EQ bands should all be applied: each band's cut appears."""
+        change = self._eq_change_db(
+            noise_wav, output_path, tmp_path, [(3500, -2.0, 1.5), (8000, -1.5, 0.7)],
+        )
+        assert change[(3300, 3700)] <= -1.5, change
+        assert -2.0 <= change[(7600, 8400)] <= -1.2, change
 
     def test_hot_signal_is_limited(self, hot_wav, output_path):
-        """Near-clipping input should be properly limited."""
-        result = master_track(hot_wav, output_path, target_lufs=-14.0, ceiling_db=-1.0)
-        assert result['final_peak'] <= -0.9
+        """Near-clipping input pushed to -3 LUFS is held at the ceiling.
+
+        At that loudness the sine would peak over full scale, so the limiter
+        is engaged (#682: at -14 LUFS it peaked at -7.7 and was never
+        limited) and pins it at the ceiling.
+        """
+        result = master_track(hot_wav, output_path, target_lufs=-3.0, ceiling_db=-1.0)
+        written_tp = _written_true_peak_db(output_path)
+        assert -1.0 - 0.1 <= written_tp <= -1.0 + 0.05
+        assert result['final_peak'] <= -1.0 + 0.05
+        data, _ = sf.read(output_path)
+        assert np.max(np.abs(data)) <= 10 ** (-1.0 / 20) + 1e-3
 
     def test_gain_applied_is_correct_sign(self, sine_wav, output_path):
         """If input is quieter than target, gain should be positive."""
@@ -481,14 +594,16 @@ class TestMasterTrack:
         result = master_track(noise_wav, output_path, preset=preset)
         assert not result.get('skipped', False)
         assert Path(output_path).exists()
-        assert abs(result['final_lufs'] - (-16.0)) < 2.0
+        assert abs(result['final_lufs'] - (-16.0)) <= LUFS_TOLERANCE
+        assert abs(_written_lufs(output_path) - (-16.0)) <= LUFS_TOLERANCE
 
     def test_preset_dict_overrides_defaults(self, noise_wav, output_path):
         """Partial preset dict should merge with defaults."""
         preset = {'target_lufs': -18.0}
         result = master_track(noise_wav, output_path, preset=preset)
         assert not result.get('skipped', False)
-        assert abs(result['final_lufs'] - (-18.0)) < 2.0
+        assert abs(result['final_lufs'] - (-18.0)) <= LUFS_TOLERANCE
+        assert abs(_written_lufs(output_path) - (-18.0)) <= LUFS_TOLERANCE
 
 
 # ─── Tests: Genre Presets ──────────────────────────────────────────────
@@ -576,8 +691,13 @@ class TestNumericalStability:
         assert np.max(np.abs(result)) <= ceiling_linear + 1e-6
 
     def test_master_very_quiet_nonsilent(self, tmp_path):
-        """Very quiet but non-silent audio should master without error."""
-        data, rate = _generate_sine(amplitude=0.0001, duration=3.0)
+        """Very quiet but non-silent audio should master without error.
+
+        A -66 dBFS sine reads about -67 LUFS, above the meter's -70 LUFS absolute
+        gate, so it is mastered (at 0.0001 it was gated to -inf and skipped,
+        and the loudness branch below never ran, #682).
+        """
+        data, rate = _generate_sine(amplitude=0.0005, duration=3.0)
         in_path = tmp_path / "vquiet.wav"
         out_path = tmp_path / "vquiet_out.wav"
         _write_wav(in_path, data, rate)
@@ -588,8 +708,9 @@ class TestNumericalStability:
             assert result['final_lufs'] == float('-inf')
             assert not out_path.exists()
         else:
-            assert result['final_lufs'] == pytest.approx(-14.0, abs=1.0)
+            assert result['final_lufs'] == pytest.approx(-14.0, abs=LUFS_TOLERANCE)
             assert out_path.is_file()
+            assert _written_lufs(out_path) == pytest.approx(-14.0, abs=LUFS_TOLERANCE)
 
 
 # ─── Tests: YAML Preset Loading ───────────────────────────────────────
@@ -913,6 +1034,51 @@ class TestApplyFadeOut:
         apply_fade_out(data, rate, duration=1.0)
         assert np.array_equal(data, original)
 
+    @pytest.mark.parametrize("curve, shape", [
+        ('exponential', lambda x: (1 - x) ** 3),
+        ('linear', lambda x: 1 - x),
+    ])
+    def test_fade_spans_the_requested_duration(self, curve, shape):
+        """The fade starts exactly ``duration`` seconds before the end (#682).
+
+        On a constant signal the output *is* the gain envelope: unity up to
+        the fade's start, then the curve over the last ``duration`` seconds.
+        A fade 4x too short would leave the level at unity 1.5 s from the end.
+        """
+        rate, duration = 44100, 2.0
+        data = np.full((rate * 5, 2), 0.5)
+        result = apply_fade_out(data, rate, duration=duration, curve=curve)
+        gain = result[:, 0] / 0.5
+        fade_start = len(gain) - int(rate * duration)
+        assert np.array_equal(gain[:fade_start], np.ones(fade_start))
+        # The level over the fade follows the curve at every quarter.
+        for frac in (0.25, 0.5, 0.75):
+            idx = fade_start + int(frac * (int(rate * duration) - 1))
+            assert gain[idx] == pytest.approx(shape(frac), abs=1e-4), frac
+        # First sample below unity is right at the fade's start.
+        assert int(np.argmax(gain < 1.0)) == fade_start + 1
+        assert np.array_equal(result[:, 0], result[:, 1])
+
+    def test_fade_level_envelope_on_a_tone(self):
+        """Windowed RMS of a faded tone tracks the exponential curve (#682)."""
+        rate = 44100
+        data, _ = _generate_sine(freq=1000, duration=6.0, amplitude=0.5)
+        result = apply_fade_out(data, rate, duration=4.0)
+        win = rate // 10  # 100 ms windows
+
+        def level(t_from_end):
+            start = len(result) - int(t_from_end * rate)
+            seg = result[start:start + win, 0]
+            return np.sqrt(np.mean(seg ** 2))
+
+        unfaded = 0.5 / np.sqrt(2)
+        # 5 s from the end: before the 4 s fade, untouched.
+        assert level(5.0) == pytest.approx(unfaded, rel=1e-3)
+        # Halfway (2 s from the end, window centred 1.95 s): ≈ (1 - 0.5125)^3.
+        assert level(2.0) == pytest.approx(unfaded * (1 - 0.5125) ** 3, rel=0.03)
+        # 1 s from the end the level is down ≈ 37 dB, not still near unity.
+        assert level(1.0) == pytest.approx(unfaded * (1 - 0.7625) ** 3, rel=0.05)
+
 
 # ─── Tests: Process One Track ─────────────────────────────────────────
 
@@ -1128,55 +1294,55 @@ class TestMasterTrackNewFeatures:
     """Test new mastering chain features wired through master_track()."""
 
     def test_low_shelf_eq_applied(self, tmp_path):
-        """Low shelf EQ via preset changes the output."""
-        data, rate = _generate_sine(freq=60, amplitude=0.3)
-        inp = tmp_path / "in.wav"
-        out1 = tmp_path / "out1.wav"
-        out2 = tmp_path / "out2.wav"
-        _write_wav(inp, data, rate)
+        """A +4 dB low shelf at 80 Hz lifts 50 Hz against 1 kHz by ~3.4 dB."""
+        rate = 44100
+        t = np.arange(3 * rate) / rate
+        mono = 0.2 * np.sin(2 * np.pi * 50 * t) + 0.2 * np.sin(2 * np.pi * 1000 * t)
+        d_off, d_on, _, _ = _master_pair(
+            tmp_path, np.column_stack([mono, mono]), rate,
+            {'eq_low_gain': 0.0}, {'eq_low_gain': 4.0},
+        )
 
-        preset_off = {**_PRESET_DEFAULTS, 'eq_low_gain': 0.0}
-        preset_on = {**_PRESET_DEFAULTS, 'eq_low_gain': 4.0}
-        r1 = master_track(str(inp), str(out1), preset=preset_off)
-        r2 = master_track(str(inp), str(out2), preset=preset_on)
-        # Both should succeed
-        assert not r1.get('skipped')
-        assert not r2.get('skipped')
-        # Outputs should differ
-        d1, _ = sf.read(str(out1))
-        d2, _ = sf.read(str(out2))
-        assert not np.allclose(d1, d2)
+        def low_vs_mid(d):
+            return _tone_db(d[:, 0], rate, 50) - _tone_db(d[:, 0], rate, 1000)
+
+        lift = low_vs_mid(d_on) - low_vs_mid(d_off)
+        # The shelf's gain at 50 Hz (q 0.7, 80 Hz corner) is ~3.4 of its 4 dB.
+        assert 2.9 <= lift <= 4.0, lift
 
     def test_sub_cut_applied(self, tmp_path):
-        """Sub-bass HPF via preset removes low content."""
-        data, rate = _generate_sine(freq=20, amplitude=0.5)
-        inp = tmp_path / "in.wav"
-        out = tmp_path / "out.wav"
-        _write_wav(inp, data, rate)
+        """Sub-bass HPF via preset removes low content: 20 Hz drops ~12 dB."""
+        rate = 44100
+        t = np.arange(3 * rate) / rate
+        mono = 0.3 * np.sin(2 * np.pi * 20 * t) + 0.2 * np.sin(2 * np.pi * 1000 * t)
+        d_off, d_on, _, _ = _master_pair(
+            tmp_path, np.column_stack([mono, mono]), rate,
+            {'eq_sub_cut_freq': 0.0}, {'eq_sub_cut_freq': 40.0},
+        )
 
-        preset = {**_PRESET_DEFAULTS, 'eq_sub_cut_freq': 40.0}
-        result = master_track(str(inp), str(out), preset=preset)
-        assert not result.get('skipped')
+        def sub_vs_mid(d):
+            return _tone_db(d[:, 0], rate, 20) - _tone_db(d[:, 0], rate, 1000)
+
+        drop = sub_vs_mid(d_off) - sub_vs_mid(d_on)
+        # 2nd-order Butterworth at 40 Hz: an octave below is ~12 dB down.
+        assert 10.0 <= drop <= 15.0, drop
 
     def test_stereo_width_applied(self, tmp_path):
-        """Stereo width preset changes stereo field."""
+        """stereo_width 1.5 makes the side/mid ratio 1.5x wider."""
         rate = 44100
         t = np.linspace(0, 3.0, int(rate * 3.0), endpoint=False)
         left = 0.3 * np.sin(2 * np.pi * 440 * t)
         right = 0.3 * np.sin(2 * np.pi * 440 * t + 0.3)
         data = np.column_stack([left, right])
-        inp = tmp_path / "in.wav"
-        out1 = tmp_path / "out1.wav"
-        out2 = tmp_path / "out2.wav"
-        _write_wav(inp, data, rate)
+        d_normal, d_wide, _, _ = _master_pair(
+            tmp_path, data, rate, {'stereo_width': 1.0}, {'stereo_width': 1.5},
+        )
 
-        preset_normal = {**_PRESET_DEFAULTS, 'stereo_width': 1.0}
-        preset_wide = {**_PRESET_DEFAULTS, 'stereo_width': 1.5}
-        master_track(str(inp), str(out1), preset=preset_normal)
-        master_track(str(inp), str(out2), preset=preset_wide)
-        d1, _ = sf.read(str(out1))
-        d2, _ = sf.read(str(out2))
-        assert not np.allclose(d1, d2)
+        def side_over_mid(d):
+            mid, side = _mid_side(d)
+            return np.sqrt(np.mean(side ** 2)) / np.sqrt(np.mean(mid ** 2))
+
+        assert side_over_mid(d_wide) / side_over_mid(d_normal) == pytest.approx(1.5, abs=0.02)
 
     def test_24bit_output(self, tmp_path):
         """output_bits=24 produces PCM_24 file."""
@@ -1274,70 +1440,81 @@ class TestLookAheadLimiter:
             )
 
 
+def _bursts(rate=44100, seconds=3.0):
+    """A 440 Hz tone alternating 0.6 / 0.06 every half second (20 dB swing)."""
+    t = np.arange(int(seconds * rate)) / rate
+    mono = np.where((t % 1.0) < 0.5, 0.6, 0.06) * np.sin(2 * np.pi * 440 * t)
+    return np.column_stack([mono, mono]), rate
+
+
+def _burst_swing_db(d, rate=44100):
+    """Loud-section RMS over quiet-section RMS, in dB (compression shrinks it)."""
+    a = d[:, 0]
+    loud = [a[int((k + 0.1) * rate):int((k + 0.4) * rate)] for k in range(3)]
+    quiet = [a[int((k + 0.6) * rate):int((k + 0.9) * rate)] for k in range(3)]
+
+    def rms(segs):
+        return np.mean([np.sqrt(np.mean(seg ** 2)) for seg in segs])
+
+    return 20 * np.log10(rms(loud) / rms(quiet))
+
+
 class TestParallelCompression:
     """Tests for parallel compression (compress_mix)."""
 
     def test_mix_1_equals_full_compression(self, tmp_path):
-        """compress_mix=1.0 should produce similar output to default."""
-        data, rate = _generate_sine(amplitude=0.3)
-        inp = tmp_path / "in.wav"
-        out1 = tmp_path / "out1.wav"
-        out2 = tmp_path / "out2.wav"
-        _write_wav(inp, data, rate)
-
-        preset_default = {**_PRESET_DEFAULTS}
-        preset_mix1 = {**_PRESET_DEFAULTS, 'compress_mix': 1.0}
-        r1 = master_track(str(inp), str(out1), preset=preset_default)
-        r2 = master_track(str(inp), str(out2), preset=preset_mix1)
-        # LUFS should be very close (dither noise causes minor sample differences)
-        assert abs(r1['final_lufs'] - r2['final_lufs']) < 0.5
+        """compress_mix=1.0 is the default: the masters are identical."""
+        data, rate = _bursts()
+        d_default, d_mix1, _, _ = _master_pair(
+            tmp_path, data, rate, {'compress_ratio': 3.0},
+            {'compress_ratio': 3.0, 'compress_mix': 1.0},
+        )
+        assert np.array_equal(d_default, d_mix1)
 
     def test_mix_0_bypasses_compression(self, tmp_path):
-        """compress_mix=0.0 should produce different output (dry signal)."""
-        data, rate = _generate_noise(amplitude=0.4)
-        inp = tmp_path / "in.wav"
-        out1 = tmp_path / "out1.wav"
-        out2 = tmp_path / "out2.wav"
-        _write_wav(inp, data, rate)
-
-        preset_full = {**_PRESET_DEFAULTS, 'compress_ratio': 3.0}
-        preset_dry = {**_PRESET_DEFAULTS, 'compress_ratio': 3.0, 'compress_mix': 0.0}
-        master_track(str(inp), str(out1), preset=preset_full)
-        master_track(str(inp), str(out2), preset=preset_dry)
-        d1, _ = sf.read(str(out1))
-        d2, _ = sf.read(str(out2))
-        assert not np.allclose(d1, d2)
+        """compress_mix=0.0 is the uncompressed (dry) path, sample for sample."""
+        data, rate = _bursts()
+        d_dry, d_uncompressed, _, _ = _master_pair(
+            tmp_path, data, rate, {'compress_ratio': 3.0, 'compress_mix': 0.0},
+            {'compress_ratio': 1.0},
+        )
+        assert np.max(np.abs(d_dry - d_uncompressed)) <= 1.0 / 32768
+        # ...and compression at that ratio does change it (the swing shrinks).
+        d_wet, _, _, _ = _master_pair(
+            tmp_path, data, rate, {'compress_ratio': 3.0}, {'compress_ratio': 1.0},
+        )
+        assert _burst_swing_db(d_wet) < _burst_swing_db(d_dry) - 3.0
 
     def test_mix_half_blends(self, tmp_path):
         """compress_mix=0.5 should be between dry and wet."""
-        data, rate = _generate_noise(amplitude=0.4)
-        inp = tmp_path / "in.wav"
-        out = tmp_path / "out.wav"
-        _write_wav(inp, data, rate)
-
-        preset = {**_PRESET_DEFAULTS, 'compress_ratio': 3.0, 'compress_mix': 0.5}
-        result = master_track(str(inp), str(out), preset=preset)
-        assert not result.get('skipped')
+        data, rate = _bursts()
+        d_wet, d_dry, _, _ = _master_pair(
+            tmp_path, data, rate, {'compress_ratio': 3.0},
+            {'compress_ratio': 3.0, 'compress_mix': 0.0},
+        )
+        d_half, _, _, _ = _master_pair(
+            tmp_path, data, rate, {'compress_ratio': 3.0, 'compress_mix': 0.5},
+            {'compress_ratio': 1.0},
+        )
+        wet, half, dry = (_burst_swing_db(d) for d in (d_wet, d_half, d_dry))
+        # About 20 dB dry, 14 dB wet: the blend sits clearly between them.
+        assert wet + 1.0 < half < dry - 1.0, (wet, half, dry)
 
 
 class TestMakeupGain:
     """Tests for compressor makeup gain."""
 
     def test_makeup_gain_changes_output(self, tmp_path):
-        """Non-zero makeup gain should change the output."""
-        data, rate = _generate_sine(amplitude=0.3)
-        inp = tmp_path / "in.wav"
-        out1 = tmp_path / "out1.wav"
-        out2 = tmp_path / "out2.wav"
-        _write_wav(inp, data, rate)
+        """+3 dB makeup raises the compressed level by 3 dB.
 
-        preset_off = {**_PRESET_DEFAULTS, 'compress_makeup': 0.0}
-        preset_on = {**_PRESET_DEFAULTS, 'compress_makeup': 3.0}
-        master_track(str(inp), str(out1), preset=preset_off)
-        master_track(str(inp), str(out2), preset=preset_on)
-        d1, _ = sf.read(str(out1))
-        d2, _ = sf.read(str(out2))
-        assert not np.allclose(d1, d2)
+        Loudness normalisation follows, so the change shows in how much gain
+        the normaliser then has to apply: 3 dB less.
+        """
+        data, rate = _generate_sine(amplitude=0.3)
+        _, _, r_off, r_on = _master_pair(
+            tmp_path, data, rate, {'compress_makeup': 0.0}, {'compress_makeup': 3.0},
+        )
+        assert r_off['gain_applied'] - r_on['gain_applied'] == pytest.approx(3.0, abs=0.01)
 
 
 class TestOversampling:
@@ -1621,8 +1798,13 @@ class TestSampleRateConversion:
         assert info.samplerate == rate
 
     def test_downsample_to_22050(self, tmp_path):
-        """Downsampling to 22050 should produce correct sample rate."""
-        data, rate = _generate_sine(amplitude=0.3, duration=3.0)
+        """Downsampling to 22050 resamples the audio, not just the header.
+
+        A file labelled 22050 Hz but still holding 44.1 kHz samples plays
+        twice as long, an octave low (#682): check the duration in seconds
+        and the 1 kHz tone's frequency in the output.
+        """
+        data, rate = _generate_sine(freq=1000, amplitude=0.3, duration=3.0)
         assert rate == 44100
         inp = tmp_path / "in.wav"
         out = tmp_path / "out.wav"
@@ -1632,6 +1814,11 @@ class TestSampleRateConversion:
         master_track(str(inp), str(out), preset=preset)
         info = sf.info(str(out))
         assert info.samplerate == 22050
+        assert info.duration == pytest.approx(3.0, abs=0.01)
+        d, r = sf.read(str(out))
+        spectrum = np.abs(np.fft.rfft(d[:, 0] * np.hanning(len(d))))
+        peak_hz = np.fft.rfftfreq(len(d), 1 / r)[np.argmax(spectrum)]
+        assert peak_hz == pytest.approx(1000.0, abs=2.0)
 
 
 class TestInterTrackGap:
@@ -1692,7 +1879,13 @@ class TestDeesserInMasterTrack:
         master_track(str(inp), str(out2), preset=preset_on)
         d1, _ = sf.read(str(out1))
         d2, _ = sf.read(str(out2))
-        assert not np.allclose(d1, d2)
+
+        def sibilance_vs_body(d):
+            return _band_db(d[:, 0], rate, 5000, 9000) - _band_db(d[:, 0], rate, 300, 600)
+
+        # The 6.5 kHz "ess" sits 10 dB over the -30 dB threshold; 4:1 takes
+        # most of that off (measured ~10.5 dB) while 440 Hz is untouched.
+        assert sibilance_vs_body(d1) - sibilance_vs_body(d2) >= 6.0
 
 
 class TestMultibandCompress:
@@ -1797,46 +1990,69 @@ class TestMultibandInMasterTrack:
         assert not result.get('skipped')
 
     def test_multiband_differs_from_singleband(self, tmp_path):
-        """Multiband should produce different output than single-band."""
-        data, rate = _generate_noise(amplitude=0.4)
-        inp = tmp_path / "in.wav"
-        out1 = tmp_path / "out1.wav"
-        out2 = tmp_path / "out2.wav"
-        _write_wav(inp, data, rate)
+        """Multiband compresses the low band on its own; single-band pumps.
 
-        preset_single = {**_PRESET_DEFAULTS, 'compress_ratio': 2.0}
-        preset_multi = {**_PRESET_DEFAULTS, 'multiband_enabled': 1,
-                        'multiband_low_ratio': 2.0, 'multiband_mid_ratio': 2.0,
-                        'multiband_high_ratio': 2.0}
-        master_track(str(inp), str(out1), preset=preset_single)
-        master_track(str(inp), str(out2), preset=preset_multi)
-        d1, _ = sf.read(str(out1))
-        d2, _ = sf.read(str(out2))
-        assert not np.allclose(d1, d2)
+        A 60 Hz line bursting 0.5 / 0.02 under a steady 1 kHz tone. One
+        broadband compressor ducks the 1 kHz tone whenever the bass hits;
+        multiband compressing only the low band leaves it steady while
+        still narrowing the bass's swing.
+        """
+        rate = 44100
+        t = np.arange(3 * rate) / rate
+        bass = np.where((t % 1.0) < 0.5, 0.5, 0.02) * np.sin(2 * np.pi * 60 * t)
+        mono = bass + 0.1 * np.sin(2 * np.pi * 1000 * t)
+        data = np.column_stack([mono, mono])
+
+        def swing_db(d, freq):
+            """Level of ``freq`` with the bass on, over with it off."""
+            a = d[:, 0]
+            on = np.mean([abs(_tone(a[int((k + 0.15) * rate):int((k + 0.4) * rate)], rate, freq))
+                          for k in range(3)])
+            off = np.mean([abs(_tone(a[int((k + 0.65) * rate):int((k + 0.9) * rate)], rate, freq))
+                           for k in range(3)])
+            return 20 * np.log10(on / off)
+
+        d_single, d_multi, _, _ = _master_pair(
+            tmp_path, data, rate,
+            {'compress_ratio': 4.0},
+            {'multiband_enabled': 1, 'multiband_low_ratio': 4.0,
+             'multiband_mid_ratio': 1.0, 'multiband_high_ratio': 1.0},
+        )
+        d_none, _, _, _ = _master_pair(
+            tmp_path, data, rate, {'compress_ratio': 1.0}, {'compress_ratio': 1.0},
+        )
+        # Single-band: the 1 kHz tone drops ~6.5 dB under each bass hit.
+        assert swing_db(d_single, 1000) <= -3.0
+        # Multiband: it does not move...
+        assert abs(swing_db(d_multi, 1000)) <= 0.5
+        # ...while the bass's own swing is compressed (28 dB → ~21 dB).
+        assert swing_db(d_multi, 60) <= swing_db(d_none, 60) - 4.0
 
 
 class TestMidsideEQInMasterTrack:
     """Test mid/side EQ wired through master_track()."""
 
     def test_midside_eq_changes_output(self, tmp_path):
-        """Mid/side EQ via preset should change stereo field."""
-        rate = 44100
-        t = np.linspace(0, 3.0, int(rate * 3.0), endpoint=False)
-        left = 0.3 * np.sin(2 * np.pi * 440 * t)
-        right = 0.3 * np.sin(2 * np.pi * 440 * t + 0.3)
-        data = np.column_stack([left, right])
-        inp = tmp_path / "in.wav"
-        out1 = tmp_path / "out1.wav"
-        out2 = tmp_path / "out2.wav"
-        _write_wav(inp, data, rate)
+        """Mid/side EQ via preset changes the stereo field where it should.
 
-        preset_off = {**_PRESET_DEFAULTS}
-        preset_on = {**_PRESET_DEFAULTS, 'midside_low_gain': -6.0}
-        master_track(str(inp), str(out1), preset=preset_off)
-        master_track(str(inp), str(out2), preset=preset_on)
-        d1, _ = sf.read(str(out1))
-        d2, _ = sf.read(str(out2))
-        assert not np.allclose(d1, d2)
+        A -6 dB side low shelf at 300 Hz: side/mid at 100 Hz drops ~6 dB,
+        while 3 kHz keeps its width.
+        """
+        rate = 44100
+        t = np.arange(3 * rate) / rate
+        left = 0.2 * np.sin(2 * np.pi * 100 * t) + 0.2 * np.sin(2 * np.pi * 3000 * t)
+        right = 0.2 * np.sin(2 * np.pi * 100 * t + 0.8) + 0.2 * np.sin(2 * np.pi * 3000 * t + 0.8)
+        d_off, d_on, _, _ = _master_pair(
+            tmp_path, np.column_stack([left, right]), rate,
+            {'midside_low_gain': 0.0}, {'midside_low_gain': -6.0},
+        )
+
+        def side_vs_mid(d, freq):
+            mid, side = _mid_side(d)
+            return _tone_db(side, rate, freq) - _tone_db(mid, rate, freq)
+
+        assert 5.0 <= side_vs_mid(d_off, 100) - side_vs_mid(d_on, 100) <= 6.5
+        assert abs(side_vs_mid(d_off, 3000) - side_vs_mid(d_on, 3000)) <= 0.1
 
 
 class TestPhase3PresetDefaults:
@@ -1930,89 +2146,97 @@ class TestLinearPhaseEQ:
 class TestLinearPhaseEQInMasterTrack:
     """Test linear-phase EQ wired through master_track()."""
 
-    def test_linear_phase_produces_different_output(self, tmp_path):
-        """Linear-phase EQ should produce different output from IIR EQ."""
-        rate = 44100
-        t = np.linspace(0, 3.0, int(rate * 3.0), endpoint=False)
-        data = np.column_stack([
-            0.3 * np.sin(2 * np.pi * 440 * t),
-            0.3 * np.sin(2 * np.pi * 440 * t),
-        ])
-        inp = tmp_path / "in.wav"
-        out_iir = tmp_path / "out_iir.wav"
-        out_fir = tmp_path / "out_fir.wav"
-        sf.write(str(inp), data, rate)
+    @staticmethod
+    def _tones(freqs, rate=44100, seconds=3.0):
+        t = np.arange(int(seconds * rate)) / rate
+        mono = sum(0.1 * np.sin(2 * np.pi * f * t) for f in freqs)
+        return np.column_stack([mono, mono]), rate
 
-        preset_iir = {**_PRESET_DEFAULTS, 'cut_highmid': -3.0}
-        preset_fir = {**_PRESET_DEFAULTS, 'cut_highmid': -3.0, 'eq_linear_phase': 1}
-        master_track(str(inp), str(out_iir), preset=preset_iir)
-        master_track(str(inp), str(out_fir), preset=preset_fir)
-        d1, _ = sf.read(str(out_iir))
-        d2, _ = sf.read(str(out_fir))
-        assert not np.allclose(d1, d2)
+    @staticmethod
+    def _response(out, inp, rate, freq, ref):
+        """Gain (dB) and phase (deg) of ``freq`` through the master, relative to ``ref``."""
+        gain = (_tone_db(out, rate, freq) - _tone_db(inp, rate, freq)) \
+            - (_tone_db(out, rate, ref) - _tone_db(inp, rate, ref))
+        phase = np.degrees(np.angle(_tone(out, rate, freq) / _tone(inp, rate, freq))) \
+            - np.degrees(np.angle(_tone(out, rate, ref) / _tone(inp, rate, ref)))
+        return gain, phase
+
+    def test_linear_phase_produces_different_output(self, tmp_path):
+        """Linear-phase EQ: same magnitude as the IIR bell, no phase shift.
+
+        A -3 dB bell at 3.5 kHz. The IIR bell turns the phase ~9-10° on its
+        skirts (2.5 and 5 kHz); the linear-phase version matches its
+        magnitude within 0.1 dB and leaves the phase within 2°.
+        """
+        freqs = (440, 2500, 3500, 5000)
+        data, rate = self._tones(freqs)
+        d_iir, d_fir, _, _ = _master_pair(
+            tmp_path, data, rate,
+            {'cut_highmid': -3.0}, {'cut_highmid': -3.0, 'eq_linear_phase': 1},
+        )
+        for freq in (2500, 3500, 5000):
+            g_iir, p_iir = self._response(d_iir[:, 0], data[:, 0], rate, freq, 440)
+            g_fir, p_fir = self._response(d_fir[:, 0], data[:, 0], rate, freq, 440)
+            assert abs(g_iir - g_fir) <= 0.1, (freq, g_iir, g_fir)
+            assert abs(p_fir) <= 2.0, (freq, p_fir)
+            if freq != 3500:  # a bell's phase is zero at its centre
+                assert abs(p_iir - p_fir) >= 5.0, (freq, p_iir, p_fir)
+        g_centre, _ = self._response(d_fir[:, 0], data[:, 0], rate, 3500, 440)
+        assert g_centre == pytest.approx(-3.0, abs=0.1)
 
     def test_linear_phase_off_matches_default(self, tmp_path):
-        """eq_linear_phase=0 should match default IIR behavior (within dither noise)."""
-        rate = 44100
-        t = np.linspace(0, 3.0, int(rate * 3.0), endpoint=False)
-        data = np.column_stack([
-            0.3 * np.sin(2 * np.pi * 440 * t),
-            0.3 * np.sin(2 * np.pi * 440 * t),
-        ])
-        inp = tmp_path / "in.wav"
-        out1 = tmp_path / "out1.wav"
-        out2 = tmp_path / "out2.wav"
-        sf.write(str(inp), data, rate)
-
-        preset1 = {**_PRESET_DEFAULTS, 'cut_highmid': -3.0}
-        preset2 = {**_PRESET_DEFAULTS, 'cut_highmid': -3.0, 'eq_linear_phase': 0}
-        master_track(str(inp), str(out1), preset=preset1)
-        master_track(str(inp), str(out2), preset=preset2)
-        d1, _ = sf.read(str(out1))
-        d2, _ = sf.read(str(out2))
-        # Allow tolerance for TPDF dither noise (random per run, ~1 LSB at 16-bit)
-        assert np.allclose(d1, d2, atol=1e-4)
+        """eq_linear_phase=0 is the default IIR path, sample for sample."""
+        data, rate = self._tones((440, 3500))
+        d1, d2, _, _ = _master_pair(
+            tmp_path, data, rate,
+            {'cut_highmid': -3.0}, {'cut_highmid': -3.0, 'eq_linear_phase': 0},
+        )
+        assert np.array_equal(d1, d2)
 
     def test_linear_phase_low_shelf(self, tmp_path):
-        """Linear-phase low shelf EQ should change output."""
-        rate = 44100
-        t = np.linspace(0, 3.0, int(rate * 3.0), endpoint=False)
-        data = np.column_stack([
-            0.3 * np.sin(2 * np.pi * 60 * t),
-            0.3 * np.sin(2 * np.pi * 60 * t),
-        ])
-        inp = tmp_path / "in.wav"
-        out1 = tmp_path / "out1.wav"
-        out2 = tmp_path / "out2.wav"
-        sf.write(str(inp), data, rate)
-
-        preset_off = {**_PRESET_DEFAULTS, 'eq_low_gain': -3.0}
-        preset_on = {**_PRESET_DEFAULTS, 'eq_low_gain': -3.0, 'eq_linear_phase': 1}
-        master_track(str(inp), str(out1), preset=preset_off)
-        master_track(str(inp), str(out2), preset=preset_on)
-        d1, _ = sf.read(str(out1))
-        d2, _ = sf.read(str(out2))
-        assert not np.allclose(d1, d2)
+        """Linear-phase low shelf: IIR's magnitude, less phase turn at 40-80 Hz."""
+        freqs = (40, 80, 160, 1000)
+        data, rate = self._tones(freqs)
+        d_iir, d_fir, _, _ = _master_pair(
+            tmp_path, data, rate,
+            {'eq_low_gain': -3.0}, {'eq_low_gain': -3.0, 'eq_linear_phase': 1},
+        )
+        for freq in (40, 80):
+            g_iir, p_iir = self._response(d_iir[:, 0], data[:, 0], rate, freq, 1000)
+            g_fir, p_fir = self._response(d_fir[:, 0], data[:, 0], rate, freq, 1000)
+            assert abs(g_iir - g_fir) <= 0.1, (freq, g_iir, g_fir)
+            # Both include the DC filter's turn; the IIR shelf adds ~7-13°.
+            assert p_iir - p_fir >= 5.0, (freq, p_iir, p_fir)
+        g_40, _ = self._response(d_fir[:, 0], data[:, 0], rate, 40, 1000)
+        assert -3.0 <= g_40 <= -2.5
 
     def test_linear_phase_midside_eq(self, tmp_path):
-        """Linear-phase mid/side EQ should produce different output from IIR."""
+        """Linear-phase mid/side EQ: same side cut, no phase turn on the side."""
         rate = 44100
-        t = np.linspace(0, 3.0, int(rate * 3.0), endpoint=False)
-        left = 0.3 * np.sin(2 * np.pi * 440 * t)
-        right = 0.3 * np.sin(2 * np.pi * 440 * t + 0.3)
+        t = np.arange(3 * rate) / rate
+        left = 0.3 * np.sin(2 * np.pi * 100 * t)
+        right = 0.3 * np.sin(2 * np.pi * 100 * t + 0.8)
         data = np.column_stack([left, right])
-        inp = tmp_path / "in.wav"
-        out1 = tmp_path / "out1.wav"
-        out2 = tmp_path / "out2.wav"
-        sf.write(str(inp), data, rate)
+        d_iir, d_fir, _, _ = _master_pair(
+            tmp_path, data, rate,
+            {'midside_low_gain': -6.0}, {'midside_low_gain': -6.0, 'eq_linear_phase': 1},
+        )
 
-        preset_iir = {**_PRESET_DEFAULTS, 'midside_low_gain': -6.0}
-        preset_fir = {**_PRESET_DEFAULTS, 'midside_low_gain': -6.0, 'eq_linear_phase': 1}
-        master_track(str(inp), str(out1), preset=preset_iir)
-        master_track(str(inp), str(out2), preset=preset_fir)
-        d1, _ = sf.read(str(out1))
-        d2, _ = sf.read(str(out2))
-        assert not np.allclose(d1, d2)
+        def side_vs_mid(d):
+            """Side relative to mid at 100 Hz: (dB, degrees)."""
+            mid, side = _mid_side(d)
+            ratio = _tone(side, rate, 100) / _tone(mid, rate, 100)
+            return 20 * np.log10(abs(ratio)), np.degrees(np.angle(ratio))
+
+        g_in, p_in = side_vs_mid(data)
+        g_iir, p_iir = side_vs_mid(d_iir)
+        g_fir, p_fir = side_vs_mid(d_fir)
+        # Both cut the side by the shelf's ~6 dB at 100 Hz...
+        assert abs(g_iir - g_fir) <= 0.2
+        assert 5.0 <= g_in - g_fir <= 6.5
+        # ...but only the IIR shelf turns the side's phase against the mid.
+        assert abs(p_fir - p_in) <= 1.0
+        assert abs(p_iir - p_in) >= 5.0
 
 
 class TestMeasureLRA:
@@ -2079,11 +2303,16 @@ class TestLRATargeting:
         assert 'lra' in result
 
     def test_lra_targeting_tightens_dynamics(self, tmp_path):
-        """Setting target_lra should produce tighter dynamics than without."""
+        """Setting target_lra should produce tighter dynamics than without.
+
+        8 s loud then 8 s 20 dB quieter (LRA 20 LU in). The 6 s version this
+        test used to master read ~0.6 LU, below the target, so targeting
+        never ran and the outputs differed only by unseeded dither (#682).
+        """
         rate = 44100
-        t = np.linspace(0, 6.0, int(rate * 6.0), endpoint=False)
+        t = np.linspace(0, 16.0, int(rate * 16.0), endpoint=False)
         loud = 0.5 * np.sin(2 * np.pi * 440 * t[:len(t)//2])
-        quiet = 0.02 * np.sin(2 * np.pi * 440 * t[len(t)//2:])
+        quiet = 0.05 * np.sin(2 * np.pi * 440 * t[len(t)//2:])
         data = np.column_stack([
             np.concatenate([loud, quiet]),
             np.concatenate([loud, quiet]),
@@ -2102,8 +2331,9 @@ class TestLRATargeting:
 
         d_no, _ = sf.read(str(out_no_lra))
         d_yes, _ = sf.read(str(out_lra))
-        # The LRA-targeted version should differ (more compressed)
-        assert not np.allclose(d_no, d_yes)
+        # The LRA-targeted version is more compressed: ~14.8 → ~10.8 LU.
+        assert result_yes['lra'] <= result_no['lra'] - 2.0
+        assert _measure_lra(d_yes, rate) <= _measure_lra(d_no, rate) - 2.0
 
     def test_lra_zero_skips_targeting(self, tmp_path):
         """target_lra=0 should skip LRA targeting entirely."""

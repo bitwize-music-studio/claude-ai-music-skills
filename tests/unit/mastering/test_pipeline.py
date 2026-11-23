@@ -21,6 +21,8 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+import pyloudnorm as pyln
+
 from tests.fixtures.audio import (
     make_bass,
     make_bright,
@@ -34,8 +36,17 @@ from tests.fixtures.audio import (
 )
 from tools.mastering.analyze_tracks import analyze_track
 from tools.mastering.fix_dynamic_track import fix_dynamic
-from tools.mastering.master_tracks import master_track
+from tools.mastering.master_tracks import master_track, measure_true_peak
 from tools.mastering.qc_tracks import qc_track
+
+# The product promises masters within ±0.5 dB of the target (#682).
+LUFS_TOLERANCE = 0.5
+
+
+def _written_lufs(path):
+    """Integrated loudness of the file as written."""
+    data, rate = sf.read(path)
+    return pyln.Meter(rate).integrated_loudness(data)
 
 
 # ---------------------------------------------------------------------------
@@ -145,12 +156,21 @@ class TestMasteringHitsTarget:
         out = str(tmp_path / "mastered.wav")
         result = master_track(full_mix_wav, out, target_lufs=-14.0)
         assert not result.get("skipped")
-        assert abs(result["final_lufs"] - (-14.0)) < 1.5
+        assert abs(result["final_lufs"] - (-14.0)) <= LUFS_TOLERANCE
+        assert abs(_written_lufs(out) - (-14.0)) <= LUFS_TOLERANCE
 
     def test_peak_below_ceiling(self, full_mix_wav, tmp_path):
+        """The written true peak holds the -1.0 ceiling, not just 0 dBFS (#682).
+
+        At -10 LUFS the mix's peaks would land above -1 dBTP, so the limiter
+        is working and the master sits at the ceiling.
+        """
         out = str(tmp_path / "mastered.wav")
-        result = master_track(full_mix_wav, out, ceiling_db=-1.0)
-        assert result["final_peak"] <= 0.0  # well below 0 dBFS
+        result = master_track(full_mix_wav, out, target_lufs=-10.0, ceiling_db=-1.0)
+        assert result["final_peak"] <= -1.0 + 0.05
+        data, rate = sf.read(out)
+        written_tp = 20 * np.log10(measure_true_peak(data, rate))
+        assert -1.0 - 0.1 <= written_tp <= -1.0 + 0.05
 
     def test_vocal_masters_cleanly(self, vocal_wav, tmp_path):
         out = str(tmp_path / "mastered_vocal.wav")
@@ -182,7 +202,8 @@ class TestMasteringHitsTarget:
         eq = [(3500.0, -2.0, 1.5)]
         result = master_track(full_mix_wav, out, target_lufs=-14.0, eq_settings=eq)
         assert not result.get("skipped")
-        assert abs(result["final_lufs"] - (-14.0)) < 2.0
+        assert abs(result["final_lufs"] - (-14.0)) <= LUFS_TOLERANCE
+        assert abs(_written_lufs(out) - (-14.0)) <= LUFS_TOLERANCE
 
     def test_mastering_with_compression(self, full_mix_wav, tmp_path):
         out = str(tmp_path / "mastered_comp.wav")
@@ -298,7 +319,8 @@ class TestFixDynamicRecovery:
     def test_fix_clipping_reaches_target_lufs(self, clipping_wav, tmp_path):
         data, rate = sf.read(clipping_wav)
         fixed, metrics = fix_dynamic(data, rate, target_lufs=-14.0)
-        assert abs(metrics["final_lufs"] - (-14.0)) < 2.0
+        assert abs(metrics["final_lufs"] - (-14.0)) <= LUFS_TOLERANCE
+        assert abs(pyln.Meter(rate).integrated_loudness(fixed) - (-14.0)) <= LUFS_TOLERANCE
 
     def test_fixed_audio_passes_qc(self, clipping_wav, tmp_path):
         data, rate = sf.read(clipping_wav)

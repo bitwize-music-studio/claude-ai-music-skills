@@ -106,9 +106,40 @@ def bass_chorus_verse_wav(tmp_path):
 
 class TestShortTerm95:
     def test_constant_level_stl_95_close_to_lufs(self, long_constant_wav):
+        """Every window reads the same, so STL-95 is the integrated loudness.
+
+        Measured within 0.001 LU; held well inside the 0.5 LU coherence
+        band it feeds (was 1.5 LU, #682).
+        """
         result = analyze_track(long_constant_wav)
         assert result['stl_95'] is not None
-        assert abs(result['stl_95'] - result['lufs']) < 1.5
+        assert abs(result['stl_95'] - result['lufs']) <= 0.1
+
+    def test_stl_95_is_the_95th_percentile(self, tmp_path):
+        """On a 60 s crescendo STL-95 is the 95th-percentile window, not the max.
+
+        The level rises 20 dB linearly, so the 57 short-term windows (3 s,
+        1 s hop) read evenly spaced values ~0.35 LU apart. The 95th
+        percentile is the window centred at 0.95 x 56 + 1.5 = 54.7 s; the
+        loudest (57.5 s) is ~0.93 LU higher and the 90th percentile ~0.93 LU
+        lower, so either mistake fails (#682).
+        """
+        import pyloudnorm as pyln
+
+        rate = 48000
+        t = np.linspace(0, 60.0, int(rate * 60.0), endpoint=False)
+        level_db = -30.0 + 20.0 * t / 60.0
+        mono = 10 ** (level_db / 20) * np.sin(2 * np.pi * 440 * t)
+        path = tmp_path / "crescendo.wav"
+        _write_wav(path, np.column_stack([mono, mono]), rate)
+
+        # Loudness of a full-scale 440 Hz stereo sine, from the meter itself.
+        ref = np.sin(2 * np.pi * 440 * t[:3 * rate])
+        sine_lufs_at_0dbfs = pyln.Meter(rate).integrated_loudness(np.column_stack([ref, ref]))
+        expected = -30.0 + 20.0 * (0.95 * 56 + 1.5) / 60.0 + sine_lufs_at_0dbfs
+
+        result = analyze_track(str(path))
+        assert result['stl_95'] == pytest.approx(expected, abs=0.1)
 
     def test_chorus_verse_stl_95_above_integrated(self, chorus_verse_wav):
         result = analyze_track(chorus_verse_wav)
