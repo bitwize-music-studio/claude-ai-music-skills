@@ -117,7 +117,7 @@ NEXT STEP
 =========
 
 Album: [name] ([genre]) — [status]
-Progress: [X/Y tracks complete]
+Progress: [X/Y tracks complete]   (complete = Final)
 
 RECOMMENDED ACTION:
   [Clear, specific instruction with skill name]

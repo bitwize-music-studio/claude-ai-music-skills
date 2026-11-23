@@ -581,6 +581,32 @@ class TestSafeJson:
         assert result["lufs"] is None
         assert result["x"] == 2.5
 
+    def test_numpy_scalars_and_arrays_keep_their_json_types(self):
+        """numpy bools, ints, float32 and arrays serialise as JSON values (#683).
+
+        Only np.float64 subclasses float; the rest fell through to
+        default=str, so np.False_ became the truthy string "False".
+        """
+        import numpy as np
+
+        data = {
+            "t": np.bool_(True),
+            "f": np.abs(np.float64(0.9)) <= 0.5,
+            "i": np.int64(7),
+            "f32": np.float32(0.25),
+            "f32_inf": np.float32("-inf"),
+            "arr": np.array([1.0, np.nan, 2.5]),
+            "nested": [{"ok": np.bool_(False)}],
+        }
+        result = _strict_json_loads(server._safe_json(data))
+        assert result["t"] is True
+        assert result["f"] is False
+        assert result["i"] == 7 and type(result["i"]) is int
+        assert result["f32"] == 0.25 and type(result["f32"]) is float
+        assert result["f32_inf"] is None
+        assert result["arr"] == [1.0, None, 2.5]
+        assert result["nested"][0]["ok"] is False
+
     def test_finite_floats_unchanged(self):
         """Regression: finite floats still round-trip unchanged."""
         data = {"a": 1.5, "b": -14.0, "c": 0.0}
@@ -2486,14 +2512,6 @@ class TestExtractMarkdownSectionHelper:
         result = server._extract_markdown_section(text, "Missing")
         assert result is None
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "#682 finding: _extract_markdown_section's _RE_SECTION matches "
-            "'## ' lines inside fenced code blocks, so the section is cut at "
-            "the fenced line and the rest of the block is lost"
-        ),
-    )
     def test_nested_code_block_with_headings(self):
         """Headings inside code blocks should not be treated as section boundaries."""
         text = (
@@ -2517,6 +2535,30 @@ class TestExtractMarkdownSectionHelper:
             "It's inside a code block\n"
             "```"
         )
+
+    def test_tilde_fence_hides_headings(self):
+        """~~~ fences hide headings too (#683)."""
+        text = "## A\n~~~\n# not a heading\n~~~\nafter\n## B\nb"
+        assert server._extract_markdown_section(text, "A") == (
+            "~~~\n# not a heading\n~~~\nafter"
+        )
+
+    def test_heading_inside_fence_is_not_a_target(self):
+        """A '## X' inside a fence can't be returned as section X (#683)."""
+        text = "## A\n```\n## B\nfenced\n```\n## B\nreal"
+        assert server._extract_markdown_section(text, "B") == "real"
+
+    def test_fence_closes_only_on_bare_matching_fence(self):
+        """'```python' inside an open ``` block doesn't close it, nor does ~~~ (#683)."""
+        text = "## A\n```\n~~~\n```python\n## inside\n```\n## B\nb"
+        assert server._extract_markdown_section(text, "A") == (
+            "```\n~~~\n```python\n## inside\n```"
+        )
+
+    def test_unclosed_fence_does_not_hide_later_headings(self):
+        """A stray unclosed fence is ignored, so later sections stay reachable (#683)."""
+        text = "## A\n```\nstray\n## B\nb"
+        assert server._extract_markdown_section(text, "B") == "b"
 
     def test_heading_levels_respected(self):
         """Higher-level heading terminates, same-level terminates, lower does not."""
@@ -2988,11 +3030,30 @@ class TestGetAlbumProgress:
         assert counts.get("In Progress") == 1
 
     def test_completion_percentage(self):
-        """Completed = Final + Generated out of total."""
+        """Completed = Final out of total."""
         mock_cache = MockStateCache()
         with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_album_progress("test-album")))
         # 1 Final out of 2 tracks = 50%
+        assert result["completion_percentage"] == 50.0
+
+    def test_generated_track_is_not_completed(self):
+        """A Generated track awaits its keeper, so it isn't complete (#683)."""
+        state = _fresh_state()
+        state["albums"]["gen-album"] = {
+            "path": "/tmp/gen",
+            "genre": "pop",
+            "title": "Gen Album",
+            "status": "In Progress",
+            "tracks": {
+                "01-a": {"status": "Final", "sources_verified": "N/A"},
+                "02-b": {"status": "Generated", "sources_verified": "N/A"},
+            },
+        }
+        mock_cache = MockStateCache(state)
+        with patch.object(_shared_mod, "cache", mock_cache):
+            result = json.loads(_run(server.get_album_progress("gen-album")))
+        assert result["tracks_completed"] == 1
         assert result["completion_percentage"] == 50.0
 
     def test_complete_album(self):
@@ -11956,6 +12017,37 @@ class TestSourceVerificationGate:
                 "✅ Verified (2026-02-19)"
             )))
         assert result["success"] is True
+
+    def test_passes_with_research_md(self, tmp_path):
+        """Links in RESEARCH.md count: plugin-rules allows either file (#683)."""
+        mock_cache, track_file = self._make_cache_with_track_and_album(
+            tmp_path, _SAMPLE_TRACK_MD, album_has_sources=False
+        )
+        (tmp_path / "album" / "RESEARCH.md").write_text(
+            "# Research\n\n- [Archive](https://example.org/doc) — primary source\n"
+        )
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             _patch_write_state():
+            result = json.loads(_run(server.update_track_field(
+                "test-album", "01-test-track", "sources_verified",
+                "✅ Verified (2026-02-19)"
+            )))
+        assert result["success"] is True
+        assert "✅ Verified (2026-02-19)" in track_file.read_text()
+
+    def test_research_md_without_links_still_blocks(self, tmp_path):
+        """A RESEARCH.md with no [text](url) links doesn't clear the gate (#683)."""
+        mock_cache, _ = self._make_cache_with_track_and_album(
+            tmp_path, _SAMPLE_TRACK_MD, album_has_sources=False
+        )
+        (tmp_path / "album" / "RESEARCH.md").write_text("# Research\n\nNotes, no links.\n")
+        with patch.object(_shared_mod, "cache", mock_cache):
+            result = json.loads(_run(server.update_track_field(
+                "test-album", "01-test-track", "sources_verified",
+                "✅ Verified (2026-02-19)"
+            )))
+        assert "no markdown links" in result["error"]
+        assert "RESEARCH.md" in result["error"]
 
     def test_passes_with_inline_source_section(self, tmp_path):
         """Passes when track Source section has markdown links."""

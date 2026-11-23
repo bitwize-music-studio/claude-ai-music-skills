@@ -1148,17 +1148,22 @@ async def update_track_field(
         and normalize_sources_verified(value) != "N/A"
     ):
         has_links = False
-        # Check 1: SOURCES.md in album directory
+        # Check 1: SOURCES.md or RESEARCH.md in the album directory. Plugin
+        # rules let sources live in either file (create_track picks the one
+        # the album has), so a link in RESEARCH.md counts too (#683).
         album_path = album.get("path", "")
         if album_path:
-            sources_path = Path(album_path) / "SOURCES.md"
-            if sources_path.exists():
+            for source_file in ("SOURCES.md", "RESEARCH.md"):
+                sources_path = Path(album_path) / source_file
+                if not sources_path.exists():
+                    continue
                 try:
                     sources_text = sources_path.read_text(encoding="utf-8")
-                    if _MARKDOWN_LINK_RE.search(sources_text):
-                        has_links = True
                 except (OSError, UnicodeDecodeError):
-                    pass
+                    continue
+                if _MARKDOWN_LINK_RE.search(sources_text):
+                    has_links = True
+                    break
         # Check 2: Track file Source section for inline links
         if not has_links:
             source_section = _extract_markdown_section(text, "Source")
@@ -1168,7 +1173,8 @@ async def update_track_field(
             return _safe_json({
                 "error": (
                     "Cannot verify sources — no markdown links found in "
-                    "SOURCES.md or track Source section. Add [text](url) "
+                    "SOURCES.md, RESEARCH.md or the track's Source section. "
+                    "Add [text](url) "
                     "links before verifying, or use force=True to override."
                 ),
             })

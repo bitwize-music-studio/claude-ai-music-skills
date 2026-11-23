@@ -380,7 +380,7 @@ def parse_album_readme(path: Path) -> dict[str, Any]:
     # without touching it), so feeding this into state made a full rebuild
     # regress a count the incremental path had right. The state field is
     # derived from the track files by indexer._count_completed_tracks (#523).
-    completed_statuses = {'Final', 'Generated'}
+    completed_statuses = {'Final'}  # complete = Final, as in the indexer (#683)
     result['tracks_completed'] = sum(
         1 for t in tracklist if t.get('status') in completed_statuses
     )

@@ -75,7 +75,7 @@ Present a clear status report:
    Status: [Album Status]
 
 📊 Progress:
-   - Tracks: [X completed / Y total] ([N vocal, M instrumental])
+   - Tracks: [X completed / Y total] ([N vocal, M instrumental]) — completed = Final (`tracks_completed`); Generated tracks still await a keeper
    - Not Started: X
    - In Progress: Y
    - Generated: Z

@@ -1,4 +1,4 @@
-# State Cache Schema (v1.3.0)
+# State Cache Schema (v1.5.0)
 
 The state cache at `~/.bitwize-music/cache/state.json` is a JSON file built from markdown source files. It is a **disposable cache** — markdown files remain the source of truth and state can always be rebuilt with `python3 tools/state/indexer.py rebuild`.
 
@@ -33,7 +33,7 @@ Snapshot of resolved paths and artist info from `~/.bitwize-music/config.yaml`.
 | `overrides_dir` | string | Resolved absolute path to overrides directory |
 | `artist_name` | string | Artist name from config |
 | `config_mtime` | float | Last modification time of config.yaml (for staleness detection) |
-| `artwork` | object | Who makes the album cover: `{generator: "manual" \| "codex", candidates: 1-4, codex_path}`. The album-art tools read the config file itself, so a change takes effect at once |
+| `artwork` | object | Who makes the album cover: `{generator: "manual" \| "codex" \| "suno", candidates: 1-4, codex_path, suno_model}` (`suno_model` is `""` for Suno's default). The album-art tools read the config file itself, so a change takes effect at once |
 
 ---
 
@@ -55,7 +55,7 @@ Map of album slug (string) → album data object.
 | `release_date` | string\|null | Release date or null if unreleased |
 | `upc` | string | The README frontmatter's `upc:`, digits only (12 or 13). **Absent** when there is none or it isn't a UPC/EAN. Embedded in the masters by `master_album` |
 | `track_count` | integer | Total number of tracks |
-| `tracks_completed` | integer | Number of tracks with completed status |
+| `tracks_completed` | integer | Number of tracks whose status is `Final` (Generated tracks still await a keeper, so they don't count). Derived from the track files |
 | `streaming_urls` | object | Map of platform → URL (only non-empty entries from frontmatter `streaming:` block) |
 | `suno_workspace` | object\|null | `{id, name}` of the Suno workspace holding the album's takes, from the frontmatter `suno_workspace:` block; null until `/bitwize-music:generate` records one |
 | `suno_playlist` | object\|null | `{id, name}` of the Suno playlist of the album's approved takes, from the frontmatter `suno_playlist:` block; null until `/bitwize-music:release-director` records one |

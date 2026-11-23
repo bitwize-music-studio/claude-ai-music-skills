@@ -2789,8 +2789,9 @@ class TestUpdateTracksIncremental:
 
         album = {'tracks': {}, 'tracks_completed': 0}
         _update_tracks_incremental(album, album_dir)
-        # Final + Generated = 2 completed
-        assert album['tracks_completed'] == 2
+        # Only Final counts: a Generated track still awaits its keeper. This
+        # test pinned Final + Generated = 2 (#683).
+        assert album['tracks_completed'] == 1
 
 
 @pytest.mark.unit
@@ -4210,9 +4211,10 @@ class TestIncrementalUpdateTracksCompleted:
 
         updated = incremental_update(existing, config)
         album = updated['albums']['my-album']
-        # Final (3) + Generated (0) = 3 from the track files. The README's
-        # stale table would say 0.
-        assert album['tracks_completed'] == 3
+        # Final (01, 03) = 2 from the track files; the Generated 02 awaits
+        # its keeper and no longer counts (#683). The README's stale table
+        # would say 0.
+        assert album['tracks_completed'] == 2
 
     def test_full_rebuild_counts_track_files_not_readme_table(self, tmp_path):
         """A full rebuild derives tracks_completed from track files.
@@ -4234,6 +4236,21 @@ class TestIncrementalUpdateTracksCompleted:
 
         albums = scan_albums(content_root, "testartist")
         assert albums["my-album"]["tracks_completed"] == 2
+
+    def test_full_rebuild_does_not_count_generated(self, tmp_path):
+        """A Generated track still awaits its keeper: not completed (#683)."""
+        content_root = tmp_path / "content"
+        _make_album_tree(
+            content_root, "testartist", "rock", "gen-album",
+            tracks={
+                "01-one.md": _make_track_content("One", "Final"),
+                "02-two.md": _make_track_content("Two", "Generated"),
+            },
+            tracklist=[("01", "One", "Final"), ("02", "Two", "Generated")],
+        )
+
+        albums = scan_albums(content_root, "testartist")
+        assert albums["gen-album"]["tracks_completed"] == 1
 
     def test_rebuild_and_incremental_agree(self, tmp_path, monkeypatch):
         """rebuild_state must never regress the count an incremental produced.
