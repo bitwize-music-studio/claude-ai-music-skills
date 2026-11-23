@@ -2,7 +2,10 @@
 title: "[Track Title]"
 track_number: 0
 instrumental: false
-explicit: false
+# Blank until decided: true or false, set with the Explicit row below once the
+# lyrics are checked (/bitwize-music:explicit-checker). Generation is blocked
+# while it is undecided.
+explicit:
 # Optional. Set only when this track's genre differs from the album's — it gives
 # the track its own lyrics word-count target (e.g. "hip-hop" on a pop album).
 # Omit and the track uses the album's. A musical descriptor, not a filing
@@ -230,7 +233,9 @@ Suno Inputs below with the destination genre/mood, then note here what to preser
 <!-- Allowed values — Model: v6 | v6-wild | v6-mini | Custom: <name>  (catalog: reference/suno/models.md)
      Variety: Off | Normal | High | Extra | Max   (Off = "Exact style"; anything higher rewrites the Style Box)
      Max Mode: On | Off   (2× credits; On for tracks over ~2:00, covers, Voices)
-     Vocal Gender: Male | Female | —   Duration: Auto | m:ss (10 s–6:00)   Weirdness / Style Influence: 0–100
+     Vocal Gender: Male | Female | —   Weirdness / Style Influence: 0–100
+     Duration: Auto | m:ss. Range depends on where you generate: suno.com's slider takes 0:10–6:00;
+       through Suno's MCP server (/bitwize-music:generate) it is 0:15–6:00, and a shorter value is sent as 0:15.
      Audio Influence lives in the Cover / Voice Setup block (it only appears when audio is attached).
      Spoken tracks (spoken: true) may add a row — Backing Music: On | Off — for music under the voice. -->
 

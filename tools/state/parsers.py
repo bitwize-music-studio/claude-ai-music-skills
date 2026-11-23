@@ -525,7 +525,9 @@ def parse_track_file(path: Path) -> dict[str, Any]:
     explicit_raw = _extract_table_value(text, 'Explicit')
     if explicit_raw:
         result['explicit'] = explicit_raw.lower().strip() in ('yes', 'true')
-    elif 'explicit' in fm:
+    elif fm.get('explicit') is not None:
+        # A blank `explicit:` (the template's undecided flag) is not a value
+        # to coerce or warn about; it reads as False like a missing key.
         result['explicit'] = _frontmatter_bool(fm['explicit'])
     else:
         result['explicit'] = False

@@ -636,11 +636,25 @@ class TestGate4ExplicitFlagSet:
         return next(g for g in gates if g["gate"] == "Explicit Flag Set")
 
     def test_template_placeholder_fails(self):
-        """The shipped '| Explicit | Yes / No |' placeholder is unset and must
-        block — the bug was that it silently passed as 'No'."""
-        gate = self._explicit_gate(_make_track_file(table="Yes / No"), cached_explicit=False)
+        """The shipped '| Explicit | Yes / No |' placeholder with the shipped
+        blank frontmatter flag is unset and must block. This test used to omit
+        the frontmatter, while the real template carried `explicit: false`,
+        which made the gate pass on every fresh track (#683)."""
+        gate = self._explicit_gate(
+            _make_track_file(table="Yes / No", fm_explicit=""), cached_explicit=False,
+        )
         assert gate["status"] == "FAIL"
         assert gate["severity"] == "BLOCKING"
+
+    def test_placeholder_row_with_a_frontmatter_false_passes(self):
+        """A frontmatter `explicit: false` is a decision, so tracks that carry
+        one (a real "No", or tracks made from the pre-#683 template) keep
+        passing; only the blank flag the template now ships blocks."""
+        gate = self._explicit_gate(
+            _make_track_file(table="Yes / No", fm_explicit="false"), cached_explicit=True,
+        )
+        assert gate["status"] == "PASS"
+        assert "No" in gate["detail"]
 
     def test_table_no_passes(self):
         gate = self._explicit_gate(_make_track_file(table="No"), cached_explicit=True)
@@ -755,6 +769,13 @@ class TestTheShippedTemplate:
 
     def test_its_style_box_fails_the_style_gate(self):
         assert self._gates()["Style Prompt Complete"]["status"] == "FAIL"
+
+    def test_its_explicit_flag_is_undecided_and_blocks(self):
+        """The template's frontmatter used to say `explicit: false`, which
+        passed the gate before anyone had looked at the lyrics (#370, #683)."""
+        gate = self._gates()["Explicit Flag Set"]
+        assert gate["status"] == "FAIL"
+        assert gate["severity"] == "BLOCKING"
 
 
 class TestGate6ArtistNamesCleared:
