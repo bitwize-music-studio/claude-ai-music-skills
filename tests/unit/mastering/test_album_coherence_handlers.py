@@ -193,9 +193,8 @@ def test_album_coherence_correct_errors_when_polished_missing_a_track(tmp_path: 
     assert "missing" in result["error"].lower() or "02-track" in result["error"]
 
 
-def test_album_coherence_correct_remasters_lufs_outlier(tmp_path: Path) -> None:
-    # Track 2 starts much louder (amplitude 0.6 → ~-7 LUFS vs -14 LUFS).
-    # After correction it should land within 1 dB of track 1 (anchor).
+def _correct_lufs_outlier(tmp_path: Path) -> dict:
+    """Correct an album whose track 2 is ~7 LU hotter than anchor track 1."""
     _setup_full_album(tmp_path, amplitudes=[0.3, 0.6, 0.3])
 
     def _fake_resolve(slug: str, *_: object, **__: object) -> tuple[str | None, Path]:
@@ -212,12 +211,35 @@ def test_album_coherence_correct_remasters_lufs_outlier(tmp_path: Path) -> None:
                 dry_run=False,
             )
         )
+    return json.loads(result_json)
 
-    result = json.loads(result_json)
+
+def test_album_coherence_correct_remasters_lufs_outlier(tmp_path: Path) -> None:
+    # Track 2 starts much louder (amplitude 0.6 → ~-7 LUFS vs -14 LUFS).
+    # After correction it should land within the handler's own 0.5 LU
+    # tolerance of track 1 (anchor) — not the 1 dB this test used to allow,
+    # which passed a correction that missed by 0.9 LU (#682).
+    result = _correct_lufs_outlier(tmp_path)
     assert "error" not in result
     assert result["dry_run"] is False
     assert result["summary"]["corrected"] >= 1
     assert result["summary"]["outliers_after"] <= result["summary"]["outliers_before"]
     correction = next(c for c in result["corrections"] if c["filename"] == "02-track.wav")
     assert correction["status"] == "ok"
-    assert abs(correction["delta_from_anchor"]) < 1.0
+    assert abs(correction["delta_from_anchor"]) <= 0.5
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "#682 finding: within_tolerance is computed as a numpy bool "
+        "(abs(np.float64) <= 0.5) and _safe_json's default=str serialises it "
+        "as the string 'True'/'False', so a miss reads as the truthy 'False'"
+    ),
+)
+def test_album_coherence_correct_reports_within_tolerance_as_a_boolean(tmp_path: Path) -> None:
+    correction = next(
+        c for c in _correct_lufs_outlier(tmp_path)["corrections"]
+        if c["filename"] == "02-track.wav"
+    )
+    assert correction["within_tolerance"] is True

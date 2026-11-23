@@ -4,12 +4,12 @@ These tests assert that the signature metrics produced by analyze_track()
 on a known synthetic fixture stay within expected ranges. If a refactor
 accidentally breaks STL-95 computation, these tests catch it before CI merges.
 
-Ranges are intentionally wide (±3 dB or ±2 LU) to survive minor algorithm
-tuning while still catching complete breakage.
+Where the fixture pins a value exactly (its peak is normalised to 0.7, its
+level never changes) the test asserts that value; STL-95 is held to the
+0.5 LU album-coherence band it is compared against (#682).
 
-Note: analyze_track() returns ``short_term_range`` (max_short_term_lufs -
-min_short_term_lufs) rather than a standalone ``lra`` key; the test below
-validates that field accordingly.
+``short_term_range`` is max_short_term_lufs - min_short_term_lufs; the EBU
+R128 ``lra`` is tested in test_analysis_681.py.
 """
 
 from __future__ import annotations
@@ -77,22 +77,29 @@ def test_short_term_range_measures_a_level_step(tmp_path: Path) -> None:
     assert result["short_term_range"] == pytest.approx(10.0, abs=1.0)
 
 
-def test_stl_95_within_4_lu_of_lufs(full_mix_wav: str) -> None:
-    """STL-95 should be close to integrated LUFS (within ~4 LU for steady signals)."""
+def test_stl_95_within_coherence_band_of_lufs(full_mix_wav: str) -> None:
+    """On a mix that holds one level, STL-95 equals integrated LUFS.
+
+    Every short-term window reads the same, so their 95th percentile is the
+    integrated loudness; held to the 0.5 LU coherence band (was 4 LU, #682).
+    """
     result = analyze_track(full_mix_wav)
     stl_95 = result["stl_95"]
     lufs = result["lufs"]
     delta = abs(stl_95 - lufs)
-    assert delta < 4.0, (
+    assert delta <= 0.5, (
         f"STL-95 ({stl_95:.1f}) and LUFS ({lufs:.1f}) diverged by {delta:.1f} LU — "
         f"STL-95 computation may be broken."
     )
 
 
 def test_peak_db_is_finite(full_mix_wav: str) -> None:
-    """peak_db is a finite float in a plausible range for the test fixture."""
+    """peak_db is the fixture's normalised peak: 0.7 → -3.10 dBFS (#682)."""
     result = analyze_track(full_mix_wav)
     peak_db = result.get("peak_db")
     assert peak_db is not None
     assert isinstance(peak_db, float)
-    assert -60.0 < peak_db < 0.0, f"peak_db out of expected range: {peak_db}"
+    assert peak_db == pytest.approx(20 * np.log10(0.7), abs=0.01)
+    data, _ = sf.read(full_mix_wav)
+    assert result["rms_db"] == pytest.approx(20 * np.log10(np.sqrt(np.mean(data ** 2))), abs=0.01)
+    assert result["dynamic_range"] == pytest.approx(peak_db - result["rms_db"], abs=1e-9)

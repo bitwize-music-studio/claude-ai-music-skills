@@ -14,6 +14,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import numpy as np
+import pyloudnorm as pyln
 import pytest
 import soundfile as sf
 
@@ -36,12 +37,31 @@ class _MockCache:
         return {}
 
 
-def _write_test_wav(path: Path, sr: int = 44100, duration: float = 2.0) -> None:
+TONE_HZ = 440.0
+DURATION_S = 6.0
+
+
+def _write_test_wav(path: Path, sr: int = 44100, duration: float = DURATION_S) -> None:
     """Write a test WAV at the given sample rate (default 44.1 kHz Suno-ish)."""
     t = np.linspace(0, duration, int(sr * duration), endpoint=False)
-    data = 0.3 * np.sin(2 * np.pi * 440 * t)
+    data = 0.3 * np.sin(2 * np.pi * TONE_HZ * t)
     stereo = np.column_stack([data, data])
     sf.write(str(path), stereo, sr, subtype="PCM_16")
+
+
+def _assert_delivered_content(path: Path, target_lufs: float) -> None:
+    """The master holds the source's audio at its rate, not just its header (#682).
+
+    A 44.1 kHz file merely relabelled 96 kHz plays 2.18x fast: its duration
+    shrinks and the tone moves up. Check both, and the promised loudness
+    (±0.5 dB of the target) measured on the file as written.
+    """
+    data, rate = sf.read(str(path))
+    assert len(data) / rate == pytest.approx(DURATION_S, abs=0.01)
+    spectrum = np.abs(np.fft.rfft(data[:, 0] * np.hanning(len(data))))
+    peak_hz = np.fft.rfftfreq(len(data), 1 / rate)[np.argmax(spectrum)]
+    assert peak_hz == pytest.approx(TONE_HZ, abs=1.0)
+    assert pyln.Meter(rate).integrated_loudness(data) == pytest.approx(target_lufs, abs=0.5)
 
 
 @pytest.fixture
@@ -75,6 +95,9 @@ def test_master_audio_produces_24bit_96khz_by_default(
     info = sf.info(str(mastered))
     assert info.samplerate == 96000
     assert info.subtype == "PCM_24"
+    _assert_delivered_content(mastered, result["settings"]["target_lufs"])
+    for track in result["tracks"]:
+        assert track["final_lufs"] == pytest.approx(result["settings"]["target_lufs"], abs=0.5)
 
 
 def test_master_audio_honors_delivery_bit_depth_16(
@@ -126,3 +149,4 @@ def test_master_audio_honors_legacy_source_rate(
     mastered = one_track_audio_dir / "mastered" / "01-test.wav"
     info = sf.info(str(mastered))
     assert info.samplerate == 44100
+    _assert_delivered_content(mastered, result["settings"]["target_lufs"])
