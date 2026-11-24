@@ -377,8 +377,8 @@ Read `skills/session-start/SKILL.md` (steps 1, 1.5, 1.6, 2, 3, 4, 4.5, 5, 6, 7, 
 Verify "## Step 2: Load Config" reads `~/.bitwize-music/config.yaml`.
 Verify "## Step 3: Load Overrides" reads `paths.overrides` from config.
 Verify "## Step 4: Load State" calls `get_ideas` for idea counts.
-Verify it mentions `/bitwize-music:configure` when config is missing (Step 1 and Step 2).
-Verify Step 7 mentions `/bitwize-music:album-ideas list` when ideas exist.
+Verify Step 1 sends missing-config cases to Step 2, where the skill recommends `configure`.
+Verify Step 7 recommends `album-ideas` with the `list` argument when ideas exist.
 Verify `reference/plugin-rules.md` "## Session start" tells a fresh session to follow `/bitwize-music:session-start`.
 
 ### TEST: Session startup contextual tips system documented
@@ -388,7 +388,7 @@ Verify its condition → tip table covers:
 - Ideas exist but no albums → album-ideas tip
 - In-progress albums exist → resume tip
 - Overrides loaded → note it; Overrides missing → suggest creating them
-- Pending verifications → verification warning (with `/bitwize-music:verify-sources`)
+- Pending verifications → recommend the `verify-sources` skill before generation
 
 (The old "If IDEAS.md has content" framing is gone — ideas are now sourced from the `get_ideas` MCP tool, not a direct IDEAS.md file check.)
 
@@ -400,14 +400,15 @@ Verify it says "Also show one random general tip (rotate through these):" follow
 Read `skills/session-start/SKILL.md`.
 Verify the final step, "## Step 8: Ask", ends with: "What would you like to work on?"
 
-### TEST: Contextual tips use correct skill commands
-Read `skills/session-start/SKILL.md` "## Step 7: Show Contextual Tips".
-Verify these skill references use correct `/bitwize-music:` prefix format:
-- `/bitwize-music:tutorial` (not /tutorial)
-- `/bitwize-music:album-ideas` (not /album-ideas)
-- `/bitwize-music:resume` (not /resume)
+### TEST: Contextual tips name skills and link to host invocation guidance
+Read `skills/session-start/SKILL.md` "## Step 7: Show Contextual Tips". Verify
+it recommends `tutorial`, `album-ideas`, `resume`, and `verify-sources` by name.
+The rotating tips also name `clipboard`, `generate`, `listen`, and
+`mastering-engineer`.
 
-Note: the rotating general tips also name `/bitwize-music:clipboard`, `/bitwize-music:generate`, `/bitwize-music:listen` and `/bitwize-music:mastering-engineer` with the full prefix; "the researcher skill" and pronunciation appear as prose, which is expected.
+Follow the invocation guidance linked in Step 7. Verify it gives Claude Code's
+`/bitwize-music:<skill>` syntax and explains how to invoke an installed skill
+by its advertised name or through the skill picker in Codex.
 
 ### TEST: Contextual tips reference overrides path variable
 Read `skills/session-start/SKILL.md` "## Step 3: Load Overrides".
@@ -1003,9 +1004,10 @@ Brand should always be "bitwize-music" (lowercase with hyphen).
 
 Scenario-based tests verifying correct instructions.
 
-### TEST: Missing config recommends /configure
+### TEST: Missing config recommends the configure skill
 Read `skills/session-start/SKILL.md`.
-Verify it mentions `/bitwize-music:configure` when config is missing (Step 1: "If config missing (`~/.bitwize-music/config.yaml` doesn't exist): suggest `/bitwize-music:configure`"; Step 2: "If missing, tell user to run `/bitwize-music:configure`."). (The old "as Option 1" numbered-options framing is gone — it's now a bulleted fallback under each relevant step.)
+Verify Step 1 directs missing-config cases to Step 2. Verify Step 2 recommends
+the installed `configure` skill and resumes once the workspace paths are configured.
 Verify `reference/plugin-rules.md` "## Config and paths" says "No config yet: `/bitwize-music:configure`."
 
 Read skills/tutorial/SKILL.md.
