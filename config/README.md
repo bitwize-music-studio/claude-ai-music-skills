@@ -115,6 +115,8 @@ The `~/.bitwize-music/` directory also contains:
 | `artist.name` | Yes | Your artist/project name |
 | `artist.genres` | No | Primary genres (array) |
 | `artist.style` | No | Brief style description to help Claude understand your vibe |
+| `artist.copyright_holder` | No | Copyright holder for audio metadata and release credits (defaults to `artist.name`) |
+| `artist.label` | No | Record label for audio metadata and release credits (defaults to `artist.name`) |
 | `artist.legal_name` | No | Your real name for songwriter credits (DistroKid, SoundCloud Composer); used by `/bitwize-music:release-kit` |
 | `release.ai_disclosure` | No | Your standard answer to DistroKid's AI question, a list of what you tick (`[]` for none); shown on the release kit |
 | `release.language` | No | Release language on the release kit (default: `English`) |
@@ -123,12 +125,22 @@ The `~/.bitwize-music/` directory also contains:
 | `paths.documents_root` | Yes | Where PDFs/sources go |
 | `paths.overrides` | No | Directory for override files. Defaults to `{content_root}/overrides` |
 | `paths.ideas_file` | No | Album ideas file. Defaults to `{content_root}/IDEAS.md` |
+| `urls.website` | No | Artist website, preferred for sheet music footers |
 | `urls.soundcloud` | No | SoundCloud profile URL |
 | `urls.spotify` | No | Spotify artist URL |
+| `urls.apple_music` | No | Apple Music artist URL |
 | `urls.bandcamp` | No | Bandcamp URL |
+| `urls.youtube_music` | No | YouTube Music artist URL |
 | `urls.youtube` | No | YouTube channel URL |
 | `urls.twitter` | No | Twitter/X profile URL |
+| `urls.instagram` | No | Instagram profile URL |
+| `urls.tiktok` | No | TikTok profile URL |
+| `urls.linktree` | No | Linktree profile URL |
 | `generation.service` | No | Music service (default: `suno`) |
+| `generation.require_suno_link_for_final` | No | Require a Suno link before setting a track to `Final` (default: `true`) |
+| `generation.max_lyric_words` | No | Maximum lyric word count at the generation gate (default: `800`) |
+| `generation.require_source_path_for_documentary` | No | Require the source verification status sequence for albums with `SOURCES.md` (default: `true`) |
+| `generation.additional_genres` | No | Extra genre slugs accepted by album creation (default: `[]`) |
 | `generation.listen_mode` | No | How `/bitwize-music:listen` auditions Suno takes: `browser` (default — opens the song page, free), `iterm2_browser` (Suno's compact player in iTerm2 panes beside the session, also free; needs macOS, iTerm2 3.6+ and its Browser Plugin, and opens the browser anywhere else) or `terminal` (plays it here; the first play of a song uses one Suno download credit) |
 | `generation.listen_browser` | No | The web browser `listen_mode: browser` opens song pages in: `default` (or unset) for the system's default, an app name such as `Firefox`, `Google Chrome` or `Safari`, or a path to one (`/Applications/Firefox Developer Edition.app` on macOS, the browser's program elsewhere). One run can name another with `/bitwize-music:listen ... --browser <app>`. One that can't be opened falls back to the default, and the skill says so. Not iTerm2: for panes, use `listen_mode: iterm2_browser` |
 | `generation.listen_confirm_download` | No | Ask before a terminal audition spends a download credit (default: `true`) |
@@ -157,6 +169,7 @@ Settings for `/bitwize-music:sheet-music-publisher` skill.
 |---------|----------|-------------|
 | `sheet_music.page_size` | No | Page size: `letter`, `9x12`, `6x9` (default: letter) |
 | `sheet_music.section_headers` | No | Include [Verse], [Chorus] labels (default: false) |
+| `sheet_music.footer_url` | No | Website for single and songbook PDF footers (defaults to a URL from `urls`, when configured) |
 
 ### Album Art (`artwork:`)
 
@@ -184,6 +197,7 @@ Settings for `/bitwize-music:cloud-uploader` skill. See `/reference/cloud/setup-
 | `cloud.r2.access_key_id` | If R2 | R2 API access key |
 | `cloud.r2.secret_access_key` | If R2 | R2 API secret key |
 | `cloud.r2.bucket` | If R2 | R2 bucket name |
+| `cloud.r2.public_url` | No | Custom base URL for public R2 objects |
 | `cloud.s3.region` | If S3 | AWS region |
 | `cloud.s3.access_key_id` | If S3 | IAM access key |
 | `cloud.s3.secret_access_key` | If S3 | IAM secret key |
@@ -214,6 +228,10 @@ PostgreSQL database for tweet/promo management. Stores social media posts and th
 | `database.name` | If enabled | Database name |
 | `database.user` | If enabled | Database user |
 | `database.password` | If enabled | Database password |
+
+### Mastering (`mastering:`)
+
+See the [mastering settings and defaults](../reference/streaming-mastering-specs.md#single-master-delivery) for delivery format, loudness, peak ceiling, and archival options.
 
 ## Missing Config
 
