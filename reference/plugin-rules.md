@@ -31,7 +31,7 @@ Suno's MCP server is optional and the user adds it. Without it, generation falls
 
 ## Session start
 
-In a fresh session, before other work, follow `/bitwize-music:session-start` (setup check, health check, config, overrides including `{overrides}/CLAUDE.md`, state, pending migrations, status report, then ask what to work on). If the MCP server is unusable, stop and suggest `/bitwize-music:setup mcp`.
+In a fresh session, follow the installed `session-start` skill (`/bitwize-music:session-start` in Claude Code) before other work. Its procedure checks dependencies and the MCP connection, loads config, overrides and state, and reports what is ready.
 
 ## Core principles
 
