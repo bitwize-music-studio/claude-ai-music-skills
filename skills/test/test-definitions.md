@@ -1143,14 +1143,15 @@ End-to-end integration test that creates a test album and exercises the full wor
 
 ### TEST: E2E - Full album workflow
 
-**This test creates temporary files and cleans them up afterward.**
+Use an isolated music workspace and create a dedicated temporary directory
+(`{fixture_dir}`) for the input fixtures. Clean up both after the test.
 
 #### Phase 1: Setup
 ```
 1. Read ~/.bitwize-music/config.yaml
-2. Extract content_root, audio_root, artist
-3. Run: /new-album _e2e-test-album electronic
-4. Verify: {content_root}/artists/{artist}/albums/electronic/_e2e-test-album/ exists
+2. Extract content_root, audio_root, and artist. Run rebuild_state() for the temporary workspace.
+3. Run: /new-album e2e-test-album electronic
+4. Verify: {content_root}/artists/{artist}/albums/electronic/e2e-test-album/ exists
 5. Verify: README.md created from template
 6. Verify: tracks/ directory exists
 ```
@@ -1167,38 +1168,38 @@ End-to-end integration test that creates a test album and exercises the full wor
 1. Create RESEARCH.md in {album_path}/
 2. Create SOURCES.md in {album_path}/
 3. Verify: Files in album directory
-4. Verify: Files NOT in working directory or /tmp
+4. Verify: Files NOT in the working directory or {fixture_dir}
 ```
 
 #### Phase 4: Audio Import
 ```
-1. Create dummy WAV: touch /tmp/_e2e-test.wav
-2. Run: /import-audio /tmp/_e2e-test.wav _e2e-test-album
-3. Verify: Audio in {audio_root}/artists/{artist}/albums/electronic/_e2e-test-album/
+1. Create a short, valid stereo WAV at {fixture_dir}/e2e-test.wav
+2. Run: /import-audio {fixture_dir}/e2e-test.wav e2e-test-album
+3. Verify: Audio in {audio_root}/artists/{artist}/albums/electronic/e2e-test-album/
 4. Verify: Full mirrored path structure present
-5. Verify: NOT at {audio_root}/_e2e-test-album/ (wrong - missing structure)
+5. Verify: NOT at {audio_root}/e2e-test-album/ (wrong - missing structure)
 ```
 
 #### Phase 5: Art Import
 ```
-1. Create dummy image: touch /tmp/_e2e-test.png
-2. Run: /import-art /tmp/_e2e-test.png _e2e-test-album
-3. Verify: Art in {audio_root}/artists/{artist}/albums/electronic/_e2e-test-album/album.png
+1. Create a valid PNG at {fixture_dir}/e2e-test.png
+2. Run: /import-art {fixture_dir}/e2e-test.png e2e-test-album
+3. Verify: Art in {audio_root}/artists/{artist}/albums/electronic/e2e-test-album/album.png
 4. Verify: Art in {album_path}/album-art.png
 ```
 
 #### Phase 6: Validation
 ```
-1. Run: /validate-album _e2e-test-album
+1. Run: /validate-album e2e-test-album
 2. Verify: All structure checks pass
 3. Verify: Audio path check passes (full mirrored structure present)
 ```
 
 #### Phase 7: Cleanup
 ```
-1. Remove: {content_root}/artists/{artist}/albums/electronic/_e2e-test-album/
-2. Remove: {audio_root}/artists/{artist}/albums/electronic/_e2e-test-album/
-3. Remove: /tmp/_e2e-test.*
+1. Remove: {content_root}/artists/{artist}/albums/electronic/e2e-test-album/
+2. Remove: {audio_root}/artists/{artist}/albums/electronic/e2e-test-album/
+3. Remove: {fixture_dir}
 4. Verify: No test files remain
 ```
 
@@ -1211,7 +1212,7 @@ E2E TEST SUITE
 PHASE 1: SETUP
 ──────────────
 [PASS] Config loaded: content_root={path}, audio_root={path}, artist={name}
-[PASS] /new-album created _e2e-test-album
+[PASS] /new-album created e2e-test-album
 [PASS] Album directory exists at correct location
 [PASS] README.md created
 [PASS] tracks/ directory exists
@@ -1225,12 +1226,12 @@ PHASE 3: RESEARCH FILES
 ───────────────────────
 [PASS] RESEARCH.md created in album directory
 [PASS] SOURCES.md created in album directory
-[PASS] Files NOT in working directory
+[PASS] Files confined to the album directory
 
 PHASE 4: AUDIO IMPORT
 ─────────────────────
 [PASS] /import-audio executed successfully
-[PASS] Audio at {audio_root}/artists/{artist}/albums/electronic/_e2e-test-album/
+[PASS] Audio at {audio_root}/artists/{artist}/albums/electronic/e2e-test-album/
 [PASS] Full mirrored path structure present
 
 PHASE 5: ART IMPORT
