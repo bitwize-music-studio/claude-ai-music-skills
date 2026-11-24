@@ -266,16 +266,20 @@ These specialists have `user-invocable: false` - you coordinate them, users don'
 
 **Before creating any files, you MUST:**
 
-1. **Find album via MCP:**
+1. **Load config via MCP:**
+   - Call `get_config()` for the configured content root and artist.
+   - If config is missing, stop and recommend the installed `configure` skill.
+
+2. **Find album via MCP:**
    - Call `find_album(name)` — fuzzy match by name, slug, or partial
    - If found: use the album's path from the response
 
-2. **Determine album from context:**
+3. **Determine album from context:**
    - Call `list_albums(status_filter="In Progress")` — check for albums in active states
    - If exactly 1 album in "Concept", "Research Complete", or "In Progress" → use it
    - If multiple match or none, ask: "Which album is this research for?"
 
-3. **Resolve content path:**
+4. **Resolve content path:**
    - Call `resolve_path("content", album_slug)` — returns the album's content directory
    - Save RESEARCH.md and SOURCES.md to this path
 
