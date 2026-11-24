@@ -23,7 +23,7 @@ macOS is my daily driver, so it's where this plugin gets the most real-world use
 
 ## Example Workflow
 
-```
+```text
 You:    "Let's make an album about the 2016 Bangladesh Bank heist"
 Claude: Creates album structure, runs 7-phase concept planning
 
@@ -161,8 +161,8 @@ Coverage is measured on all three OSes and gated on the **combined** total, not 
 
 ## Project Structure
 
-```
-skills/              60 skill definitions (markdown + YAML frontmatter)
+```text
+skills/              63 skill definitions (markdown + YAML frontmatter)
 servers/             MCP server (Python, 80+ tools)
 tools/               Audio mastering, promo videos, sheet music, cloud uploads
 reference/           46+ docs — Suno guides, mastering workflows, genre references

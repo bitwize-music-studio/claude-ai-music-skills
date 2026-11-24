@@ -27,11 +27,17 @@ class TestSkillCount:
             "this pattern, but do not leave the check silently disabled."
         )
 
-        claimed = int(match.group(1))
         actual = len(all_skill_frontmatter)
-        assert claimed == actual, (
-            f"README claims {claimed} skills, actual is {actual}"
-        )
+        assert int(match.group(1)) == actual, f"README skill overview should list {actual} skills"
+
+        for section, pattern in (
+            ("Project Structure", r'^skills/\s+(\d+) skill definitions'),
+            ("Detailed Documentation", r'^\| All (\d+) skills \|'),
+        ):
+            count = re.search(pattern, readme_content, re.MULTILINE)
+            assert count and int(count.group(1)) == actual, (
+                f"README {section} should list {actual} skills"
+            )
 
 
 class TestVersionSync:
