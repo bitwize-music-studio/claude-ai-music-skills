@@ -15,12 +15,9 @@ allowed-tools:
 
 **Purpose**: Find an album and resume work where you left off.
 
-**Usage**:
-```
-/bitwize-music:resume <album-name>
-/bitwize-music:resume my-album
-/bitwize-music:resume "demo album"
-```
+Invoke the `resume` skill by [its host name](../../reference/runtime-compatibility.md#skill-names-and-inputs).
+Pass an album name such as `my-album` or `"demo album"`, or omit it to resume
+from saved session context.
 
 **When to use**: When user wants to continue working on an existing album.
 
@@ -28,12 +25,29 @@ allowed-tools:
 
 ## Instructions
 
+In Codex, read the [shared runtime guide](../../reference/runtime-compatibility.md)
+and the [plugin rules](../../reference/plugin-rules.md) from this skill's installed copy.
+Read `~/.bitwize-music/config.yaml`. If it is missing, recommend the installed
+`configure` skill and stop. Resolve `paths.overrides` from the current config,
+using `{content_root}/overrides` when the setting is unset. For plugin workflow
+overrides, read `CLAUDE.md` only from that resolved directory if it exists.
+Load it before looking up the album. Use the album argument from the request.
+
+When MCP is unavailable in Codex, look for the requested album under
+`{content_root}/artists/{artist}/albums/`. If the request omits the album
+name, use `session.last_album` from `~/.bitwize-music/cache/state.json` only
+when the cached artist and content root match the current config. Ask for the
+album name if none matches. If several match, ask the user to choose one. Read
+the selected album's README and tracks for status and source verification,
+then continue at Step 4 in read-only mode. Tell the user that saving session
+context requires MCP.
+
 When this skill is invoked with an album name:
 
 ### Step 1: Find the Album via MCP
 
 1. Call `find_album(name)` — fuzzy match by name, slug, or partial (case-insensitive)
-2. If not found: MCP returns available albums — suggest closest match or `/bitwize-music:new-album`
+2. If not found: MCP returns available albums — suggest closest match or `new-album`
 3. If multiple matches: list all with paths, ask user which one
 4. If MCP returns stale/missing cache error: call `rebuild_state()` then retry
 
@@ -58,8 +72,8 @@ Based on album and track statuses, identify the workflow phase:
 | In Progress | Mixed, some "Not Started" | Writing - Need to complete lyrics (or route instrumental tracks to suno-engineer) |
 | In Progress | Some "Sources Pending" | Verification - Need human verification of sources |
 | In Progress | All have lyrics | Ready to Generate - Run Ready to Generate checkpoint |
-| In Progress | Some "Generated" | Generating - Continue with `/bitwize-music:generate` (or on suno.com). Check Generation Logs for rejected tracks needing regeneration |
-| In Progress | All "Generated", none "Final" | Review & Approve - Listen to generated tracks (`/bitwize-music:listen`), mark keepers with ✓, regenerate rejected ones |
+| In Progress | Some "Generated" | Generating - Continue with `generate` (or on suno.com). Check Generation Logs for rejected tracks needing regeneration |
+| In Progress | All "Generated", none "Final" | Review & Approve - Listen to generated tracks (`listen`), mark keepers with ✓, regenerate rejected ones |
 | Complete | All "Final" | Mastering - Ready to master audio |
 | Released | All "Final" | Released - Album is live |
 
@@ -67,7 +81,10 @@ Based on album and track statuses, identify the workflow phase:
 
 ### Step 5: Report to User
 
-Present a clear status report:
+Read the [resume report format](../../reference/runtime-compatibility.md#resume-reports)
+for the active host and put the priority action from Step 6 first.
+Refer to skills by name in the report. For invocation examples, use the
+[active host's syntax](../../reference/runtime-compatibility.md#skill-names-and-inputs).
 
 ```
 📁 Album: [Album Title]
@@ -87,57 +104,55 @@ Present a clear status report:
    - [List completed items]
 
 ⏭️ Next Steps:
-   1. [Specific action 1]
-   2. [Specific action 2]
-   3. [Specific action 3]
+   [Priority action, followed by any additional steps for the active host]
 
 Ready to continue? Tell me what you'd like to work on.
 ```
 
-### Step 6: Recommend the Single Best Next Action
+### Step 6: Choose the Priority Action
 
-Pick ONE clear recommendation from the decision tree below. Don't list 5 options — pick the best one, include the skill name, and be specific about which track.
+Include the skill name and, when applicable, the track.
 
 **Decision Tree** (evaluate top-to-bottom, first match wins):
 
-**Instrumental detection**: Check each track's frontmatter for `instrumental: true` or Track Details table for `**Instrumental** | Yes`. Instrumental tracks skip the lyrics workflow entirely and go straight to `/bitwize-music:suno-engineer`.
+**Instrumental detection**: Check each track's frontmatter for `instrumental: true` or Track Details table for `**Instrumental** | Yes`. Instrumental tracks skip the lyrics workflow entirely and go straight to `suno-engineer`.
 
 ```
 Album Status = "Concept"
-  → "Define the album concept. Run /bitwize-music:album-conceptualizer"
+  → "Define the album concept. Run album-conceptualizer"
 
 Album Status = "Research Complete"
   → Any tracks Sources Pending?
-    YES → "Sources need verification. Run /bitwize-music:verify-sources [album]"
+    YES → "Use the verify-sources skill to check the pending sources for [album]."
     NO  → Any "Not Started" tracks instrumental?
-      YES → "Create Style Box for instrumental track [name]. Use /bitwize-music:suno-engineer"
-      NO  → "Ready to write! Pick a track and use /bitwize-music:lyric-writer"
+      YES → "Create Style Box for instrumental track [name]. Use suno-engineer"
+      NO  → "Ready to write! Pick a track and use lyric-writer"
 
 Album has tracks with "Not Started"
   → Is the first not-started track instrumental?
-    YES → "Create Style Box for [track]. Use /bitwize-music:suno-engineer directly (instrumental track)"
-    NO  → "Write lyrics for [first not-started track]. Use /bitwize-music:lyric-writer"
+    YES → "Create Style Box for [track]. Use suno-engineer directly (instrumental track)"
+    NO  → "Write lyrics for [first not-started track]. Use lyric-writer"
 
 Album has tracks with "In Progress" (lyrics partially written)
-  → "Finish lyrics for [first in-progress track]. Use /bitwize-music:lyric-writer"
+  → "Finish lyrics for [first in-progress track]. Use lyric-writer"
 
 Album has tracks with "Sources Pending"
-  → "Verify sources for [track]. Run /bitwize-music:verify-sources [album]"
+  → "Use the verify-sources skill for [album] to check sources for [track]."
 
 All tracks have lyrics (or Style Box for instrumentals), none generated
   → Mixed album (vocal + instrumental)?
-    YES → "All tracks ready! Run /bitwize-music:pronunciation-specialist on vocal tracks, then /bitwize-music:lyric-reviewer, then /bitwize-music:pre-generation-check to validate all gates (instrumental tracks auto-skip lyrics gates)."
-    NO  → "All lyrics complete! Style prompts should be ready. Run /bitwize-music:pronunciation-specialist to check for pronunciation risks, then /bitwize-music:lyric-reviewer for final QC, then /bitwize-music:pre-generation-check to validate all gates before generating on Suno."
+    YES → "All tracks ready! Run pronunciation-specialist on vocal tracks, then lyric-reviewer, then pre-generation-check to validate all gates (instrumental tracks auto-skip lyrics gates)."
+    NO  → "All lyrics complete! Style prompts should be ready. Run pronunciation-specialist to check for pronunciation risks, then lyric-reviewer for final QC, then pre-generation-check to validate all gates before generating on Suno."
 
 Some tracks generated, some not
   → Any Generated tracks without ✓ in Generation Log Rating? (`get_album_progress` lists them under `takes_pending_decision`, with how many takes each has)
-    YES → "Track [name] was generated but not approved. Listen (/bitwize-music:listen [album] [track]) and decide:
+    YES → "Track [name] was generated but not approved. Listen (listen [album] [track]) and decide:
            - Happy? Mark ✓ in Generation Log and set Status: Final
            - Not happy? Log the reason, then:
-             Style issue → /bitwize-music:suno-engineer to revise Style Box
-             Lyrics issue → /bitwize-music:lyric-writer to fix, then regenerate
-             Bad luck → /bitwize-music:generate again with the same settings (it's non-deterministic)"
-    NO  → "Generate [first un-generated track]: /bitwize-music:generate [album] [track] (or on suno.com via /bitwize-music:clipboard)"
+             Style issue → suno-engineer to revise Style Box
+             Lyrics issue → lyric-writer to fix, then regenerate
+             Bad luck → generate again with the same settings (it's non-deterministic)"
+    NO  → "Generate [first un-generated track]: generate [album] [track] (or on suno.com via clipboard)"
 
 All tracks generated, none Final
   → "All tracks generated! Listen to each track and approve:
@@ -152,17 +167,17 @@ All tracks generated, some Final
   → Any Generated (non-Final) tracks without ✓?
     YES → "Review track [name] — listen and approve (✓) or regenerate"
     NO  → "All tracks approved! Batch-approve: update_track_field(album_slug, track_slug, 'status', 'Final') for each.
-           Then import audio with /bitwize-music:import-audio (--from-suno pulls each keeper straight from Suno), then master with /bitwize-music:mastering-engineer"
+           Then import audio with import-audio (--from-suno pulls each keeper straight from Suno), then master with mastering-engineer"
 
 All tracks Final
-  → "All tracks approved! Import audio with /bitwize-music:import-audio, then master with /bitwize-music:mastering-engineer"
+  → "All tracks approved! Import audio with import-audio, then master with mastering-engineer"
 
 Album Status = "Complete"
-  → "Album is complete! Release with /bitwize-music:release-director"
+  → "Album is complete! Release with release-director"
 
 Album Status = "Released"
-  → "This album is released! Consider /bitwize-music:promo-director for promotional content"
-  → Also suggest: "Start a new album? Check /bitwize-music:album-ideas list"
+  → "This album is released! Consider promo-director for promotional content"
+  → Also suggest: "Start a new album? Check album-ideas list"
 ```
 
 **Format the recommendation as:**
@@ -180,7 +195,7 @@ If invoked without an album name:
 1. Call `get_session()` — check `last_album` from session context, resume that album
 2. If no session context, call `list_albums()` to find all in-progress albums
 3. Prioritize: closest to completion > unblocked work > last worked on
-4. If no albums exist, suggest `/bitwize-music:new-album`
+4. If no albums exist, suggest `new-album`
 
 Present a multi-album summary if multiple are in progress:
 ```
@@ -198,11 +213,13 @@ Also in progress:
 
 ## Examples
 
+The first two reports show the three-step format used in Claude Code.
+
 ### Example 1: Album in Writing Phase
 
-```
-/bitwize-music:resume my-album
+User asks to resume `my-album`.
 
+```
 📁 Album: My Album
    Location: ~/bitwize-music/artists/bitwize/albums/rock/my-album/
    Status: In Progress
@@ -229,9 +246,9 @@ Ready to continue? Tell me which track you'd like to work on.
 
 ### Example 2: Album Ready for Generation
 
-```
-/bitwize-music:resume demo-album
+User asks to resume `demo-album`.
 
+```
 📁 Album: Demo Album
    Location: ~/bitwize-music/artists/bitwize/albums/electronic/demo-album/
    Status: In Progress
@@ -257,23 +274,23 @@ Shall I run the Ready to Generate checkpoint now?
 
 ### Example 3: Album Not Found
 
-```
-/bitwize-music:resume my-album
+User asks to resume `my-album`.
 
+```
 ❌ Album 'my-album' not found.
 
 Available albums:
 - demo-album (electronic) - In Progress
 - example-tracks (hip-hop) - Complete
 
-Did you mean one of these? Or use /bitwize-music:new-album to create a new album.
+Did you mean one of these? Or use new-album to create a new album.
 ```
 
 ---
 
 ## Implementation Notes
 
-- **Use MCP tools** - `find_album`, `get_album_progress`, `list_tracks`, `update_session` instead of reading state.json directly
+- **Use MCP when connected** - `find_album`, `get_album_progress`, `list_tracks`, `update_session`. Read the state cache directly only when MCP is unavailable.
 - **Case-insensitive matching** - "Sample-Album" should match "sample-album"
 - **Handle missing albums gracefully** - List what exists, don't error
 - **Be specific about next steps** - Don't just say "continue working", say exactly what to do

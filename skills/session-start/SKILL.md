@@ -15,6 +15,9 @@ allowed-tools:
 
 ## Your Task
 
+In Codex, read the [shared runtime guide](../../reference/runtime-compatibility.md)
+and the [plugin rules](../../reference/plugin-rules.md) from this skill's installed copy.
+
 Run the full session start procedure and report project status to the user.
 
 ---
@@ -47,41 +50,61 @@ whether to continue with startup.
 
 ## Step 1.5: Health Check
 
-When the plugin MCP server is available, call `health_check`. If it is
-unavailable, show `Health: MCP unavailable` and continue.
+When the plugin MCP server is available, call `health_check()` in Claude Code
+and `health_check(runtime="codex")` in Codex. If the server is unavailable, show
+`Health: MCP unavailable` and continue.
 
 **Venv results** (from `result.venv`):
 - `status: "ok"` → continue silently
 - `status: "stale"` → warn with mismatches and fix command, continue session
-- `status: "no_venv"` → **stop** and suggest `/bitwize-music:setup`
+- `status: "no_venv"` → **stop** and suggest `setup`
 - `status: "error"` → warn and continue
 
-**Skill registration results** (from `result.skills`):
+**Skill results** (from `result.skills`):
 - `status: "ok"` → continue silently
 - `status: "stale"` → warn: list missing and ghost skill names, show fix message
 - `status: "no_cache"` → warn that plugin cache not found, continue
+- `status: "not_checked"` → Report that MCP found the installed skill files.
+  If a skill is missing in Codex, check registration in the skill picker or
+  with `skills/list`.
+- `status: "error"` → **Stop** and report that the installed plugin has no
+  canonical skill files. Suggest reinstalling the plugin in the active host.
 
 **Album slug collision results** (from `result.collisions`):
 - `status: "ok"` → continue silently
-- `status: "collision"` → warn: list each slug with its kept and shadowed genres, show the fix (rename one album with `/bitwize-music:rename` or move its directory, then run `rebuild_state`), continue session
+- `status: "collision"` → warn: list each slug with its kept and shadowed genres, show the fix (rename one album with `rename` or move its directory, then run `rebuild_state`), continue session
 
 ## Step 1.6: Suno MCP (optional)
 
-Two facts decide the Suno line: whether a Suno MCP server is **connected** (a tool named `audio-create` exists on any connected MCP server), and whether one is **registered** (the `suno` section of the `health_check` result from Step 1.5: `status` is `configured` or `missing`, with `servers[0].name`, `reminder` and `fix`). The server is optional, so none of this is a warning and none of it stops the session.
+Suno is optional. If the `audio-create` MCP tool is available, call
+`account-usage` once (free) for the plan (`suno_account.plan.name`) and
+remaining downloads (`suno_account.download_credits_remaining`). Show
+`Suno: connected — Premier Plan, 15 downloads left` with the returned values.
+If the call fails, show `Suno: connected`.
 
-- Connected → read `account-usage` once (free) and show the plan and the downloads left: `Suno: connected — Premier Plan, 15 downloads left` (`suno_account.plan.name`, `suno_account.download_credits_remaining`). If that call fails, just `Suno: connected`
+When Suno is disconnected in Claude Code, use `suno.status`, `servers`,
+`reminder`, and `fix` from `health_check` if available. Otherwise, show
+`Suno: not connected (optional)`.
+
 - Registered but not connected → `Suno: configured as "<servers[0].name>" but not connected — run /mcp and sign in`
 - Missing, `reminder: true` → show how to add it, as its own short block after the Setup lines:
 
   ```
-  Suno: not connected. /bitwize-music:generate and /bitwize-music:listen need Suno's MCP server. Add it once:
+  Suno: not connected. Add Suno's MCP server to connect the generate and listen skills to your account.
     claude mcp add --transport http suno https://api.suno.com/mcp
   then run /mcp and sign in. Add --scope user to have it in every project.
   (Hide this with generation.suno_mcp_reminder: false in your config.)
   ```
 
-  Use the `fix` fields from the result rather than retyping them. In Codex, give the link in `fix.other_assistants` instead of the `claude` command.
-- Missing, `reminder: false` → `Suno: not connected (optional)`
+  Use the `fix` fields from the result.
+
+When Suno is disconnected in Codex, check the session's MCP settings or run
+`codex mcp list` from the music workspace using the same profile. If a server
+is registered, show its name and use `codex mcp login <server-name>` if it needs
+sign-in. If no Suno server is registered and reminders are enabled, link to
+[Suno's setup instructions](https://help.suno.com/en/articles/14551425).
+
+In either host, if Suno is absent and `reminder` is false, show `Suno: not connected (optional)`.
 
 ## Step 2: Load Config
 
@@ -160,7 +183,7 @@ parsed and sorted.
 
 ## Step 5: (Removed)
 
-Skill model checking is no longer part of session start. Skills use tier aliases (`opus`/`sonnet`/`haiku`) that auto-track the frontier model, and the test suite (`/bitwize-music:test`) enforces model/effort hygiene — so no manual model checking is needed when new Claude models are released.
+Skill model checking is no longer part of session start. Skills use tier aliases (`opus`/`sonnet`/`haiku`) that auto-track the frontier model, and the Claude Code `test` skill enforces model/effort hygiene — so no manual model checking is needed when new Claude models are released.
 
 ## Step 6: Report Project Status
 
@@ -192,25 +215,27 @@ From `get_session`:
 
 ## Step 7: Show Contextual Tips
 
-When state is available, show one relevant tip:
+When state is available, show one relevant tip. Refer to skills by name in
+the report. For invocation examples, use the
+[active host's syntax](../../reference/runtime-compatibility.md#skill-names-and-inputs).
 
 | Condition | Tip |
 |-----------|-----|
-| No albums exist | "Try `/bitwize-music:tutorial` to create your first album" |
-| Ideas exist but no albums | "You have album ideas! Use `/bitwize-music:album-ideas list` to review them" |
-| In-progress albums exist | "Resume where you left off: `/bitwize-music:resume <album-name>`" |
+| No albums exist | "Try `tutorial` to create your first album" |
+| Ideas exist but no albums | "You have album ideas! Use `album-ideas list` to review them" |
+| In-progress albums exist | "Use the `resume` skill with the album name to continue." |
 | Overrides loaded | "Custom overrides loaded from {overrides}/" |
 | Overrides missing | "Customize your workflow with override files — see `/reference/overrides/`" |
-| Pending verifications | "Source verification needed before generation can proceed — run `/bitwize-music:verify-sources`" |
+| Pending verifications | "Use the `verify-sources` skill to check sources before generation." |
 
 Also show one random general tip (rotate through these):
 - "Ask 'what should I do next?' for workflow guidance"
-- "Use `/bitwize-music:resume` to quickly jump back into an album"
+- "Use `resume` to quickly jump back into an album"
 - "The researcher skill coordinates 10 specialized sub-skills for deep research"
 - "Check pronunciation before generating — Suno can't infer from context"
-- "Use `/bitwize-music:clipboard` to copy lyrics/prompts for Suno"
-- "With Suno's MCP server connected, `/bitwize-music:generate` makes the track from here and `/bitwize-music:listen` opens the takes for you"
-- "Master your audio with `/bitwize-music:mastering-engineer` for professional results"
+- "Use `clipboard` to copy lyrics/prompts for Suno"
+- "With Suno's MCP server connected, `generate` makes the track from here and `listen` opens the takes for you"
+- "Master your audio with `mastering-engineer` for professional results"
 
 ## Step 8: Ask
 
@@ -225,7 +250,7 @@ SESSION START
 =============
 
 Setup: Dependencies ready, config loaded
-Health: [venv ok, skills ok, no collisions | warnings listed | MCP unavailable]
+Health: [venv result, skill check detail, album slug collisions | MCP unavailable]
 Suno: [connected | not connected (optional)]
 Overrides: [path to the configured CLAUDE.md, if read]
 State: [loaded via MCP | rebuilt | loaded from cache | unavailable]
