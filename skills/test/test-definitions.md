@@ -52,9 +52,9 @@ Verify it includes commented examples for:
 Verify inline comments use "Examples:" or "Example:" format
 
 ### TEST: config/README.md exists and documents all settings
-1. Read config/README.md
-2. Verify it documents each setting from config.example.yaml
-3. Check Settings Reference table is complete
+1. Read `config/README.md` and `config/config.example.yaml`.
+2. Verify each user-configurable setting in the example has an entry in Settings Reference or in a settings reference it links to.
+3. Check the declared settings in the sample. Paths marked automatic and repeated examples use the corresponding documented entries.
 
 ### TEST: Config location consistently documented as ~/.bitwize-music
 Search these files for config path references:
@@ -78,11 +78,13 @@ Verify it includes:
 This test was added after paths were incorrectly resolved because config values were assumed instead of read.
 
 ### TEST: No references to old config files
-Search entire repo (excluding .git/) for deprecated references:
+Search maintained documentation, configuration, and code for active references to deprecated config files:
 - `config/paths.yaml`
 - `config/artist.md`
 - `paths.example.yaml`
 - `artist.example.md`
+
+Count references that direct users or code to those files. The test's search patterns, terminology detector, and historical migration notes document the old names.
 
 ---
 
@@ -842,9 +844,8 @@ Verify `sheet_music:` section exists with:
 - `page_size:` (letter, 9x12, or 6x9)
 - `section_headers:` (boolean)
 
-### TEST: No hardcoded AnthemScore/MuseScore paths
-Search tools/sheet-music/*.py for hardcoded paths outside of the OS detection arrays.
-Should NOT find paths like `/Applications/` or `C:\Program Files\` except in the detection functions.
+### TEST: Sheet music tools use resolved application paths
+Read `tools/sheet-music/transcribe.py` and `tools/sheet-music/prepare_singles.py`. Verify the transcription and export subprocesses use application paths returned by the platform detection functions or supplied by the caller. The detection functions can try platform-specific installation paths, and installation help can show those paths as examples.
 
 ### TEST: Sheet music scripts handle missing software gracefully
 Read tools/sheet-music/transcribe.py.
@@ -927,8 +928,7 @@ Verify these path variables are used consistently:
 - `${CLAUDE_PLUGIN_ROOT}`
 
 ### TEST: All internal markdown links valid
-Search for markdown links `[text](path)` where path starts with `/` or `./`.
-Verify target files exist.
+Use the result of `tests/plugin/test_links.py::TestInternalLinks::test_no_broken_links`. It resolves concrete links against the checkout or the source file's directory. Treat parameterized targets such as `/genres/[genre]/README.md` as template placeholders.
 
 ### TEST: plugin.json matches documentation
 Read .claude-plugin/plugin.json.
@@ -941,7 +941,6 @@ Read .gitignore. Verify it includes:
 - `*.pdf`
 - `primary-sources/`
 - `venv/`
-- `TESTING.md`
 
 ### TEST: No skill.json files exist (standard is SKILL.md)
 ```bash
@@ -952,19 +951,9 @@ Should return zero results. All skills must use SKILL.md format.
 This test was added after an accidental skill.json was found in the resume skill.
 
 ### TEST: Genre references match genres/ directory
-1. List valid genres:
-   ```bash
-   ls -1 genres/
-   ```
-2. Search for genre references in templates and documentation:
-   - `templates/album.md` - genre field examples
-   - `skills/new-album/SKILL.md` - genre parameter
-   - `reference/plugin-rules.md` - genre examples (today it uses only the `[genre]` path placeholder)
-3. Any genre referenced in examples must exist in `genres/` directory
-4. Common issues to catch:
-   - `hiphop` vs `hip-hop` (hyphenation)
-   - `synth-wave` vs `synthwave` (hyphenation)
-   - References to genres without documentation
+Verify concrete local genre slugs used in album paths and creation examples in `templates/album.md`, `skills/new-album/SKILL.md`, and `reference/plugin-rules.md` have a matching `genres/<slug>/README.md`. Catch misspellings such as `hiphop` or `synth-wave`.
+
+Use the distribution platform's labels in distributor metadata. For example, the display label R&B/Soul corresponds to the local `rnb` directory.
 
 ---
 
@@ -995,8 +984,7 @@ Plugin should be referred to as:
 - `bitwize-music@bitwize-music` (install command)
 
 ### TEST: Consistent brand casing
-Search for "Bitwize Music" (title case) - should not exist.
-Brand should always be "bitwize-music" (lowercase with hyphen).
+Verify current plugin references use `bitwize-music` (lowercase with a hyphen). A quotation of the earlier spelling in release history or in a test illustrates the correction.
 
 ---
 
@@ -1047,9 +1035,7 @@ Search for `TODO|FIXME|XXX|HACK` in:
 - config/README.md
 - skills/*/SKILL.md
 
-(Exclude test definitions)
-
-Search ONLY the four files/globs listed above. Code files (tools/, servers/) are OUT of scope — detection patterns in code (e.g. gates.py's `[TODO]` regex, or terminology-checker pattern lists) are not findings.
+Flag markers that leave unfinished work in these files. Quoted markers used as examples or as inputs to a check are part of the instructions.
 
 ### TEST: No empty markdown links
 Search for `\[\]\(\)` (empty link text and href).
@@ -1059,12 +1045,8 @@ Search for:
 - `\[.*\]\([^)]*$` (unclosed parens)
 - `\[.*\][^(\[]` (missing parens after bracket)
 
-### TEST: All code blocks have language specified
-Search for triple backticks without language:
-```
-^```$
-```
-(Should be ```bash, ```yaml, ```markdown, etc.)
+### TEST: Runnable snippets declare their language
+Check the opening fence of standalone code and command snippets for a language such as `bash`, `powershell`, `python`, or `yaml`. Plain text output, transcripts, diagrams, and pseudocode can use plain fences or `text`.
 
 ### TEST: README has required sections
 README.md was restructured around a shorter narrative + a "Detailed Documentation" table pointing to docs/. Read README.md and verify these sections exist:
@@ -1191,7 +1173,7 @@ Use an isolated music workspace and create a dedicated temporary directory
 #### Phase 6: Validation
 ```
 1. Run: /validate-album e2e-test-album
-2. Verify: All structure checks pass
+2. Verify: No structure checks fail. The master check can skip because the synthetic album has no master.
 3. Verify: Audio path check passes (full mirrored structure present)
 ```
 
@@ -1271,7 +1253,7 @@ Glob: skills/validate-album/SKILL.md
 ### TEST: /validate-album reads config first
 Read skills/validate-album/SKILL.md.
 Verify it includes:
-1. Step to read `~/.bitwize-music/config.yaml` marked as REQUIRED
+1. Calls `get_config()` before looking up the album and stops if `~/.bitwize-music/config.yaml` is missing
 2. Extracts content_root, audio_root, and artist
 3. Checks audio path includes artist folder
 4. Reports actionable fix commands for issues

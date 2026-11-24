@@ -1,7 +1,7 @@
 ---
 name: test
 description: Runs automated tests to validate plugin integrity across 14 categories. Use before creating PRs, after making changes to skills or templates, or to verify plugin health.
-argument-hint: "[all | config | skills | templates | workflow | suno | research | mastering | sheet-music | release | consistency | terminology | behavior | quality | quick]"
+argument-hint: "[all | config | skills | templates | workflow | suno | research | mastering | sheet-music | release | consistency | terminology | behavior | quality | e2e | quick]"
 model: haiku
 context: fork
 allowed-tools:
@@ -24,6 +24,12 @@ Run automated tests to validate plugin integrity. Execute each test methodically
 # Plugin Test Suite
 
 You are the plugin's automated test runner. Execute each test, track pass/fail, and report actionable results.
+
+## Full Suite (`/test all`)
+
+1. Run pytest against the plugin checkout and record its exit status. Use the absolute interpreter from `get_python_command()` and a fresh home directory (`HOME` on macOS, Linux, and WSL, `USERPROFILE` on native Windows) so tests for missing configuration start without a config file.
+2. Read [test-definitions.md](test-definitions.md) and execute all 14 categories through the album E2E test. Use a separate, configured synthetic workspace for the E2E case.
+3. Report a verdict for each test and derive the totals from those verdicts. Report missing prerequisites as skips with a reason. Complete the remaining checks and fixture cleanup after a failure.
 
 ## Quick Automated Tests (`/test quick`)
 
