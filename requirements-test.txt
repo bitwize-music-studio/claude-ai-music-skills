@@ -6,16 +6,16 @@
 pytest>=9.2.0
 pytest-cov>=7.1.0
 pytest-xdist>=3.8.0
-pyyaml>=6.0
+pyyaml>=6.0.4
 
 # Linting
 # ruff and mypy are pinned exactly, not floored: their output IS the Lint job's
 # verdict, and a new rule or widened check reddens a commit nobody touched while
 # an old green build stops reproducing. Dependabot still bumps these — the
 # difference is the upgrade arrives as a reviewable PR with CI attached (#532).
-ruff==0.17.5
+ruff==0.17.6
 mypy==2.4.1
-types-PyYAML>=6.0.12.20261113
+types-PyYAML>=6.0.12.20261122
 
 # Security
 # Pinned exactly for the same reason as ruff/mypy above — bandit decides the
