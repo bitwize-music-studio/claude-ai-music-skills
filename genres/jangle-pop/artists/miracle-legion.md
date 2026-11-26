@@ -8,7 +8,7 @@ Miracle Legion was an American jangle pop and college rock band from New Haven, 
 
 **Commercial scale:** Small. No chart position has been found for any release. "The Backyard" was a college-radio hit, its video was added by MTV in 1986, and NME made it a Single of the Week. Their audience was college radio, the UK indie press and other musicians.
 
-**Influence:** Larger than their sales. Thom Yorke called them "a huge influence" and said "All for the Best" was "one of the purest things I've ever heard" (*Time Out*, 1997). The 2009 tribute album to Mulcahy's songs, *Ciao My Shining Star*, included Miracle Legion songs recorded by Thom Yorke, Dinosaur Jr., Vic Chesnutt, Mercury Rev and The Autumn Defense. The creators of Nickelodeon's *The Adventures of Pete & Pete* were fans, which led three of the four members to become Polaris (see [Polaris — Deep Dive](../../rock/artists/polaris.md)).
+**Influence:** Larger than their sales. Thom Yorke called them "a huge influence" and said "All for the Best" was "one of the purest things I've ever heard" (*Time Out*, 1997). The 2009 tribute album to Mulcahy's songs, *Ciao My Shining Star*, included Miracle Legion songs recorded by Thom Yorke, Dinosaur Jr., Vic Chesnutt, Mercury Rev and The Autumn Defense. Will McRobb, co-creator of Nickelodeon's *The Adventures of Pete & Pete*, said "Everything that Pete & Pete became was because of Miracle Legion", and of "The Backyard": "That song kind of inspired the whole series" (HuffPost, 2010). The show's creators asked the band for its music, which led three of the four members to become Polaris (see [Polaris — Deep Dive](../../rock/artists/polaris.md)).
 
 **The name:** At their first gig they were "the American Legion". Worried the veterans' organisation would object, Mulcahy suggested "the Miracles"; Neal pointed out that Smokey Robinson's group had it, so they combined the two (Neal, Agit Reader, 2016).
 
@@ -102,7 +102,7 @@ The record that made their name. Trouser Press called it "a landmark" for its "s
 - Mulcahy's high voice up front, more direct than Michael Stipe's (Guardian)
 
 **Key Tracks:**
-- **"The Backyard"** (G major, ~139 BPM, 4:01) — The college-radio hit and NME Single of the Week; live, it carried "a frenzied rhythm guitar solo" (Bandcamp Daily). Covered by Dinosaur Jr. on the 2009 tribute
+- **"The Backyard"** (G major, ~139 BPM, 4:01) — The college-radio hit and NME Single of the Week; live, it carried "a frenzied rhythm guitar solo" (Bandcamp Daily). The song behind *The Adventures of Pete & Pete*: co-creator Will McRobb said "That song kind of inspired the whole series" (HuffPost, 2010). Covered by Dinosaur Jr. on the 2009 tribute
 - **"Closer to the Wall"** (D major, ~152 BPM, 4:06) — Fast and "searing" (Toppermost); a live favourite, played with Pere Ubu on *Glad*
 - **"Just Say Hello"** (G, ~128 BPM, 4:56) — Chiming guitars, mid-tempo
 - **"Steven Are You There?"** (G, ~85 BPM, 4:07) — The slow song; spelled "Stephen" in some sources
@@ -402,7 +402,7 @@ From the start critics compared them to R.E.M. Trouser Press noted an "uncanny r
 
 Rough Trade went bankrupt and the band signed to Morgan Creek, which also outbid Mulcahy and Neal for the band's own Rough Trade records when that catalogue was auctioned (Guardian). After *Drenched*, after a month of rehearsals, the label cancelled the second album about a week before sessions were due to start. Neal has named both Daniel Lanois's studio and a New Orleans studio as the booking. The label would neither record nor release them: "trapped… for two years", Neal said (Washington Times, 2017); Bandcamp Daily says "nearly four years". Questions over who owned the band's name stopped them recording as Miracle Legion in the meantime.
 
-When Nickelodeon's *Pete & Pete* creators asked for music, Mulcahy, Boutier and McCaffrey made it as Polaris. Neal stayed out: he was "fed up" (Washington Times) and "too disillusioned" (Guardian) with the music business. The full Polaris story is in [Polaris — Deep Dive](../../rock/artists/polaris.md).
+When the *Pete & Pete* creators, who credited the band and "The Backyard" with inspiring the show, asked for music, Mulcahy, Boutier and McCaffrey made it as Polaris. Neal stayed out: he was "fed up" (Washington Times) and "too disillusioned" (Guardian) with the music business. The full Polaris story is in [Polaris — Deep Dive](../../rock/artists/polaris.md).
 
 ---
 
@@ -426,7 +426,7 @@ AllMusic ratings are as given on Wikipedia. Magnet (2010) wrote that Mulcahy "mi
 - **Thom Yorke**: "They were a huge influence" (*Time Out*, 1997, in a list of the records behind *OK Computer*); "the only voice that's come close to Mark Mulcahy's is Tim Buckley's"
 - **The 2009 tribute album** *Ciao My Shining Star* included Miracle Legion songs by Thom Yorke ("All for the Best"), Dinosaur Jr. ("The Backyard"), Vic Chesnutt ("Little Man"), Mercury Rev ("Sailors and Animals") and The Autumn Defense ("Paradise"), alongside Mulcahy solo and Polaris songs covered by Michael Stipe, The National, Frank Black and others
 - **Pat Sansone** (Wilco) called himself "a big fan" and played with them at the final 2017 show; the 2024 tour ended at Wilco's Solid Sound festival
-- **Will McRobb and Chris Viscardi**, creators of *The Adventures of Pete & Pete*, were fans, which led to Polaris
+- **Will McRobb and Chris Viscardi**, creators of *The Adventures of Pete & Pete*, were fans. McRobb: "Everything that Pete & Pete became was because of Miracle Legion"; of "The Backyard", "That song kind of inspired the whole series" (HuffPost, 2010). Their request for music led to Polaris
 
 ### Ray Neal After the Band
 
@@ -464,7 +464,7 @@ mid-tempo jangle, uptempo jangle, slow-burn ballad
 
 ## Reference Tracks
 
-- **"The Backyard"** (*The Backyard*, 1984) — The college-radio hit; chiming arpeggios over a driving beat. The template for their sound
+- **"The Backyard"** (*The Backyard*, 1984) — The college-radio hit; chiming arpeggios over a driving beat. The template for their sound, and the song that inspired *The Adventures of Pete & Pete*
 - **"Closer to the Wall"** (*The Backyard*, 1984) — Fast and searing; the live showpiece
 - **"All for the Best"** (*Surprise Surprise Surprise*, 1987) — Hazy layered vocals and an off-kilter solo; the song Thom Yorke singled out
 - **"Truly"** (*Surprise Surprise Surprise*, 1987) — Long and slower (~100 BPM); "arguably the record's finest track" (Consequence)
@@ -487,6 +487,7 @@ mid-tempo jangle, uptempo jangle, slow-burn ballad
 - [Robert Christgau — Miracle Legion](https://www.robertchristgau.com/get_artist.php?name=Miracle+Legion)
 - [Maximum RocknRoll — Miracle Legion](https://maximumrocknroll.com/band/miracle-legion)
 - [Bandcamp Daily — Mark Mulcahy Lifetime Achievement (2023)](https://daily.bandcamp.com/lifetime-achievement/mark-mulcahy-lifetime-achievement)
+- [HuffPost — interview with Will McRobb, by Alex Remington (2010)](https://www.huffingtonpost.com/entry/interview-with-will-mcrob_b_470983.html)
 - [The Guardian — Cult heroes: Miracle Legion (2016)](https://www.theguardian.com/music/musicblog/2016/may/17/cult-heroes-miracle-legion-the-band-thom-yorke-loved-who-could-have-been-rem)
 - [Penny Black Music — Ray Neal interview (2016)](https://pennyblackmusic.co.uk/Home/Details?id=24123)
 - [Agit Reader — Miracle Legion interview (2016)](https://agitreader.com/wp2/miracle-legion/)

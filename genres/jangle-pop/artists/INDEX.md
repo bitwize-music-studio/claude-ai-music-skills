@@ -40,7 +40,7 @@ mid-tempo jangle, uptempo jangle, slow-burn ballad
 ## Reference Tracks
 
 ### Miracle Legion
-- "The Backyard" (1984) — College-radio hit; chiming arpeggios over a driving beat (G, ~139 BPM)
+- "The Backyard" (1984) — College-radio hit; chiming arpeggios over a driving beat; the song co-creator Will McRobb said inspired *The Adventures of Pete & Pete* (G, ~139 BPM)
 - "Closer to the Wall" (1984) — Fast, searing guitar over a propulsive rhythm section; the live showpiece (D, ~152 BPM)
 - "All for the Best" (1987) — Hazy layered vocals and an off-kilter guitar solo (E, ~148 BPM)
 - "Truly" (1987) — Long and slower; often named the best song on *Surprise Surprise Surprise* (G, ~100 BPM)
