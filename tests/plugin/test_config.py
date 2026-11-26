@@ -51,6 +51,23 @@ class TestConfigDocs:
     def test_config_readme_exists(self, config_dir):
         assert (config_dir / "README.md").exists(), "config/README.md missing"
 
+    def test_example_settings_have_reference_entries(self, config_dir):
+        def leaf_keys(settings, prefix=""):
+            for key, value in settings.items():
+                name = f"{prefix}{key}"
+                if isinstance(value, dict):
+                    yield from leaf_keys(value, f"{name}.")
+                else:
+                    yield name
+
+        example = yaml.safe_load((config_dir / "config.example.yaml").read_text(encoding="utf-8"))
+        readme = (config_dir / "README.md").read_text(encoding="utf-8")
+        _, _, settings = readme.partition("## Settings Reference\n")
+        reference, _, _ = settings.partition("\n## ")
+        missing = [key for key in leaf_keys(example) if f"| `{key}` |" not in reference]
+
+        assert not missing, f"Undocumented example settings: {', '.join(missing)}"
+
     def test_config_path_in_plugin_rules(self, claude_md_content):
         assert '~/.bitwize-music/config.yaml' in claude_md_content, (
             "reference/plugin-rules.md should reference ~/.bitwize-music/config.yaml"

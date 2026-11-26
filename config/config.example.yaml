@@ -2,7 +2,7 @@
 # bitwize-music Plugin Configuration
 # =============================================================================
 #
-# QUICK START — Only 3 required fields:
+# QUICK START — Only 4 required fields:
 #
 #   artist:
 #     name: "your-artist-name"
@@ -12,7 +12,7 @@
 #     documents_root: "~/music-projects/documents"
 #
 # That's it! Everything else below is optional. Copy this file to
-# ~/.bitwize-music/config.yaml and fill in the 3 fields above.
+# ~/.bitwize-music/config.yaml and fill in the four fields above.
 #
 # =============================================================================
 #
@@ -645,20 +645,6 @@ generation:
 # Skip this section if you don't need sheet music.
 
 sheet_music:
-  # ---------------------------
-  # enabled [optional]
-  # ---------------------------
-  # Master switch for sheet music pipeline.
-  # Set false to disable sheet music generation entirely.
-  # When false, sheet-music-publisher skill will skip gracefully.
-  #
-  # Default (if omitted): true
-  #
-  # Set to false if you don't have AnthemScore/MuseScore installed
-  # and don't want sheet music features offered.
-  #
-  enabled: true
-
   # ---------------------------
   # page_size
   # ---------------------------

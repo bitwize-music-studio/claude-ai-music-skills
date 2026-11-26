@@ -23,7 +23,7 @@ macOS is my daily driver, so it's where this plugin gets the most real-world use
 
 ## Example Workflow
 
-```
+```text
 You:    "Let's make an album about the 2016 Bangladesh Bank heist"
 Claude: Creates album structure, runs 7-phase concept planning
 
@@ -63,23 +63,35 @@ Then run `/bitwize-music:setup` to detect your environment and install dependenc
 
 ### OpenAI Codex (experimental)
 
-Codex can install the plugin from this repository too:
+Install the plugin from GitHub.
 
 ```bash
 codex plugin marketplace add bitwize-music-studio/claude-ai-music-skills
 codex plugin add bitwize-music@bitwize-music
 ```
 
-All 63 skills load, and the MCP server runs from the same `~/.bitwize-music/venv` that Claude Code uses, on macOS, Linux and Windows. The `setup` skill still assumes Claude Code, so if you haven't set the plugin up there, create the venv by hand (Python 3.11+):
+To use a local checkout, register its path.
 
 ```bash
-python3 -m venv ~/.bitwize-music/venv
-~/.bitwize-music/venv/bin/python -m pip install -r https://raw.githubusercontent.com/bitwize-music-studio/claude-ai-music-skills/main/requirements.txt
+codex plugin marketplace add /absolute/path/to/this/checkout
+codex plugin add bitwize-music@bitwize-music
 ```
 
-On Windows (cmd), run `python -m venv %USERPROFILE%\.bitwize-music\venv`, then `%USERPROFILE%\.bitwize-music\venv\Scripts\python.exe -m pip install -r` with the same URL.
+In a new Codex session, run `$bitwize-music:setup`, then
+`$bitwize-music:configure`. You can also select the skills in the skill picker.
+Setup reads the requirements from the installed plugin, so you can run it from
+your music workspace. Codex and Claude Code share the configuration and the
+Python 3.11+ venv at `~/.bitwize-music/venv`.
 
-So far Codex support covers discovery and the MCP tools, and many skills still assume Claude Code. [#548](https://github.com/bitwize-music-studio/claude-ai-music-skills/issues/548) tracks the rest.
+Run `$bitwize-music:session-start` at the start of a music session. Use
+`$bitwize-music:resume my-album` to resume an album by name, or omit the name
+to use saved session context. Both skills load the installed
+[plugin rules](reference/plugin-rules.md) and your configured overrides.
+
+See the [shared runtime rules](reference/runtime-compatibility.md) for skill
+names and plugin paths.
+[#548](https://github.com/bitwize-music-studio/claude-ai-music-skills/issues/548)
+tracks compatibility for other workflows.
 
 ---
 
@@ -149,8 +161,8 @@ Coverage is measured on all three OSes and gated on the **combined** total, not 
 
 ## Project Structure
 
-```
-skills/              60 skill definitions (markdown + YAML frontmatter)
+```text
+skills/              63 skill definitions (markdown + YAML frontmatter)
 servers/             MCP server (Python, 80+ tools)
 tools/               Audio mastering, promo videos, sheet music, cloud uploads
 reference/           46+ docs — Suno guides, mastering workflows, genre references

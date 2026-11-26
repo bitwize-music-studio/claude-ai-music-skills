@@ -52,9 +52,9 @@ Verify it includes commented examples for:
 Verify inline comments use "Examples:" or "Example:" format
 
 ### TEST: config/README.md exists and documents all settings
-1. Read config/README.md
-2. Verify it documents each setting from config.example.yaml
-3. Check Settings Reference table is complete
+1. Read `config/README.md` and `config/config.example.yaml`.
+2. Verify each user-configurable setting in the example has an entry in Settings Reference or in a settings reference it links to.
+3. Check the declared settings in the sample. Paths marked automatic and repeated examples use the corresponding documented entries.
 
 ### TEST: Config location consistently documented as ~/.bitwize-music
 Search these files for config path references:
@@ -78,11 +78,13 @@ Verify it includes:
 This test was added after paths were incorrectly resolved because config values were assumed instead of read.
 
 ### TEST: No references to old config files
-Search entire repo (excluding .git/) for deprecated references:
+Search maintained documentation, configuration, and code for active references to deprecated config files:
 - `config/paths.yaml`
 - `config/artist.md`
 - `paths.example.yaml`
 - `artist.example.md`
+
+Count references that direct users or code to those files. The test's search patterns, terminology detector, and historical migration notes document the old names.
 
 ---
 
@@ -377,8 +379,8 @@ Read `skills/session-start/SKILL.md` (steps 1, 1.5, 1.6, 2, 3, 4, 4.5, 5, 6, 7, 
 Verify "## Step 2: Load Config" reads `~/.bitwize-music/config.yaml`.
 Verify "## Step 3: Load Overrides" reads `paths.overrides` from config.
 Verify "## Step 4: Load State" calls `get_ideas` for idea counts.
-Verify it mentions `/bitwize-music:configure` when config is missing (Step 1 and Step 2).
-Verify Step 7 mentions `/bitwize-music:album-ideas list` when ideas exist.
+Verify Step 1 sends missing-config cases to Step 2, where the skill recommends `configure`.
+Verify Step 7 recommends `album-ideas` with the `list` argument when ideas exist.
 Verify `reference/plugin-rules.md` "## Session start" tells a fresh session to follow `/bitwize-music:session-start`.
 
 ### TEST: Session startup contextual tips system documented
@@ -388,7 +390,7 @@ Verify its condition → tip table covers:
 - Ideas exist but no albums → album-ideas tip
 - In-progress albums exist → resume tip
 - Overrides loaded → note it; Overrides missing → suggest creating them
-- Pending verifications → verification warning (with `/bitwize-music:verify-sources`)
+- Pending verifications → recommend the `verify-sources` skill before generation
 
 (The old "If IDEAS.md has content" framing is gone — ideas are now sourced from the `get_ideas` MCP tool, not a direct IDEAS.md file check.)
 
@@ -400,14 +402,15 @@ Verify it says "Also show one random general tip (rotate through these):" follow
 Read `skills/session-start/SKILL.md`.
 Verify the final step, "## Step 8: Ask", ends with: "What would you like to work on?"
 
-### TEST: Contextual tips use correct skill commands
-Read `skills/session-start/SKILL.md` "## Step 7: Show Contextual Tips".
-Verify these skill references use correct `/bitwize-music:` prefix format:
-- `/bitwize-music:tutorial` (not /tutorial)
-- `/bitwize-music:album-ideas` (not /album-ideas)
-- `/bitwize-music:resume` (not /resume)
+### TEST: Contextual tips name skills and link to host invocation guidance
+Read `skills/session-start/SKILL.md` "## Step 7: Show Contextual Tips". Verify
+it recommends `tutorial`, `album-ideas`, `resume`, and `verify-sources` by name.
+The rotating tips also name `clipboard`, `generate`, `listen`, and
+`mastering-engineer`.
 
-Note: the rotating general tips also name `/bitwize-music:clipboard`, `/bitwize-music:generate`, `/bitwize-music:listen` and `/bitwize-music:mastering-engineer` with the full prefix; "the researcher skill" and pronunciation appear as prose, which is expected.
+Follow the invocation guidance linked in Step 7. Verify it gives Claude Code's
+`/bitwize-music:<skill>` syntax and explains how to invoke an installed skill
+by its advertised name or through the skill picker in Codex.
 
 ### TEST: Contextual tips reference overrides path variable
 Read `skills/session-start/SKILL.md` "## Step 3: Load Overrides".
@@ -841,9 +844,8 @@ Verify `sheet_music:` section exists with:
 - `page_size:` (letter, 9x12, or 6x9)
 - `section_headers:` (boolean)
 
-### TEST: No hardcoded AnthemScore/MuseScore paths
-Search tools/sheet-music/*.py for hardcoded paths outside of the OS detection arrays.
-Should NOT find paths like `/Applications/` or `C:\Program Files\` except in the detection functions.
+### TEST: Sheet music tools use resolved application paths
+Read `tools/sheet-music/transcribe.py` and `tools/sheet-music/prepare_singles.py`. Verify the transcription and export subprocesses use application paths returned by the platform detection functions or supplied by the caller. The detection functions can try platform-specific installation paths, and installation help can show those paths as examples.
 
 ### TEST: Sheet music scripts handle missing software gracefully
 Read tools/sheet-music/transcribe.py.
@@ -926,8 +928,7 @@ Verify these path variables are used consistently:
 - `${CLAUDE_PLUGIN_ROOT}`
 
 ### TEST: All internal markdown links valid
-Search for markdown links `[text](path)` where path starts with `/` or `./`.
-Verify target files exist.
+Use the result of `tests/plugin/test_links.py::TestInternalLinks::test_no_broken_links`. It resolves concrete links against the checkout or the source file's directory. Treat parameterized targets such as `/genres/[genre]/README.md` as template placeholders.
 
 ### TEST: plugin.json matches documentation
 Read .claude-plugin/plugin.json.
@@ -940,7 +941,6 @@ Read .gitignore. Verify it includes:
 - `*.pdf`
 - `primary-sources/`
 - `venv/`
-- `TESTING.md`
 
 ### TEST: No skill.json files exist (standard is SKILL.md)
 ```bash
@@ -951,19 +951,9 @@ Should return zero results. All skills must use SKILL.md format.
 This test was added after an accidental skill.json was found in the resume skill.
 
 ### TEST: Genre references match genres/ directory
-1. List valid genres:
-   ```bash
-   ls -1 genres/
-   ```
-2. Search for genre references in templates and documentation:
-   - `templates/album.md` - genre field examples
-   - `skills/new-album/SKILL.md` - genre parameter
-   - `reference/plugin-rules.md` - genre examples (today it uses only the `[genre]` path placeholder)
-3. Any genre referenced in examples must exist in `genres/` directory
-4. Common issues to catch:
-   - `hiphop` vs `hip-hop` (hyphenation)
-   - `synth-wave` vs `synthwave` (hyphenation)
-   - References to genres without documentation
+Verify concrete local genre slugs used in album paths and creation examples in `templates/album.md`, `skills/new-album/SKILL.md`, and `reference/plugin-rules.md` have a matching `genres/<slug>/README.md`. Catch misspellings such as `hiphop` or `synth-wave`.
+
+Use the distribution platform's labels in distributor metadata. For example, the display label R&B/Soul corresponds to the local `rnb` directory.
 
 ---
 
@@ -994,8 +984,7 @@ Plugin should be referred to as:
 - `bitwize-music@bitwize-music` (install command)
 
 ### TEST: Consistent brand casing
-Search for "Bitwize Music" (title case) - should not exist.
-Brand should always be "bitwize-music" (lowercase with hyphen).
+Verify current plugin references use `bitwize-music` (lowercase with a hyphen). A quotation of the earlier spelling in release history or in a test illustrates the correction.
 
 ---
 
@@ -1003,9 +992,10 @@ Brand should always be "bitwize-music" (lowercase with hyphen).
 
 Scenario-based tests verifying correct instructions.
 
-### TEST: Missing config recommends /configure
+### TEST: Missing config recommends the configure skill
 Read `skills/session-start/SKILL.md`.
-Verify it mentions `/bitwize-music:configure` when config is missing (Step 1: "If config missing (`~/.bitwize-music/config.yaml` doesn't exist): suggest `/bitwize-music:configure`"; Step 2: "If missing, tell user to run `/bitwize-music:configure`."). (The old "as Option 1" numbered-options framing is gone — it's now a bulleted fallback under each relevant step.)
+Verify Step 1 directs missing-config cases to Step 2. Verify Step 2 recommends
+the installed `configure` skill and resumes once the workspace paths are configured.
 Verify `reference/plugin-rules.md` "## Config and paths" says "No config yet: `/bitwize-music:configure`."
 
 Read skills/tutorial/SKILL.md.
@@ -1045,9 +1035,7 @@ Search for `TODO|FIXME|XXX|HACK` in:
 - config/README.md
 - skills/*/SKILL.md
 
-(Exclude test definitions)
-
-Search ONLY the four files/globs listed above. Code files (tools/, servers/) are OUT of scope — detection patterns in code (e.g. gates.py's `[TODO]` regex, or terminology-checker pattern lists) are not findings.
+Flag markers that leave unfinished work in these files. Quoted markers used as examples or as inputs to a check are part of the instructions.
 
 ### TEST: No empty markdown links
 Search for `\[\]\(\)` (empty link text and href).
@@ -1057,12 +1045,8 @@ Search for:
 - `\[.*\]\([^)]*$` (unclosed parens)
 - `\[.*\][^(\[]` (missing parens after bracket)
 
-### TEST: All code blocks have language specified
-Search for triple backticks without language:
-```
-^```$
-```
-(Should be ```bash, ```yaml, ```markdown, etc.)
+### TEST: Runnable snippets declare their language
+Check the opening fence of standalone code and command snippets for a language such as `bash`, `powershell`, `python`, or `yaml`. Plain text output, transcripts, diagrams, and pseudocode can use plain fences or `text`.
 
 ### TEST: README has required sections
 README.md was restructured around a shorter narrative + a "Detailed Documentation" table pointing to docs/. Read README.md and verify these sections exist:
@@ -1141,14 +1125,15 @@ End-to-end integration test that creates a test album and exercises the full wor
 
 ### TEST: E2E - Full album workflow
 
-**This test creates temporary files and cleans them up afterward.**
+Use an isolated music workspace and create a dedicated temporary directory
+(`{fixture_dir}`) for the input fixtures. Clean up both after the test.
 
 #### Phase 1: Setup
 ```
 1. Read ~/.bitwize-music/config.yaml
-2. Extract content_root, audio_root, artist
-3. Run: /new-album _e2e-test-album electronic
-4. Verify: {content_root}/artists/{artist}/albums/electronic/_e2e-test-album/ exists
+2. Extract content_root, audio_root, and artist. Run rebuild_state() for the temporary workspace.
+3. Run: /new-album e2e-test-album electronic
+4. Verify: {content_root}/artists/{artist}/albums/electronic/e2e-test-album/ exists
 5. Verify: README.md created from template
 6. Verify: tracks/ directory exists
 ```
@@ -1165,38 +1150,38 @@ End-to-end integration test that creates a test album and exercises the full wor
 1. Create RESEARCH.md in {album_path}/
 2. Create SOURCES.md in {album_path}/
 3. Verify: Files in album directory
-4. Verify: Files NOT in working directory or /tmp
+4. Verify: Files NOT in the working directory or {fixture_dir}
 ```
 
 #### Phase 4: Audio Import
 ```
-1. Create dummy WAV: touch /tmp/_e2e-test.wav
-2. Run: /import-audio /tmp/_e2e-test.wav _e2e-test-album
-3. Verify: Audio in {audio_root}/artists/{artist}/albums/electronic/_e2e-test-album/
+1. Create a short, valid stereo WAV at {fixture_dir}/e2e-test.wav
+2. Run: /import-audio {fixture_dir}/e2e-test.wav e2e-test-album
+3. Verify: Audio in {audio_root}/artists/{artist}/albums/electronic/e2e-test-album/
 4. Verify: Full mirrored path structure present
-5. Verify: NOT at {audio_root}/_e2e-test-album/ (wrong - missing structure)
+5. Verify: NOT at {audio_root}/e2e-test-album/ (wrong - missing structure)
 ```
 
 #### Phase 5: Art Import
 ```
-1. Create dummy image: touch /tmp/_e2e-test.png
-2. Run: /import-art /tmp/_e2e-test.png _e2e-test-album
-3. Verify: Art in {audio_root}/artists/{artist}/albums/electronic/_e2e-test-album/album.png
+1. Create a valid PNG at {fixture_dir}/e2e-test.png
+2. Run: /import-art {fixture_dir}/e2e-test.png e2e-test-album
+3. Verify: Art in {audio_root}/artists/{artist}/albums/electronic/e2e-test-album/album.png
 4. Verify: Art in {album_path}/album-art.png
 ```
 
 #### Phase 6: Validation
 ```
-1. Run: /validate-album _e2e-test-album
-2. Verify: All structure checks pass
+1. Run: /validate-album e2e-test-album
+2. Verify: No structure checks fail. The master check can skip because the synthetic album has no master.
 3. Verify: Audio path check passes (full mirrored structure present)
 ```
 
 #### Phase 7: Cleanup
 ```
-1. Remove: {content_root}/artists/{artist}/albums/electronic/_e2e-test-album/
-2. Remove: {audio_root}/artists/{artist}/albums/electronic/_e2e-test-album/
-3. Remove: /tmp/_e2e-test.*
+1. Remove: {content_root}/artists/{artist}/albums/electronic/e2e-test-album/
+2. Remove: {audio_root}/artists/{artist}/albums/electronic/e2e-test-album/
+3. Remove: {fixture_dir}
 4. Verify: No test files remain
 ```
 
@@ -1209,7 +1194,7 @@ E2E TEST SUITE
 PHASE 1: SETUP
 ──────────────
 [PASS] Config loaded: content_root={path}, audio_root={path}, artist={name}
-[PASS] /new-album created _e2e-test-album
+[PASS] /new-album created e2e-test-album
 [PASS] Album directory exists at correct location
 [PASS] README.md created
 [PASS] tracks/ directory exists
@@ -1223,12 +1208,12 @@ PHASE 3: RESEARCH FILES
 ───────────────────────
 [PASS] RESEARCH.md created in album directory
 [PASS] SOURCES.md created in album directory
-[PASS] Files NOT in working directory
+[PASS] Files confined to the album directory
 
 PHASE 4: AUDIO IMPORT
 ─────────────────────
 [PASS] /import-audio executed successfully
-[PASS] Audio at {audio_root}/artists/{artist}/albums/electronic/_e2e-test-album/
+[PASS] Audio at {audio_root}/artists/{artist}/albums/electronic/e2e-test-album/
 [PASS] Full mirrored path structure present
 
 PHASE 5: ART IMPORT
@@ -1268,7 +1253,7 @@ Glob: skills/validate-album/SKILL.md
 ### TEST: /validate-album reads config first
 Read skills/validate-album/SKILL.md.
 Verify it includes:
-1. Step to read `~/.bitwize-music/config.yaml` marked as REQUIRED
+1. Calls `get_config()` before looking up the album and stops if `~/.bitwize-music/config.yaml` is missing
 2. Extracts content_root, audio_root, and artist
 3. Checks audio path includes artist folder
 4. Reports actionable fix commands for issues

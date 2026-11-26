@@ -2,6 +2,78 @@
 
 Comprehensive testing checklist before marketplace release.
 
+## Codex discovery and MCP session state
+
+Activate a Python 3.11+ venv with the plugin requirements installed. On
+macOS, Linux, or WSL, use `make venv` and `source .venv/bin/activate`. The
+discovery probe uses `~/.bitwize-music/venv` if it exists, so install the
+requirements there as well.
+
+```bash
+npm ci --prefix tests/e2e/codex --no-audit --no-fund
+python3 tests/e2e/codex_plugin_discovery_check.py --codex tests/e2e/codex/node_modules/.bin/codex
+python3 tests/e2e/codex_session_resume_check.py --codex tests/e2e/codex/node_modules/.bin/codex --venv .venv
+```
+
+On Windows, activate `.venv\Scripts\activate.bat` (cmd) or
+`.venv\Scripts\Activate.ps1` (PowerShell). Use `python` and append `.cmd` to
+the Codex executable path above.
+
+The session probe uses temporary `HOME` and `CODEX_HOME` directories and a
+music workspace outside the plugin. It links the dependency venv into
+`HOME` using a directory junction on Windows.
+
+Both probes should exit 0. The discovery probe checks the canonical skill
+list and starts MCP from the installed copy. The session probe checks that the
+installed copy contains the workflow reference files. It exercises the MCP
+startup queries, album lookup and progress, and session persistence. It compares
+the synthetic album and track files before and after the checks. CI runs both
+probes on Linux and Windows without model turns.
+
+### Manual conversational acceptance
+
+Use a temporary `HOME` and `CODEX_HOME` (`USERPROFILE` too on Windows).
+Install the plugin there and use a music workspace outside the plugin.
+Sign in with a dedicated test account in that Codex home. Start a fresh Codex
+session so the MCP server starts in the same environment.
+
+1. Start with no config. Invoke `setup` to check dependencies, then
+   `configure setup` with no settings. Confirm it asks for the required
+   fields and waits for your answers before creating the config file.
+   On native Windows, check the displayed PowerShell installation commands
+   with a plugin installed under a path that contains spaces.
+2. Provide an artist and content, audio, documents, and overrides paths. Use a
+   path containing spaces and an overrides directory outside the content root.
+   Check that the YAML preserves the values and the artist's casing. Change
+   only the audio path with `configure edit` and compare the other fields.
+3. Put instructions for different status-report markers in the configured
+   overrides `CLAUDE.md` and in the music workspace's `CLAUDE.md`. Invoke
+   `session-start` in a fresh session without mentioning either marker.
+   Check that it reads the installed `reference/plugin-rules.md`, calls
+   `health_check(runtime="codex")` and the Step 4 MCP queries, and shows only
+   the configured marker. Repeat with the overrides directory absent and confirm
+   startup continues.
+4. Create two synthetic albums. Give the first `Research Complete` status and
+   a track awaiting source verification. Give the second `In Progress` status
+   and more completed tracks. Invoke `resume` for the first album by name in
+   a fresh session and confirm the configured override file is read before album
+   lookup. In another fresh session, invoke `resume` without a name. Check that it uses
+   `get_session().session.last_album` and recommends the `verify-sources`
+   skill for the first album.
+   Check that `~/.bitwize-music/cache/state.json` records the first album as
+   `last_album`, `Verification` as `last_phase`, and a fresh `updated_at`.
+5. Disconnect the plugin's MCP server and invoke `session-start`. Check that
+   it reports state from the cache and defers migration checks. Resume the
+   first album by name and then from saved context in separate sessions. Each
+   run should report the verification step and leave the saved context intact.
+   A recommendation can name the skill. If it includes a command, expect
+   `$bitwize-music:verify-sources`.
+   With no config, check that the skill recommends `configure`. For an unknown
+   album, check that it reports the lookup failure and leaves saved context intact.
+6. Verify album and track files have the same contents after startup and
+   resume. Record the commit, host, CLI and model settings, and observed tool
+   results.
+
 ---
 
 ## Prerequisites

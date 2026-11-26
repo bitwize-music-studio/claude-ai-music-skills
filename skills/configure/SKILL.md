@@ -14,6 +14,11 @@ allowed-tools:
 
 ## Your Task
 
+In Codex, read the [shared runtime rules](../../reference/runtime-compatibility.md)
+from this skill's path. Use the arguments in the request. Ask for missing
+settings through the host's question tool or in chat, then wait for the answers
+before writing the config.
+
 **Input**: $ARGUMENTS
 
 Route based on argument:

@@ -9,6 +9,10 @@ allowed-tools:
 
 Base directory for this skill: ${CLAUDE_PLUGIN_BASE_DIR}
 
+In Codex, read the [shared runtime rules](../../reference/runtime-compatibility.md)
+from this skill's path and use the resolved plugin root in the commands below.
+Claude Code supplies `CLAUDE_PLUGIN_ROOT`.
+
 ## Your Task
 
 Guide the user through installing bitwize-music plugin dependencies based on their Python environment and requested components.
@@ -23,7 +27,8 @@ You help users install and verify plugin dependencies.
 
 ## Step 1: Detect Environment
 
-**Run these checks in parallel:**
+Run the environment checks in parallel. On native Windows, check the Python
+version with `py -3 --version` and use PowerShell for the environment checks.
 
 ```bash
 # Python version
@@ -62,15 +67,15 @@ if [ -f "$VENV_PYTHON" ]; then
     # Check each component in the venv
     # 2.x serves MCPServer from mcp.server.mcpserver, 1.x serves FastMCP from
     # mcp.server.fastmcp; the server takes either, so probe both (#537).
-    $VENV_PYTHON -c "import mcp.server.mcpserver" 2>/dev/null || $VENV_PYTHON -c "import mcp.server.fastmcp" 2>/dev/null && echo "✅ mcp installed" || echo "❌ mcp not installed (need mcp[cli]>=1.28.1,<3)"
-    $VENV_PYTHON -c "import matchering; print('✅ matchering installed')" 2>&1 || echo "❌ matchering not installed"
-    $VENV_PYTHON -c "import boto3; print('✅ boto3 installed')" 2>&1 || echo "❌ boto3 not installed"
-    $VENV_PYTHON -c "from playwright.sync_api import sync_playwright; print('✅ playwright installed')" 2>&1 || echo "❌ playwright not installed"
+    "$VENV_PYTHON" -c "import mcp.server.mcpserver" 2>/dev/null || "$VENV_PYTHON" -c "import mcp.server.fastmcp" 2>/dev/null && echo "✅ mcp installed" || echo "❌ mcp not installed (need mcp[cli]>=1.28.1,<3)"
+    "$VENV_PYTHON" -c "import matchering; print('✅ matchering installed')" 2>&1 || echo "❌ matchering not installed"
+    "$VENV_PYTHON" -c "import boto3; print('✅ boto3 installed')" 2>&1 || echo "❌ boto3 not installed"
+    "$VENV_PYTHON" -c "from playwright.sync_api import sync_playwright; print('✅ playwright installed')" 2>&1 || echo "❌ playwright not installed"
 
     # Check for version drift against requirements.txt
-    $VENV_PYTHON -c "
-import importlib.metadata, pathlib
-reqs = pathlib.Path('${CLAUDE_PLUGIN_ROOT}/requirements.txt').read_text()
+    "$VENV_PYTHON" -c "
+import importlib.metadata, pathlib, sys
+reqs = pathlib.Path(sys.argv[1]).read_text(encoding='utf-8')
 stale = []
 for line in reqs.splitlines():
     line = line.split('#')[0].strip()
@@ -89,11 +94,9 @@ if stale:
     print('\n'.join(stale))
 else:
     print('✅ All package versions match requirements.txt')
-" 2>&1
+" "${CLAUDE_PLUGIN_ROOT}/requirements.txt" 2>&1
 else
     echo "❌ Venv not found at ~/.bitwize-music/venv"
-    echo "   Run: python3 -m venv ~/.bitwize-music/venv   # macOS/Linux/WSL"
-    echo "   Or:  py -3 -m venv ~/.bitwize-music/venv      # Windows"
 fi
 ```
 
@@ -103,30 +106,27 @@ All components are installed together in the venv via requirements.txt.
 
 ## Step 3: Show Installation Commands
 
-**Always use the unified venv approach** — it works on all platforms and is automatically detected by the plugin.
+Use the shared venv and show the commands for the user's shell. In Codex,
+pass the quoted absolute path to `requirements.txt` with `-r`.
+
+**macOS, Linux, and WSL**
 
 ```bash
-# Create unified venv (if it doesn't exist)
-python3 -m venv ~/.bitwize-music/venv                                                    # macOS/Linux/WSL
-py -3 -m venv ~/.bitwize-music/venv                                                       # Windows (native)
-
-# Install ALL plugin dependencies
-~/.bitwize-music/venv/bin/pip install -r ${CLAUDE_PLUGIN_ROOT}/requirements.txt                     # macOS/Linux/WSL
-~/.bitwize-music/venv/Scripts/python.exe -m pip install -r ${CLAUDE_PLUGIN_ROOT}/requirements.txt   # Windows (native)
-
-# Set up document hunter browser
-~/.bitwize-music/venv/bin/playwright install chromium                                     # macOS/Linux/WSL
-~/.bitwize-music/venv/Scripts/playwright.exe install chromium                             # Windows (native)
+python3 -m venv "$HOME/.bitwize-music/venv"
+"$HOME/.bitwize-music/venv/bin/python3" -m pip install -r "${CLAUDE_PLUGIN_ROOT}/requirements.txt"
+"$HOME/.bitwize-music/venv/bin/python3" -m playwright install chromium
 ```
 
-**That's it!** The plugin automatically detects and uses the platform venv (`~/.bitwize-music/venv` on macOS/Linux/WSL, `%USERPROFILE%\.bitwize-music\venv` on native Windows). No configuration needed.
+**Windows PowerShell**
 
-**Works on:**
-- ✅ Linux (externally-managed Python)
-- ✅ macOS
-- ✅ Windows (native — Core tier, best-effort; audio tooling needs WSL2)
-- ✅ Windows (WSL)
-- ✅ All other systems
+```powershell
+py -3 -m venv "$env:USERPROFILE\.bitwize-music\venv"
+& "$env:USERPROFILE\.bitwize-music\venv\Scripts\python.exe" -m pip install -r "$env:CLAUDE_PLUGIN_ROOT\requirements.txt"
+& "$env:USERPROFILE\.bitwize-music\venv\Scripts\python.exe" -m playwright install chromium
+```
+
+The plugin automatically detects the venv in `~/.bitwize-music/venv` or
+`%USERPROFILE%\.bitwize-music\venv` on native Windows.
 
 ---
 
@@ -134,13 +134,22 @@ py -3 -m venv ~/.bitwize-music/venv                                             
 
 Neither is needed for the plugin to work. Mention them once, after the required components are sorted.
 
-**Suno MCP server** — lets `/bitwize-music:generate`, `/bitwize-music:listen` and `/bitwize-music:import-audio --from-suno` reach the user's Suno account. Check the `suno` section of the `health_check` result first: `configured` means it is already registered (say so, with its name and scope, and skip the command); `missing` means it is not:
+The **Suno MCP server** connects `/bitwize-music:generate`,
+`/bitwize-music:listen`, and `/bitwize-music:import-audio --from-suno` to the
+user's Suno account. In Claude Code, read the `suno` section of `health_check()`
+when available. If a server is configured, show its name and scope. To add
+a missing server, show this command.
 
 ```bash
 claude mcp add --transport http suno https://api.suno.com/mcp
 ```
 
 Then `/mcp` in a session to sign in. `--scope user` on the command makes it available in every project, not only this one. The plugin does not ship this server; without it those skills fall back to the clipboard flow, and session start shows these instructions until it is added (`generation.suno_mcp_reminder: false` in the config hides them).
+
+In Codex, check the current session's MCP settings or run `codex mcp list` from
+the music workspace using the same profile. If a Suno server is registered,
+show its name. Otherwise, link to
+[Suno's setup instructions](https://help.suno.com/en/articles/14551425).
 
 **Audio player** — lets `/bitwize-music:listen` play audio in the terminal. Any one of `mpv` (recommended), `ffplay` (part of ffmpeg) or macOS's built-in `afplay`:
 
@@ -159,20 +168,11 @@ Present a clear, simple installation guide:
 
 1. **Environment detected**: [Python version, Platform]
 2. **Missing components**: [list what needs to be installed]
-3. **Installation commands**:
-   ```bash
-   python3 -m venv ~/.bitwize-music/venv                                                  # macOS/Linux/WSL
-   ~/.bitwize-music/venv/bin/pip install -r ${CLAUDE_PLUGIN_ROOT}/requirements.txt         # macOS/Linux/WSL
-   ~/.bitwize-music/venv/bin/playwright install chromium                                   # macOS/Linux/WSL
-
-   py -3 -m venv ~/.bitwize-music/venv                                                               # Windows (native)
-   ~/.bitwize-music/venv/Scripts/python.exe -m pip install -r ${CLAUDE_PLUGIN_ROOT}/requirements.txt # Windows (native)
-   ~/.bitwize-music/venv/Scripts/playwright.exe install chromium                                     # Windows (native)
-   ```
+3. **Installation commands**: Show the matching commands from Step 3 with the installed requirements path.
 4. **After installation**:
-   - Restart Claude Code to reload the plugin
-   - MCP server should show as running in `/plugin` status
-   - Run `/bitwize-music:setup` again to verify
+   - Start a new session in the active host to reconnect MCP
+   - In Claude Code, check `/plugin` status; in Codex, check the plugin's MCP connection
+   - Invoke the installed `setup` skill again to verify, using the host's skill syntax
 
 ---
 
@@ -208,25 +208,13 @@ Use clear sections with checkboxes for status:
 
 ### Installation
 
-Run these commands to install all plugin dependencies (macOS/Linux/WSL shown; see Step 3 for the Windows native `py -3` / `Scripts\` equivalents):
-
-```bash
-# Create unified venv
-python3 -m venv ~/.bitwize-music/venv
-
-# Install ALL dependencies
-~/.bitwize-music/venv/bin/pip install -r ${CLAUDE_PLUGIN_ROOT}/requirements.txt
-
-# Set up browser
-~/.bitwize-music/venv/bin/playwright install chromium
-```
+[Copyable Step 3 commands for the user's shell]
 
 **After installation:**
-1. Restart Claude Code
-2. All components will work automatically
-3. Run `/bitwize-music:setup` to verify
+1. Start a new session in the active host
+2. Check the plugin's MCP connection
+3. Invoke the installed `setup` skill again to verify
 
-The plugin automatically detects `~/.bitwize-music/venv` — everything just works!
 ```
 
 ---
