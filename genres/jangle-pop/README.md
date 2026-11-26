@@ -48,6 +48,7 @@ The genre's direct commercial peak was brief — by the late 1980s, R.E.M. had e
 | Big Star | *#1 Record* (1972), *Radio City* (1974) | 1971-1974 | Power-pop jangle bridge between 1960s originals and 1980s revival |
 | The Go-Betweens | *Before Hollywood* (1983), *16 Lovers Lane* (1988) | 1977-1989, 2000-2006 | Australian literary jangle pop; Robert Forster and Grant McLennan's songwriting |
 | The Church | *Starfish* (1988), *The Blurred Crusade* (1982) | 1980-present | Australian psychedelic jangle; Marty Willson-Piper's layered guitars |
+| Miracle Legion | *The Backyard* (1984), *Surprise Surprise Surprise* (1987), *Me and Mr. Ray* (1989), *Drenched* (1992) | 1983-1996, 2016-2017, 2024 | [Deep Dive](artists/miracle-legion.md) New Haven college jangle; Ray Neal's chiming arpeggios and Mark Mulcahy's fragile tenor; story songs about childhood and loss; cited by Thom Yorke as a major influence |
 | Teenage Fanclub | *Bandwagonesque* (1991), *Grand Prix* (1995) | 1989-present | Scottish power-jangle; Big Star-influenced harmonies and melody |
 | The La's | *The La's* (1990) | 1983-present | Liverpool jangle pop; "There She Goes" became an enduring classic |
 | Gin Blossoms | *New Miserable Experience* (1992) | 1987-1997, 2001-present | Radio-friendly jangle with alt-rock production; Doug Hopkins's bittersweet songwriting |

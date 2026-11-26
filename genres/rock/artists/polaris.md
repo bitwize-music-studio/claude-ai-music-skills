@@ -2,9 +2,9 @@
 
 ## Overview
 
-Polaris was an American indie rock band formed as a one-off project in the early 1990s, created specifically to write and perform original music for the Nickelodeon television series *The Adventures of Pete & Pete* (1993-1996). The band consisted of three of the four members of the New Haven, Connecticut indie rock band Miracle Legion: frontman Mark Mulcahy, bassist Dave McCaffrey, and drummer Scott Boutier. Guitarist Ray Neal, the fourth Miracle Legion member, opted out of the television project due to disillusionment with the music industry following legal battles with their label Morgan Creek Records, and because he had recently married.
+Polaris was an American indie rock band formed as a one-off project in the early 1990s, created specifically to write and perform original music for the Nickelodeon television series *The Adventures of Pete & Pete* (1993-1996). The band consisted of three of the four members of the New Haven, Connecticut indie rock band Miracle Legion: frontman Mark Mulcahy, bassist Dave McCaffrey, and drummer Scott Boutier. Guitarist Ray Neal, the fourth Miracle Legion member, opted out of the television project: after the band's legal battles with their label Morgan Creek Records, he was fed up with the music industry.
 
-Show creators Will McRobb and Chris Viscardi were fans of Miracle Legion and approached the band directly to write original music for their show. What resulted was one of the most unlikely and enduring marriages of indie rock credibility and children's television in history. Polaris wrote genuinely excellent jangle pop that happened to soundtrack a kids' show -- not dumbed-down music aimed at children, but real, emotionally complex indie rock that resonated with young viewers and grew with them into adulthood.
+Show creators Will McRobb and Chris Viscardi were fans of Miracle Legion and approached the band directly to write original music for their show. McRobb later said "Everything that Pete & Pete became was because of Miracle Legion", and of Miracle Legion's 1984 song "The Backyard": "That song kind of inspired the whole series" (HuffPost, 2010). What resulted was one of the most unlikely and enduring marriages of indie rock credibility and children's television in history. Polaris wrote genuinely excellent jangle pop that happened to soundtrack a kids' show -- not dumbed-down music aimed at children, but real, emotionally complex indie rock that resonated with young viewers and grew with them into adulthood.
 
 The band adopted "TV names" for their on-screen personas: Mulcahy was "Muggy," Boutier was "Jersey," and McCaffrey was "Harris Polaris." They described themselves as "that band that lives in your TV" and appeared in the show's opening credits performing on the Wrigley family's front lawn, as well as featuring prominently in the Season 1 episode "A Hard Day's Pete."
 
@@ -41,7 +41,7 @@ Polaris existed in a strange liminal space -- a "fictional" band played by very 
 
 ## Miracle Legion: The Origin Story
 
-Understanding Polaris requires understanding Miracle Legion, the band from which it sprang.
+Understanding Polaris requires understanding Miracle Legion, the band from which it sprang. This is a summary; the full history is in [Miracle Legion — Deep Dive](../../jangle-pop/artists/miracle-legion.md).
 
 ### Formation and Early Years (1983-1988)
 
@@ -55,7 +55,7 @@ In 1988, the rhythm section departed, leaving Mulcahy and Neal as a duo. They to
 
 ### New Rhythm Section and Label Troubles (1991-1993)
 
-Mulcahy and Neal recruited drummer Scott Boutier and bassist Dave McCaffrey as a new rhythm section and signed with Morgan Creek Records. They recorded *Drenched* (1992), produced by John Porter (known for his work with Roxy Music and The Smiths), featuring guest spots from Ian McLagan (Faces) on organ and piano. The album led to appearances on MTV and *The Late Show with David Letterman*.
+Mulcahy and Neal recruited drummer Scott Boutier and bassist Dave McCaffrey as a new rhythm section and signed with Morgan Creek Records. They recorded *Drenched* (1992), produced by John Porter (known for his work with Roxy Music and The Smiths), featuring guest spots from Ian McLagan (Faces) on organ and piano. The album led to appearances on MTV and *Late Night with David Letterman* (3 March 1992).
 
 However, Morgan Creek Records effectively collapsed, leaving *Drenched* stranded without promotion and the band mired in legal issues. This label disaster was the direct catalyst for the Polaris project: when Nickelodeon came calling, Ray Neal -- burned by the industry -- declined to participate. The remaining trio moved forward under a new name.
 
@@ -63,7 +63,7 @@ However, Morgan Creek Records effectively collapsed, leaving *Drenched* stranded
 
 | Album | Year | Label | Notes |
 |-------|------|-------|-------|
-| *The Backyard* (EP) | 1984 | Self-released | Six-song debut EP |
+| *The Backyard* (EP) | 1984 | Incas Records | Six-song debut EP; UK release on Making Waves (1985) |
 | *Surprise Surprise Surprise* | 1987 | Rough Trade | First LP; cited by Thom Yorke as antecedent to *OK Computer* |
 | *Glad* | 1988 | Rough Trade | New songs and live tracks; Pere Ubu guest appearance |
 | *Me and Mr. Ray* | 1989 | Rough Trade | Duo album (Mulcahy + Neal); recorded at Paisley Park Studios |
@@ -226,7 +226,7 @@ harmonica and guitar, trumpet accent indie pop,
 New Wave synth accents, sleigh bells indie pop,
 stripped-back indie rock, concise pop songs, hook-driven jangle,
 dreamy indie rock, hazy jangle pop, sun-dappled indie,
-R.E.M. influenced, college rock jangle, Rough Trade sound
+80s college radio jangle, college rock jangle, Rough Trade sound
 ```
 
 ---
