@@ -44,7 +44,7 @@ After a quieter period in the 1970s and 1980s, baroque pop resurfaced through in
 | The Beatles | Classic / Psychedelic Baroque | *Sgt. Pepper's* (1967), *Revolver* (1966), *Abbey Road* (1969) | George Martin's orchestral arrangements; studio innovation |
 | The Zombies | Classic Baroque Pop | *Odessey and Oracle* (1968), *Begin Here* (1965) | Mellotron, lush harmonies, and Rod Argent's keyboards |
 | The Left Banke | Classic Baroque Pop | *Walk Away Renee/Pretty Ballerina* (1967) | Pioneering baroque pop; string arrangements in pop context |
-| Sufjan Stevens | Chamber Baroque | *Illinois* (2005), *Carrie & Lowell* (2015), *The Age of Adz* (2010) | Epic orchestral indie; deeply personal narratives |
+| Sufjan Stevens | Chamber Baroque | *Illinois* (2005), *Carrie & Lowell* (2015), *The Age of Adz* (2010) | Epic orchestral indie; deeply personal narratives [Deep Dive](../folk/artists/sufjan-stevens.md) |
 | Fleet Foxes | Orchestral Indie | *Fleet Foxes* (2008), *Helplessness Blues* (2011), *Shore* (2020) | Lush vocal harmonies; pastoral baroque-folk fusion |
 | Arcade Fire | Orchestral Indie | *Funeral* (2004), *The Suburbs* (2010), *Neon Bible* (2007) | Large ensemble rock with orchestral ambition |
 | Weyes Blood | Cinematic Baroque Pop | *Titanic Rising* (2019), *And in the Darkness, Hearts Aglow* (2022) | 1970s-inflected cinematic pop; Natalie Mering's voice |
@@ -91,7 +91,7 @@ nostalgic, celebratory, melancholic, lush
 
 - **The Left Banke - "Walk Away Renee"** (1966) — The first self-consciously baroque pop single. Michael Brown's harpsichord and string arrangement over a heartbroken love song defined a genre in three minutes.
 
-- **Sufjan Stevens - "Chicago"** (2005) — Modern baroque pop's anthem. Horns, strings, banjo, and choir build from intimate confession to euphoric declaration. Proves baroque pop can be contemporary and deeply personal.
+- **Sufjan Stevens - "Chicago"** (2005) — Modern baroque pop's anthem. Trumpet, strings, vibraphone, Wurlitzer and choir build from intimate confession to euphoric declaration. Proves baroque pop can be contemporary and deeply personal.
 
 - **Fleet Foxes - "Helplessness Blues"** (2011) — Folk-baroque fusion with layered vocal harmonies and orchestral swells. Robin Pecknold's existential lyrics matched by arrangements that build from solo voice to full ensemble.
 

@@ -10,6 +10,7 @@ members, discography, or musical analysis.
 |--------|-------|----------------|
 | FM-84 | Vocal synthwave, dreamwave, retrowave, synth-pop | [Full Deep Dive](fm-84.md) |
 | GUNSHIP | Cinematic synthwave, vocal synthwave, rock-influenced synthwave, darkwave | [Full Deep Dive](gunship.md) |
+| Kavinsky | Outrun, retro electro, French electro house, cinematic synthwave | [Full Deep Dive](kavinsky.md) |
 | The Midnight | Vocal synthwave, sax-driven, indie-folk-influenced, romantic retrowave | [Full Deep Dive](the-midnight.md) |
 | Timecop1983 | Dreamwave, chillsynth, nostalgic synthwave | [Full Deep Dive](timecop1983.md) |
 
@@ -46,6 +47,21 @@ neon-noir, cyberpunk nostalgia, 80s horror aesthetic, retro-futuristic,
 cinematic tension and release, dramatic builds, epic synthwave climax,
 synthwave with rock guitar, darksynth with vocals, cinematic darkwave,
 gothic synthwave, haunted synth-pop, dark electronic with live drums
+```
+
+### Kavinsky
+```
+synthwave, outrun, retro electro, French electro house, 80s action movie score,
+80s cop show theme, arcade game nostalgia, night drive, neon city at night,
+dark brooding electro, minor key, cinematic, menacing and cool, lonely and nocturnal,
+pulsing synth bass sequence, driving arpeggios, dark synth pads, bright synth lead,
+house beat, electro drums, punchy kick, heavy compression, loud dense mix,
+screaming rock guitar solo, hair-metal guitar lead, wailing guitar over synths,
+vocoded male vocal, robotic processed vocal, distorted zombie-like vocal,
+clear female chorus vocal, male-female duet, contrast of robotic and human voices,
+rap verse over dark synths, spoken-word prologue,
+TR-808 drums, polysynth pads, live saxophone solo, live strings, electro-funk groove,
+lush and soft, slow night drive, mid-tempo 105-125 BPM
 ```
 
 ### The Midnight
@@ -92,6 +108,16 @@ night drive atmosphere, late-night electronic, sunset synthwave
 - "Tech Noir 2" (feat. John Carpenter & Charlie Simpson) (Tech Noir Timelines EP, 2025) — Sequel with returning collaborators; claymation by Lee Hardcastle
 - "Black Blood Red Kiss" (feat. Kat Von D) (Dark All Day, 2018) — Gothic vocal; haunting and seductive darkwave
 - "The Drone Racing League" (Dark All Day, 2018) — Cyberpunk instrumental energy; released as glow-in-the-dark 7" vinyl
+
+### Kavinsky
+- "Testarossa Autodrive" (2005) — The fast original retro electro
+- "Nightcall" (2010) — Vocoded verses, female chorus, A minor at ~91 BPM; the signature
+- "Roadgame" (2013) — Night-drive instrumental
+- "ProtoVision" (2013) — Driving synths and guitar
+- "Blizzard" (2013) — Synths with a wailing guitar lead
+- "Odd Look" (2013) — Moody mid-tempo vocal track
+- "Zenith" (2022) — Electro-funk duet; the "Nightcall" sequel
+- "Cameo" (2022) — The electro-funk centrepiece
 
 ### The Midnight
 - "Sunset" (Endless Summer, 2016) — Signature track; warm synths, gentle sax, earnest vocals, melancholy meets optimism

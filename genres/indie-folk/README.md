@@ -92,7 +92,7 @@ nature imagery, pastoral, Pacific Northwest, woodland, starlit
 
 - **Gregory Alan Isakov - "If I Go, I'm Goin"** — Starlit atmospheric production; fingerpicked guitar under yearning vocals; the sound of looking up at night sky and feeling small; Colorado pastoral indie folk
 
-- **Sufjan Stevens - "Chicago"** — From *Illinois*; orchestral indie folk at its most ambitious; banjo, horns, strings, and hope building to transcendent release; "I made a lot of mistakes" as liberating confession
+- **Sufjan Stevens - "Chicago"** — From *Illinois*; orchestral indie folk at its most ambitious; trumpet, strings, vibraphone, choir and hope building to transcendent release; "I made a lot of mistakes" as liberating confession
 
 - **Phoebe Bridgers - "Motion Sickness"** — Modern confessional songwriting with teeth; layers acoustic intimacy with rock dynamics; "I hate you for what you did, and I miss you like a little kid" as millennial emotional precision
 

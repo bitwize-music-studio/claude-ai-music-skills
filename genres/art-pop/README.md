@@ -47,7 +47,7 @@ Art pop remains one of the most vital and diverse genres in contemporary music. 
 | Roxy Music | *For Your Pleasure* (1973), *Roxy Music* (1972), *Avalon* (1982) | 1971-1983 | Pop art theory, glamorous art rock, Brian Eno's early electronics |
 | Kate Bush | *Hounds of Love* (1985), *The Dreaming* (1982), *Aerial* (2005) | 1978-2011 | Literary art pop, Fairlight sampling, theatrical vocal performance |
 | Bjork | *Homogenic* (1997), *Vespertine* (2001), *Post* (1995) | 1993-present | Electronic art pop, orchestral experimentation, primal vocal expression |
-| Talk Talk | *Spirit of Eden* (1988), *Laughing Stock* (1991), *The Colour of Spring* (1986) | 1981-1991 | Impressionistic art pop, improvisation-based recording, post-rock pioneer |
+| Talk Talk | *Spirit of Eden* (1988), *Laughing Stock* (1991), *The Colour of Spring* (1986) | 1981-1991 | Impressionistic art pop, improvisation-based recording, post-rock pioneer [Deep Dive](artists/talk-talk.md) |
 | Peter Gabriel | *So* (1986), *Peter Gabriel III (Melt)* (1980), *Us* (1992) | 1977-present | World music fusion, digital innovation, cinematic art pop |
 | St. Vincent | *Strange Mercy* (2011), *St. Vincent* (2014), *Masseduction* (2017) | 2007-present | Indie art pop, angular guitar, conceptual albums |
 | Scott Walker | *Scott 3* (1969), *The Drift* (2006), *Bish Bosch* (2012) | 1965-2019 | Chamber art pop (early), extreme avant-garde (late) |
@@ -80,7 +80,7 @@ conceptual, avant-garde, eclectic, cinematic, 1970s art rock, modern art pop
 
 - **Bjork - "Joga"** (1997) — Strings, beats, and tectonic-plate vocal delivery create an art-pop track about friendship that sounds like landscapes colliding. Mark Bell's electronic production and Eumir Deodato's orchestral arrangement represent the genre's capacity for sonic grandeur.
 
-- **Talk Talk - "I Believe in You"** (1988) — From *Spirit of Eden*, built from hours of group improvisation edited into six minutes of hushed, intensely emotional art pop. Organ, harmonica, and Mark Hollis's whispered vocal emerge from silence. Anti-commercial art pop at its most beautiful.
+- **Talk Talk - "I Believe in You"** (1988) — From *Spirit of Eden*, made the way the whole album was: musicians improvising over basic tracks, often one at a time, with months of takes edited down, here into six minutes of hushed, intensely emotional art pop. Mark Hollis's fragile vocal emerges from near-silence. Anti-commercial art pop at its most beautiful.
 
 - **Peter Gabriel - "Sledgehammer"** (1986) — Art pop meets funk and soul with a horn section, Synclavier programming, and Gabriel's full-throated vocal. The accompanying stop-motion video was equally groundbreaking. Proof that art pop can dominate mainstream charts without compromise.
 

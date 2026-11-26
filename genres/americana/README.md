@@ -42,7 +42,7 @@ Contemporary Americana has evolved into a remarkably diverse tent. At one end st
 
 | Artist | Key Albums | Era | Style Focus |
 |--------|-----------|-----|-------------|
-| Jason Isbell | *Southeastern*, *Something More Than Free*, *The Nashville Sound* | 2007-present | Alt-country, roots rock; literary storytelling; Drive-By Truckers alumnus turned solo star |
+| Jason Isbell | *Southeastern*, *Something More Than Free*, *The Nashville Sound* | 2007-present (solo; Drive-By Truckers 2001-2007) | Alt-country, roots rock; literary storytelling; Drive-By Truckers alumnus turned solo star [Deep Dive](artists/jason-isbell.md) |
 | Sturgill Simpson | *Metamodern Sounds in Country Music*, *A Sailor's Guide to Earth* | 2013-present | Outlaw revival, psychedelic country; genre-defiant experimentation; raw authenticity |
 | Tyler Childers | *Purgatory*, *Long Violent History* | 2017-present | Appalachian country; Kentucky roots; raw emotional honesty; Sturgill Simpson protege |
 | Lucinda Williams | *Car Wheels on a Gravel Road*, *World Without Tears* | 1988-present | Country-blues, roots rock; raspy vocals; literary Southern narratives |
@@ -72,7 +72,7 @@ conversational vocals, Americana traditional
 
 ## Reference Tracks
 
-- **Jason Isbell - "Elephant"** — Definitive modern Americana: fingerpicked acoustic guitar builds to full band; conversational vocals tell a devastating story of watching someone die from cancer; literary precision meets emotional honesty; from *Southeastern*, the album that established Isbell as his generation's finest roots songwriter
+- **Jason Isbell - "Elephant"** — Definitive modern Americana: just Isbell and his acoustic guitar, with a touch of Derry deBorja's keys; plain-spoken vocals tell a devastating story of watching someone die from cancer; literary precision meets emotional honesty; from *Southeastern*, the album that established Isbell as his generation's finest roots songwriter
 
 - **Sturgill Simpson - "Turtles All the Way Down"** — Psychedelic outlaw country: opens *Metamodern Sounds in Country Music* with lysergic philosophical musings over traditional country instrumentation; rejects Nashville polish for cosmic exploration; baritone vocal delivery channels Waylon Jennings through a kaleidoscope
 
