@@ -43,7 +43,7 @@ Today, synthwave has matured into a diverse ecosystem with distinct regional sce
 
 | Artist | Notable Works | Subgenre Focus | Era |
 |--------|---------------|----------------|-----|
-| Kavinsky | *OutRun* (2013), "Nightcall" single (2010) | Outrun, cinematic | 2006-present | French producer who defined modern synthwave; Drive soundtrack placement made him genre ambassador; sparse but iconic discography |
+| Kavinsky | *OutRun* (2013), "Nightcall" single (2010), *Reborn* (2022) | Outrun, cinematic | 2005-2026 | French producer Vincent Belorgey (1975-2026), one of synthwave's first artists; the *Drive* soundtrack brought him and the genre a mainstream audience; sparse but iconic discography [Deep Dive](artists/kavinsky.md) |
 | Perturbator | *Dangerous Days* (2014), *The Uncanny Valley* (2016), *Lustful Sacraments* (2021) | Darksynth, cyberpunk | 2012-present | James Kent's project pushed synthwave into aggressive territory; horror-film atmosphere, industrial intensity; genre's dark conscience |
 | Carpenter Brut | *Trilogy* (2015), *Leather Teeth* (2018), *Leather Terror* (2022) | Darksynth, metal-influenced | 2012-present | French producer blending synthwave with thrash metal energy; live shows feature full rock band; concept albums exploring B-movie horror |
 | The Midnight | *Days of Thunder* (2016), *Endless Summer* (2016), *Monsters* (2020) | Vocal synthwave, retrowave | 2014-present | Tyler Lyle and Tim McEwan's duo brought pop songwriting to synthwave; saxophone hooks, emotional lyrics; romantic nostalgia. [Deep Dive](artists/the-midnight.md) |
@@ -79,7 +79,7 @@ epic buildup, synth solo, melodic hook, memorable melody
 
 ## Reference Tracks
 
-- **Kavinsky - "Nightcall"** — The quintessential synthwave anthem that launched a thousand imitators. Featured in Drive (2011), the track combines a pulsing bass line, filtered vocals (by Lovefoxxx of CSS), and vast reverb spaces. Sparse arrangement demonstrates synthwave's "less is more" philosophy: simple elements given room to breathe create maximum impact. The vocoder verses contrasting with breathy human chorus became a genre template.
+- **Kavinsky - "Nightcall"** — The quintessential synthwave anthem that launched a thousand imitators. Featured in Drive (2011), the track combines a pulsing bass line, Kavinsky's own heavily processed verse vocals against a clear chorus sung by Lovefoxxx of CSS, and vast reverb spaces. Sparse arrangement demonstrates synthwave's "less is more" philosophy: simple elements given room to breathe create maximum impact. The vocoded verses contrasting with a smooth human chorus became a genre template.
 
 - **Carpenter Brut - "Turbo Killer"** — Darksynth's defining statement. Aggressive synth stabs, industrial-influenced drums, and horror-film tension build to euphoric release. The accompanying music video by Seth Ickerman became a cult classic, demonstrating synthwave's visual culture. Shows how the genre can incorporate metal intensity while maintaining electronic core.
 

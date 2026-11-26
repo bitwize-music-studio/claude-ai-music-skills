@@ -54,7 +54,7 @@ Contemporary folk spans a vast spectrum: from traditionalists preserving centuri
 | Iron & Wine | Contemporary/Indie Folk | *The Creek Drank the Cradle*, *Our Endless Numbered Days* | Intimate whispered vocals; fingerpicked acoustic; lo-fi warmth | |
 | Bon Iver | Contemporary Folk | *For Emma, Forever Ago*, *22, A Million* | Cabin isolation origin story; falsetto vocals; experimental evolution | |
 | Phoebe Bridgers | Singer-Songwriter | *Stranger in the Alps*, *Punisher* | Millennial melancholy; ghostly vocals; confessional vulnerability | |
-| Sufjan Stevens | Contemporary/Indie Folk | *Illinois*, *Carrie & Lowell* | Ambitious conceptual albums; orchestral folk; deeply personal grief | |
+| Sufjan Stevens | Contemporary/Indie Folk | *Illinois*, *Carrie & Lowell* | Ambitious conceptual albums; orchestral folk; deeply personal grief | [Keywords](artists/INDEX.md#sufjan-stevens) · [Deep Dive](artists/sufjan-stevens.md) |
 | The Decemberists | Literary Folk | *Picaresque*, *The Crane Wife* | Narrative epics; literary references; theatrical arrangements; sea shanties | |
 | Richard Thompson | British Folk-Rock | *Shoot Out the Lights*, *Rumor and Sigh* | Virtuosic guitar; dark songwriting; Fairport Convention founder | |
 | Joan Baez | Traditional/Protest | *Joan Baez*, *Diamonds & Rust* | Soprano clarity; civil rights activism; Dylan collaborator; traditional interpreter | |
@@ -106,4 +106,4 @@ vocal harmonies, close harmonies, traditional ballad, narrative folk
 
 - **Fairport Convention - "Who Knows Where the Time Goes"** — Sandy Denny's definitive vocal; British electric folk; meditation on mortality
 
-- **Sufjan Stevens - "Fourth of July"** — From *Carrie & Lowell*; grief rendered in spare piano and guitar; devastating intimacy about mother's death
+- **Sufjan Stevens - "Fourth of July"** — From *Carrie & Lowell*; grief rendered in spare piano, a drone and tape hiss; devastating intimacy about his mother's death

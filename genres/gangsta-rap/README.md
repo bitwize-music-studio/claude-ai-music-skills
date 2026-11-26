@@ -50,6 +50,7 @@ Gangsta rap's influence extends far beyond its controversial peak. 50 Cent's *Ge
 | Scarface | Reality rap | *The Diary*, *The Fix* | Southern gangsta storytelling; emotional honesty; Geto Boys legacy |
 | The Game | West Coast gangsta | *The Documentary*, *Doctor's Advocate* | Reference-heavy lyricism; Compton loyalty; maintained West Coast gangsta tradition |
 | Freddie Gibbs | Modern street | *Pinata*, *Alfredo* | Street narratives over Madlib/Alchemist production; critical acclaim; raw authenticity |
+| B.U.G. Mafia | Romanian gangsta rap / G-funk | *De cartier*, *După blocuri*, *Băieții buni* | Founders of Romanian gangsta rap (Bucharest, 1993-); Tataee's G-funk and cinematic beats; three MCs with sung female hooks; housing-estate life after 1989 [Deep Dive](artists/bug-mafia.md) |
 | Pop Smoke | Drill gangsta | *Shoot for the Stars, Aim for the Moon* | Brooklyn drill pioneer; deep voice, UK drill influence; posthumous commercial success |
 
 ## Suno Prompt Keywords
