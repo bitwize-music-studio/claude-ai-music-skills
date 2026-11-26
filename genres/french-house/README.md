@@ -51,7 +51,7 @@ French house's influence remains embedded in modern electronic music. Daft Punk'
 | Alan Braxe | *The Upper Cuts* | 1997-present | Collaborative producer; co-wrote "Music Sounds Better with You"; melodic, pop-leaning filter house |
 | Air | *Moon Safari*, *10 000 Hz Legend* | 1995-2012 | Downtempo/lounge side of French touch; Versailles duo brought cinematic, dreamy electronic pop |
 | Dimitri from Paris | *Sacrebleu*, *A Night at the Playboy Mansion* | 1996-present | DJ and producer bridging disco, lounge, and French house; remix and compilation expertise |
-| Justice | *†*, *Audio, Video, Disco.* | 2003-present | Second-generation French house; distorted, aggressive electro-house rooted in French touch traditions |
+| Justice | *†* (2007), *Audio, Video, Disco.* (2011), *Woman* (2016), *Hyperdrama* (2024) | 2003-present | Second-generation French house ("French Touch 2.0"), Ed Banger's flagship; distorted, aggressive electro-house on *†*, then prog rock, disco-funk and polished synth-disco [Deep Dive](artists/justice.md) |
 | Bob Sinclar | *Paradise*, *Western Dream* | 1998-present | Accessible, radio-friendly French house and disco house; global DJ and producer |
 | DJ Falcon | *Hello My Name Is DJ Falcon* | 1999-present | Roulé label affiliate; raw, sample-driven filter house with deep disco roots |
 | Breakbot | *By Your Side*, *Still Waters* | 2006-present | Modern French house; live funk instrumentation, clean production, nu-disco sensibility |
@@ -88,7 +88,7 @@ late 90s electronic, 2000s electronic, retro disco, modern disco, Parisian
 
 - **Étienne de Crécy - "Prix Choc"** — From the landmark 1996 compilation *Super Discount*: a minimal, pounding filter house track that strips the formula to its essentials, showcasing how a single filtered loop and kick pattern can generate relentless dancefloor momentum
 
-- **Justice - "D.A.N.C.E."** — The 2007 single that bridged French house and blog-era electro: children's choir vocals, distorted synths, and filtered disco DNA processed through a heavier, more aggressive aesthetic, marking the genre's evolution into a new generation
+- **Justice - "D.A.N.C.E."** — The 2007 single that bridged French house and blog-era electro: a children's choir over a disco groove, in the louder, more aggressive style of their debut, marking the genre's evolution into a new generation
 
 - **Air - "Sexy Boy"** — The 1998 *Moon Safari* single showcasing the downtempo, cinematic side of French touch: vocoder-processed vocals, warm analog synths, and a laid-back groove that expanded the movement's sonic palette beyond dancefloor-only territory
 
