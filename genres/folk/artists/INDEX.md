@@ -10,6 +10,7 @@ members, discography, or musical analysis.
 |--------|-------|----------------|
 | Israel Kamakawiwoʻole (IZ) | Hawaiian folk, island folk, Jawaiian | [Full Deep Dive](israel-kamakawiwoole.md) |
 | Mumford & Sons | Arena folk, folk rock, indie folk | [Full Deep Dive](mumford-and-sons.md) |
+| Sufjan Stevens | Indie folk, orchestral chamber folk, hushed home-recorded folk, electronic | [Full Deep Dive](sufjan-stevens.md) |
 
 ## Suno Prompt Keywords
 
@@ -61,6 +62,21 @@ organic acoustic production, warm folk recording, room sound folk,
 arena-scale folk mix, big folk sound, expansive acoustic mix
 ```
 
+### Sufjan Stevens
+```
+indie folk, chamber folk, baroque pop, orchestral indie folk, singer-songwriter, lo-fi home recording,
+fingerpicked acoustic guitar, circular fingerpicking, plucked banjo,
+soft piano chords, Wurlitzer, oboe, English horn, flute, recorder, muted trumpet, brass fanfare,
+string quartet, vibraphone, glockenspiel, xylophone,
+hushed breathy male tenor, whispered vocal, boyish tenor, stacked soft harmonies,
+choir of friends, childlike chorus, gang choir hook, female backing harmonies,
+odd meter, 5/4 time, 3/4 waltz, minimalist repeating patterns, interlocking ostinatos,
+quiet verse into booming chorus, slow build to orchestral swell, tape hiss, ambient drone, found sound,
+grief and memory, faith and doubt, American places and history, childhood summers, tender and devastating,
+glitchy electronic beats, analog synth pads, vocoder, epic electronic suite,
+intimate and maximal, delicate, devotional, melancholic
+```
+
 ## Reference Tracks
 
 ### Israel Kamakawiwoʻole (IZ)
@@ -82,3 +98,16 @@ arena-scale folk mix, big folk sound, expansive acoustic mix
 - "Believe" (Wilder Mind, 2015) — Electric reinvention; no banjo; synths and atmospheric production
 - "Guiding Light" (Delta, 2018) — Middle-ground sound; acoustic-electric blend; arena-folk
 - "Rushmere" (Rushmere, 2025) — Trio-era return to roots; folk-pop with banjo and anthemic peak
+
+### Sufjan Stevens
+- "To Be Alone with You" (2004) — Quiet devotional love song from the banjo-led *Seven Swans*
+- "Chicago" (2005) — Trumpet, strings, vibraphone and choir; booming choruses against quiet verses
+- "Casimir Pulaski Day" (2005) — Hushed grief, faith and doubt
+- "John Wayne Gacy, Jr." (2005) — Whispered, unsettling character study
+- "Come On! Feel the Illinoise!" (2005) — 5/4 chamber-pop with minimalist figures
+- "Impossible Soul" (2010) — Twenty-five-minute electronic and orchestral suite
+- "Should Have Known Better" (2015) — Fingerpicked confession with piano
+- "Fourth of July" (2015) — Piano, drone and tape hiss; grief for his mother
+- "Mystery of Love" (2017) — Oscar-nominated acoustic love song
+- "Video Game" (2020) — Synth-pop
+- "Will Anybody Ever Love Me?" (2023) — Whispered piano-and-guitar song opening into layered harmonies
