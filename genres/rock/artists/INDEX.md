@@ -64,7 +64,7 @@ harmonica and guitar, trumpet accent indie pop,
 New Wave synth accents, sleigh bells indie pop,
 stripped-back indie rock, concise pop songs, hook-driven jangle,
 dreamy indie rock, hazy jangle pop, sun-dappled indie,
-R.E.M. influenced, college rock jangle, Rough Trade sound
+80s college radio jangle, college rock jangle, Rough Trade sound
 ```
 
 ### Incubus
