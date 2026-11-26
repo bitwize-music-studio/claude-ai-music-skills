@@ -53,7 +53,7 @@ Post-rock's evolution has taken it from underground art-rock circles to mainstre
 | Russian Circles | *Enter*, *Geneva*, *Station* | 2004-present | Chicago post-metal; heavy, aggressive dynamics without vocals; technical precision meets crushing weight |
 | This Will Destroy You | *Young Mountain*, *This Will Destroy You*, *Tunnel Blanket* | 2005-present | Texas cinematic post-rock; intensely emotional crescendos; darker and heavier than Explosions in the Sky |
 | Mono | *One Step More and You Die*, *Hymn to the Immortal Wind*, *Requiem for Hell* | 1999-present | Japanese post-rock; orchestral arrangements, extreme dynamics, collaboration with classical ensembles |
-| Talk Talk | *Spirit of Eden*, *Laughing Stock* | 1986-1991 | British proto-post-rock; evolved from synth-pop to pioneering impressionistic sound paintings; foundational influence |
+| Talk Talk | *Spirit of Eden* (1988), *Laughing Stock* (1991) | 1981-1991 | British proto-post-rock; evolved from synth-pop to pioneering impressionistic sound paintings; foundational influence [Deep Dive](../art-pop/artists/talk-talk.md) |
 | Pelican | *The Fire in Our Throats Will Beckon the Thaw*, *City of Echoes* | 2001-present | Chicago post-metal; instrumental heavy rock with patient builds; melodic despite crushing heaviness |
 | Do Make Say Think | *Goodbye Enemy Airship the Landlord Is Dead*, *Winter Hymn Country Hymn Secret Hymn* | 1995-present | Canadian post-rock collective; horn sections, improvisation, jazz influences alongside guitar dynamics |
 | Caspian | *The Four Trees*, *Waking Season*, *Dust and Disquiet* | 2004-present | Massachusetts cinematic post-rock; lush, layered guitar textures building to emotional peaks |
@@ -103,7 +103,7 @@ apocalyptic, dense layers, sample-heavy, found sounds
 
 - **Mono - "Ashes in the Snow"** — Japanese post-rock with full orchestra: traditional post-rock dynamics enhanced by string arrangements; demonstrates how classical instrumentation can elevate the genre's emotional vocabulary; patient buildup to devastating orchestral climax
 
-- **Talk Talk - "After the Flood"** — Proto-post-rock from 1991's *Laughing Stock*: Mark Hollis's sparse vocals float over impressionistic instrumentation; demonstrates the genre's art-rock lineage; jazz-influenced, dynamically unpredictable, profoundly influential
+- **Talk Talk - "After the Flood"** — Proto-post-rock from 1991's *Laughing Stock*: Mark Hollis's sparse vocals float over impressionistic instrumentation; demonstrates the genre's art-rock lineage; organ, piano and feedback guitar over distant room-miked drums; dynamically unpredictable, profoundly influential
 
 - **65daysofstatic - "Retreat! Retreat!"** — Electronic post-rock hybrid: glitchy beats, synth textures, and traditional guitar dynamics create something between IDM and rock; shows the genre's capacity to incorporate electronic elements without losing identity
 

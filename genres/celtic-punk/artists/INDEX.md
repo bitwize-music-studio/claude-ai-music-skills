@@ -10,6 +10,7 @@ members, discography, or musical analysis.
 |--------|-------|----------------|
 | Dropkick Murphys | Boston Celtic punk, Irish punk, working-class punk anthem | [Full Deep Dive](dropkick-murphys.md) |
 | The Pogues | London Irish Celtic punk, Irish folk-punk, folk rock | [Full Deep Dive](the-pogues.md) |
+| Flogging Molly | Los Angeles Celtic punk, Irish folk-punk, Dublin-led thrash-jig | [Full Deep Dive](flogging-molly.md) |
 
 ## Suno Prompt Keywords
 
@@ -58,6 +59,21 @@ Christmas ballad duet, male-female duet, piano intro into full band and strings,
 folk rock, Irish pub band
 ```
 
+### Flogging Molly
+```
+Celtic punk, Irish folk punk, folk-punk, Irish-American punk, West Coast Celtic punk,
+thrash-jig, punk reel, fast jig rhythm, driving punk drums, electric guitar power chords,
+fiddle lead, tin whistle melody, uilleann pipes, piano accordion, button accordion, concertina,
+mandolin, banjo riff, bouzouki, bodhrán, spoons, acoustic guitar strumming,
+Dublin brogue vocal, snarling male vocal, gruff Irish vocal, shouted chorus,
+gang vocals, pub singalong, drinking song, emigrant song, rebel song,
+Irish history storytelling, working-class anthem, grief for a father, defiant and joyous,
+acoustic ballad, slow 3/4 ballad, building live epic, quiet verse into full-band reel,
+mariachi trumpet accent, cello, female fiddler's harmony,
+raw live-in-the-room recording, loud and rowdy, warm polished folk-rock,
+150-170 BPM anthem, mid-tempo minor-key ballad
+```
+
 ## Reference Tracks
 
 ### Dropkick Murphys
@@ -84,3 +100,15 @@ folk rock, Irish pub band
 - "If I Should Fall from Grace with God" (1988) --- Fast, joyous song about death
 - "Thousands Are Sailing" (1988) --- Emigrant anthem
 - "Fiesta" (1988) --- Spanish fairground brass at full gallop
+
+### Flogging Molly
+- "Salty Dog" (2000) --- Fast, short and rowdy; the opener
+- "Devil's Dance Floor" (2000) --- Reel-speed folk-punk
+- "Black Friday Rule" (2000) --- Long, building live epic
+- "Drunken Lullabies" (2002) --- The banjo riff and the crowd; their signature song
+- "What's Left of the Flag" (2002) --- Fast tribute to King's father
+- "If I Ever Leave This World Alive" (2002) --- The ballad
+- "The Seven Deadly Sins" (2004) --- Compact "kitchen-party Celtic assault"
+- "Tobacco Island" (2004) --- History song about Cromwell's transportations
+- "Requiem for a Dying Song" (2008) --- Fast single from their highest-charting album
+- "Float" (2008) --- Minor-key, mid-tempo title track

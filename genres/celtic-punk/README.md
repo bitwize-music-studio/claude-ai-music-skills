@@ -79,7 +79,7 @@ Celtic punk's themes reflect its working-class roots and immigrant heritage: Iri
 |--------|---------------|----------------|------------|
 | **The Pogues** | Original UK Celtic Punk | *Red Roses for Me* (1984), *Rum Sodomy & the Lash* (1985), *If I Should Fall from Grace with God* (1988), *Peace and Love* (1989) | 1982-1996, 2001-2014, 2024-present (without MacGowan, who died in 2023); the band that popularised Celtic punk. Shane MacGowan's slurred poetry and the band's controlled chaos established every trope. Essential. [Deep Dive](artists/the-pogues.md) |
 | **Dropkick Murphys** | Boston Celtic Punk | *Do or Die* (1998), *Sing Loud, Sing Proud* (2001), *The Warrior's Code* (2005), *Going Out in Style* (2011), *Turn Up That Dial* (2021) | 1996-present; stadium-level success, sports anthem crossover. Defined American Celtic punk. "Shipping Up to Boston" is genre's most recognizable song. [Deep Dive](artists/dropkick-murphys.md) |
-| **Flogging Molly** | LA Celtic Punk | *Swagger* (2000), *Drunken Lullabies* (2002), *Within a Mile of Home* (2004), *Float* (2008), *Life Is Good* (2017) | 1997-present; Dave King's Dublin authenticity meets LA punk scene. Strong traditional Irish instrumentation. |
+| **Flogging Molly** | LA Celtic Punk | *Swagger* (2000), *Drunken Lullabies* (2002), *Within a Mile of Home* (2004), *Float* (2008), *Life Is Good* (2017) | Formed mid-1990s (first release 1997)-present; Dave King's Dublin authenticity meets LA punk scene. Strong traditional Irish instrumentation. [Deep Dive](artists/flogging-molly.md) |
 | **The Real McKenzies** | Scottish Celtic Punk | *Clash of the Tartans* (1998), *Loch'd & Loaded* (2001), *Westwinds* (2012), *Two Devils Will Talk* (2017) | 1992-present; Vancouver band emphasizing Scottish traditions. Bagpipes prominent. Kilted stage presence. |
 | **Stiff Little Fingers** | UK Punk / Proto-Celtic | *Inflammable Material* (1979), *Nobody's Heroes* (1980), *Go for It* (1981) | 1977-present; Belfast punk pioneers. Not purely Celtic punk but established Irish punk identity that influenced genre. Political urgency. |
 | **Street Dogs** | Boston Street Punk | *Savin Hill* (2003), *Back to the World* (2005), *State of Grace* (2008), *Stand for Something or Die for Nothing* (2018) | 2002-present; ex-Dropkick Murphys members. Street punk with Celtic elements. Boston working-class narratives. |
@@ -205,14 +205,14 @@ For style reference when prompting. Organized by function and energy level:
 
 - **Dropkick Murphys - "The State of Massachusetts"** (2007) - Perfect example of verse-chorus Celtic punk structure. Gang vocals throughout; accordion and fiddle weaving through distorted guitars. Narrative about family, addiction, and state intervention. Working-class Boston storytelling at its finest. Shows how Celtic punk handles serious subjects with anthemic delivery.
 
-- **Flogging Molly - "Drunken Lullabies"** (2002) - LA Celtic punk's defining statement. Dave King's Dublin accent over traditional instrumentation; fiddle and mandolin prominent. Drinking song energy with genuine folk credibility. Anti-war subtext beneath celebratory surface. The song that made Flogging Molly.
+- **Flogging Molly - "Drunken Lullabies"** (2002) - LA Celtic punk's defining statement. Dave King's Dublin accent over traditional instrumentation; built on a banjo riff ("The second the banjo riff comes in, people just lose their minds" — King). Drinking song energy with genuine folk credibility; King says it is about the problems in Ireland when he was growing up. The song that made Flogging Molly.
 
 - **The Pogues - "If I Should Fall from Grace with God"** (1988) - Original Celtic punk template at its most urgent. MacGowan's slurred poetry over chaotic folk-punk. Establishes the raw, loose energy that defines the genre. Tinged with mortality; title track of their commercial peak album.
 
 ### Emotional Ballads
 - **Dropkick Murphys - "Rose Tattoo"** (2011) - The definitive emotional Celtic punk anthem. Acoustic verses building to full-band chorus; gravelly vocals with gang vocal payoff. Memorial tribute energy that moves from intimate to explosive. Dedicated to departed loved ones. Makes grown men weep at concerts.
 
-- **Flogging Molly - "If I Ever Leave This World Alive"** (2002) - Emotional acoustic-driven ballad showing genre's softer side. Finger-picked mandolin; mournful reflection on mortality and love. Became unexpected hit due to emotional resonance. Demonstrates Celtic punk's range beyond aggression.
+- **Flogging Molly - "If I Ever Leave This World Alive"** (2002) - Emotional acoustic-driven ballad showing genre's softer side; mournful reflection on mortality and love. First released live in 1997; later on the *P.S. I Love You* soundtrack (2007). Demonstrates Celtic punk's range beyond aggression.
 
 - **The Pogues - "A Rainy Night in Soho"** (1985) - MacGowan's most beautiful ballad. Piano and fiddle; stripped-back instrumentation. Romantic nostalgia for London's immigrant community. Poetic lyrics at their most tender. Essential for understanding Celtic punk's emotional depth.
 
@@ -225,7 +225,7 @@ For style reference when prompting. Organized by function and energy level:
 
 - **The Pogues - "Dirty Old Town"** (1985) - Traditional folk song (Ewan MacColl) given punk treatment. Demonstrates how Celtic punk reimagines standards. Industrial working-class imagery. MacGowan finds beauty in urban grit.
 
-- **Flogging Molly - "What's Left of the Flag"** (2002) - Faster punk energy with political edge. Emigrant narrative with Irish political undertones. Demonstrates Flogging Molly's ability to balance folk and punk elements. Fiddle driving the verses.
+- **Flogging Molly - "What's Left of the Flag"** (2002) - Faster punk energy. A tribute to Dave King's late father that he has also called a song "about freedom". Demonstrates Flogging Molly's ability to balance folk and punk elements: mandolin, "a feisty fiddle and lilting tin whistle" (Phoenix New Times, 2002).
 
 ### Traditional Songs Reimagined
 - **The Real McKenzies - "Loch Lomond"** (1998) - Scottish Celtic punk treatment of traditional ballad. Bagpipes and punk guitars together. Demonstrates Scottish variant of genre and how Celtic punk handles standards. Kilted punk irreverence.

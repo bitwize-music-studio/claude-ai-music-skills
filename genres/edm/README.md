@@ -52,7 +52,7 @@ From intimate underground warehouse parties to massive festival stages accommoda
 | Tiesto | Trance/Big Room | *In Search of Sunrise* series, *Elements of Life* (2007) | 1994-present | Active |
 | Armin van Buuren | Trance | *Imagine* (2008), *Intense* (2013), "This Is What It Feels Like" | 1995-present | Active |
 | Calvin Harris | Electro/Pop-EDM | *18 Months* (2012), *Motion* (2014), "Feel So Close" | 2006-present | Active |
-| Avicii | Progressive House | *True* (2013), "Wake Me Up", "Levels" | 2008-2018 | Deceased |
+| Avicii | Progressive House | *True* (2013), "Wake Me Up", "Levels" [Deep Dive](artists/avicii.md) | 2006-2018 | Deceased |
 | Martin Garrix | Big Room/Future Bass | "Animals" (2013), *Seven* (2023) | 2012-present | Active |
 | Flume | Future Bass/Experimental | *Flume* (2012), *Skin* (2016), "Never Be Like You" | 2011-present | Active |
 | Eric Prydz | Progressive House | *Opus* (2016), "Call on Me", "Pjanoo" | 1999-present | Active |
@@ -105,7 +105,7 @@ For style reference when prompting:
 
 - **The Chemical Brothers - "Block Rockin' Beats"** (1997) — Big beat classic bridging rock energy with electronic production; demonstrates EDM's crossover potential and sample-based creativity
 
-- **Avicii - "Levels"** (2011) — Progressive house anthem that epitomized EDM's mainstream breakthrough; memorable vocal sample, euphoric builds, and festival-ready structure
+- **Avicii - "Levels"** (2011) — Progressive house anthem that epitomized EDM's mainstream breakthrough; a memorable Etta James vocal sample ("Something's Got a Hold on Me", 1962), euphoric builds, and festival-ready structure
 
 - **Eric Prydz - "Pjanoo"** (2008) — Progressive house built on a single iconic piano riff; demonstrates the hypnotic power of repetition and gradual evolution in dance music
 

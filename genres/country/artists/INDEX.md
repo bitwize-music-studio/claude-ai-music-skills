@@ -17,6 +17,7 @@ members, discography, or musical analysis.
 | Alan Jackson | Neo-traditional country, honky-tonk, steel guitar-driven country | [Full Deep Dive](alan-jackson.md) |
 | Sturgill Simpson | Outlaw country, psychedelic country, country-soul fusion, bluegrass | [Full Deep Dive](sturgill-simpson.md) |
 | Tyler Childers | Appalachian country, neotraditional country, fiddle-driven folk-country | [Full Deep Dive](tyler-childers.md) |
+| Loretta Lynn | Traditional country, honky-tonk, 1960s-70s Nashville, Appalachian roots | [Full Deep Dive](loretta-lynn.md) |
 
 ## Suno Prompt Keywords
 
@@ -244,6 +245,20 @@ fiddle and steel guitar-forward mix, acoustic-driven country arrangement,
 warm country production, natural reverb, room sound
 ```
 
+### Loretta Lynn
+```
+traditional country, classic country, 1960s Nashville country, 1970s country, honky-tonk,
+female country vocalist, Kentucky drawl, twangy female vocal, tense vibrato, powerful country belt,
+plain-spoken storytelling, defiant female narrator, sassy and tough, working-class woman's song,
+steel guitar, pedal steel, honky-tonk piano, twangy electric lead guitar, fiddle, banjo, Dobro,
+upright bass, brushed snare, two-step, country waltz,
+backing vocal quartet, ooh and ahh backing vocals, call-and-response duet, male-female country duet,
+short punchy song, two-and-a-half-minute single, quick intro,
+marriage and cheating, drinking husband, motherhood, coal country, Appalachian roots,
+mountain gospel, Appalachian folk ballad, acoustic string band, mandolin, autoharp,
+raw analog recording, live-band roots rock with pedal steel, garage-country grit
+```
+
 ## Reference Tracks
 
 ### Johnny Cash
@@ -333,3 +348,16 @@ warm country production, natural reverb, room sound
 - "Way of the Triune God" (Can I Take My Hounds to Heaven?, 2022) — Gospel-country at its most searching. Three versions reveal the same song through radically different sonic lenses.
 - "Nose on the Grindstone" (Purgatory, 2017) — Working-class narrative. Fiddle-driven, propulsive, capturing the daily grind with empathy and specificity.
 - "In Your Love" (Rustin' in the Rain, 2023) — Country love song and landmark for LGBTQ+ representation. Warm, steel-guitar-centered sound.
+
+### Loretta Lynn
+- "I'm a Honky Tonk Girl" (1960) — The first record: West Coast honky-tonk with steel guitar
+- "Don't Come Home A-Drinkin'" (1966) — First No. 1; a wife's warning to a drinking husband
+- "You Ain't Woman Enough" (1966) — Confident put-down of a rival
+- "Fist City" (1968) — Tough, funny warning to another woman
+- "Coal Miner's Daughter" (1970) — Autobiography with steel, fiddle and banjo
+- "After the Fire Is Gone" (1971) — Grammy-winning cheating duet
+- "One's on the Way" (1971) — Overwhelmed mother's comic lament
+- "Rated 'X'" (1972) — The stigma of divorce; banned by some stations
+- "The Pill" (1975) — Birth-control anthem; her most controversial record
+- "Portland Oregon" (2004) — Raw roots-rock duet; Grammy winner
+- "Van Lear Rose" (2004) — Title song named for the Van Lear coal country of her childhood

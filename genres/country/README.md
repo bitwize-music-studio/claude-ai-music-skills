@@ -56,7 +56,7 @@ Country music is a quintessentially American genre rooted in folk, blues, and go
 | Randy Travis | Neotraditional/Gospel | *Storms of Life*, *Always & Forever*, *Rise and Shine* | [Deep Dive](artists/randy-travis.md) Neo-traditionalist pioneer; deep bass-baritone; 25M+ records sold; 7 Grammys; Country Music Hall of Fame 2016; AI-assisted comeback 2024 |
 | Alan Jackson | Traditional/Neo-Traditionalist | *A Lot About Livin'*, *Don't Rock the Jukebox*, *Drive* | [Deep Dive](artists/alan-jackson.md) Neo-traditionalist icon; 75M+ records sold; Country Music Hall of Fame 2017; George Jones-influenced honky-tonk |
 | Cody Jinks | Texas Country | *Lifers*, *Less Wise* | Independent success; outlaw ethos; working-class themes |
-| Loretta Lynn | Traditional | *Coal Miner's Daughter*, *Van Lear Rose* | Feminist icon; Appalachian roots; Jack White collaboration |
+| Loretta Lynn | Traditional | *Coal Miner's Daughter*, *Van Lear Rose* | [Deep Dive](artists/loretta-lynn.md) Reluctant feminist icon and voice of working-class women; Appalachian roots; 16 No. 1s (1966-1978); Jack White collaboration |
 
 ## Suno Prompt Keywords
 
